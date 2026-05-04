@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lecture Intelligente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
+  <style>
+    :root {
+      --bg: #fafaf8; --bg2: #f2f1ed; --bg3: #e8e7e2;
+      --text: #1a1916; --text2: #5a5954; --text3: #9a9893;
+      --border: rgba(26,25,22,0.12); --border2: rgba(26,25,22,0.22); --border3: rgba(26,25,22,0.35);
+      --accent: #c2410c; --highlight: rgba(255,220,0,0.5);
+      --radius: 8px; --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1916; --bg2: #232220; --bg3: #2d2c29;
+        --text: #f0efe9; --text2: #a0a09a; --text3: #606058;
+        --border: rgba(240,239,233,0.1); --border2: rgba(240,239,233,0.2); --border3: rgba(240,239,233,0.3);
+        --accent: #f97316; --highlight: rgba(249,115,22,0.4);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow: hidden; }
+    .layout { display: flex; height: 100vh; width: 100%; }
+    #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; }
+    #pdf-panel.active { display: flex; flex: 0 0 50%; }
+    .pdf-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--bg); flex-wrap: wrap; }
+    .pdf-toolbar button, .pdf-toolbar label.btn { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
+    .pdf-toolbar button:hover:not(:disabled), .pdf-toolbar label.btn:hover { background: var(--bg3); }
+    .pdf-toolbar button:disabled { opacity: .4; cursor: default; }
+    .pdf-toolbar button.highlight-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .pdf-toolbar button.highlight-btn:hover { opacity: .85; }
+    .pdf-toolbar .pdf-info { font-size: 12px; color: var(--text2); margin-left: auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-viewer { flex: 1; overflow: auto; background: var(--bg3); padding: 12px; display: flex; justify-content: center; align-items: flex-start; }
+    .pdf-canvas-wrap { position: relative; box-shadow: 0 2px 8px rgba(0,0,0,.15); background: #fff; }
+    .pdf-canvas-wrap canvas { display: block; max-width: 100%; height: auto; }
+    .textLayer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.25; line-height: 1.0; }
+    .textLayer > span { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+    .textLayer ::selection { background: var(--highlight); }
+    .textLayer ::-moz-selection { background: var(--highlight); }
+    .pdf-empty { padding: 2rem 1rem; text-align: center; color: var(--text2); font-size: 13px; line-height: 1.6; }
+    .pdf-empty label { display: inline-block; margin-top: 1rem; padding: 10px 16px; background: var(--text); color: var(--bg); border-radius: var(--radius); cursor: pointer; font-weight: 500; }
+    .highlights-bar { padding: 8px 12px; border-top: 0.5px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text2); max-height: 140px; overflow-y: auto; }
+    .highlights-bar h5 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
+    .hl-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 0.5px dashed var(--border); }
+    .hl-item:last-child { border-bottom: none; }
+    .hl-page { flex: 0 0 auto; font-size: 10px; padding: 2px 6px; background: var(--bg2); border-radius: 4px; margin-top: 2px; }
+    .hl-text { flex: 1; line-height: 1.4; font-size: 12px; }
+    .hl-del { flex: 0 0 auto; background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0 4px; }
+    .hl-del:hover { color: var(--accent); }
+    .hl-popup { position: absolute; z-index: 200; background: var(--text); color: var(--bg); padding: 0; border-radius: var(--radius); font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.25); display: none; animation: hlFadeIn .15s ease; }
+    .hl-popup button { background: transparent; color: var(--bg); border: none; font-family: inherit; font-size: 13px; cursor: pointer; padding: 8px 14px; display: flex; align-items: center; gap: 6px; font-weight: 500; border-radius: var(--radius); }
+    .hl-popup button:hover { background: rgba(255,255,255,.1); }
+    .hl-popup::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--text); }
+    @keyframes hlFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    #resizer { width: 6px; cursor: col-resize; background: var(--border); flex-shrink: 0; }
+    #resizer:hover { background: var(--border2); }
+    .main-scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 2rem 1rem 4rem; }
+    .app { width: 100%; max-width: 620px; position: relative; }
+    .top-bar { position: sticky; top: -2rem; background: var(--bg); padding: .5rem 0 1rem; margin-bottom: 1rem; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .btn-pdf-toggle { padding: 8px 12px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-pdf-toggle.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .app-title { font-family: 'Lora', serif; font-size: 15px; font-weight: 400; color: var(--text3); letter-spacing: .04em; }
+    .phase-bar { display: flex; border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 2rem; }
+    .phase-tab { flex: 1; padding: 10px 8px; font-size: 12px; font-weight: 500; text-align: center; background: var(--bg2); color: var(--text2); line-height: 1.3; }
+    .phase-tab.active { background: var(--text); color: var(--bg); }
+    .phase-tab.done { background: var(--bg3); color: var(--text3); }
+    .progress-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 2rem; flex-wrap: wrap; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); transition: all .2s; }
+    .dot.active { background: var(--text); width: 18px; border-radius: 3px; }
+    .dot.done { background: var(--text2); }
+    .step-number { font-size: 11px; font-weight: 500; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: .4rem; }
+    .step-title { font-family: 'Lora', serif; font-size: 24px; font-weight: 400; line-height: 1.3; margin-bottom: 1.5rem; }
+    .step-why { font-size: 13px; color: var(--text2); line-height: 1.6; padding: 10px 14px; border-left: 2px solid var(--border2); background: var(--bg2); border-radius: 0 var(--radius) var(--radius) 0; margin-bottom: 1.5rem; }
+    .example-box { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 1.5rem; font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .example-box strong { color: var(--text); font-weight: 500; font-size: 11px; display: block; margin-bottom: 4px; letter-spacing: .06em; text-transform: uppercase; }
+    .field { margin-bottom: 1.2rem; position: relative; }
+    .field label { display: block; font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+    .input-wrap { position: relative; }
+    .field input, .field textarea { width: 100%; padding: 10px 40px 10px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--bg); color: var(--text); resize: vertical; line-height: 1.5; transition: border .15s; }
+    .field input:focus, .field textarea:focus { outline: none; border-color: var(--border3); }
+    .field textarea { min-height: 80px; }
+    .mic-btn { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; padding: 0; }
+    .mic-btn:hover { background: var(--bg3); color: var(--text); }
+    .mic-btn.listening { background: var(--accent); color: #fff; border-color: var(--accent); animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(194,65,12,.4); } 50% { box-shadow: 0 0 0 6px rgba(194,65,12,0); } }
+    .block-step { display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start; }
+    .block-num { min-width: 24px; height: 24px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; margin-top: 1px; }
+    .block-text { font-size: 14px; color: var(--text2); line-height: 1.5; padding-top: 3px; }
+    .checklist-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; cursor: pointer; transition: background .15s; font-size: 14px; }
+    .checklist-item:hover { background: var(--bg2); }
+    .check-box { width: 20px; height: 20px; border: 1.5px solid var(--border2); border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    .check-box.checked { background: var(--text); border-color: var(--text); }
+    .check-tick { display: none; width: 10px; height: 7px; border-left: 2px solid var(--bg); border-bottom: 2px solid var(--bg); transform: rotate(-45deg) translate(1px,-1px); }
+    .check-box.checked .check-tick { display: block; }
+    .type-card { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 1px solid var(--border2); border-radius: var(--radius-lg); margin-bottom: 10px; cursor: pointer; transition: all .15s; background: var(--bg); }
+    .type-card:hover { background: var(--bg2); border-color: var(--border3); }
+    .type-card.selected { border-color: var(--text); background: var(--bg2); }
+    .type-icon { font-size: 22px; line-height: 1; margin-top: 2px; }
+    .type-card h4 { font-family: 'Lora', serif; font-size: 17px; font-weight: 500; margin-bottom: 4px; }
+    .type-card p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+    .timer-display { text-align: center; padding: 1.5rem 0 1rem; }
+    .timer-circle { width: 130px; height: 130px; border-radius: 50%; border: 2px solid var(--border2); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 1rem; }
+    .timer-time { font-family: 'Lora', serif; font-size: 32px; font-weight: 400; }
+    .timer-label { font-size: 11px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+    .timer-phase-label { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 1rem; }
+    .timer-btns { display: flex; gap: 8px; max-width: 300px; margin: 0 auto; }
+    .timer-btns button { flex: 1; padding: 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: transparent; font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 500; color: var(--text); transition: background .15s; }
+    .timer-btns button:hover { background: var(--bg2); }
+    .timer-btns button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .timer-btns button.primary:hover { opacity: .85; }
+    /* Synthèse — textareas plus grands */
+    .synthesis-list { list-style: none; padding: 0; }
+    .synthesis-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+    .synthesis-num { min-width: 28px; height: 28px; border: 0.5px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text2); flex-shrink: 0; margin-top: 8px; font-weight: 500; }
+    .synthesis-item .input-wrap { flex: 1; }
+    .synthesis-item textarea { width: 100%; padding: 12px 44px 12px 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 14px; background: var(--bg); color: var(--text); min-height: 90px; resize: vertical; line-height: 1.55; }
+    .synthesis-item textarea:focus { outline: none; border-color: var(--border3); }
+    .citations-live { border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 10px; background: var(--bg2); }
+    .citations-live-head { margin-bottom: 10px; }
+    .citations-live-head h4 { font-size: 14px; font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .citations-count { background: var(--accent); color: #fff; font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+    .citations-live-head small { font-size: 12px; color: var(--text2); line-height: 1.5; display: block; }
+    .citations-live-list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; padding-right: 4px; }
+    .citations-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 1rem; font-style: italic; }
+    .citation-card { position: relative; padding: 10px 32px 10px 12px; background: var(--bg); border-radius: var(--radius); border-left: 3px solid var(--accent); }
+    .citation-meta { font-size: 10px; color: var(--text3); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+    .citation-card blockquote { font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; color: var(--text); font-style: italic; }
+    .citation-del { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: none; background: transparent; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+    .citation-del:hover { background: var(--bg3); color: var(--accent); }
+    .revision-card { border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 10px; }
+    .revision-card h4 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    .revision-card p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+    .gcal-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .gcal-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg2); color: var(--text); border: 0.5px solid var(--border2); border-radius: var(--radius); text-decoration: none; font-size: 13px; font-weight: 500; transition: background .15s; }
+    .gcal-btn:hover { background: var(--bg3); }
+    .nav-row { display: flex; gap: 8px; margin-top: 1.5rem; }
+    .btn-back { flex: 0 0 auto; padding: 10px 16px; background: transparent; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; color: var(--text2); }
+    .btn-back:hover { background: var(--bg2); }
+    .btn-main { flex: 1; padding: 12px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+    .btn-main:hover:not(:disabled) { opacity: .85; }
+    .btn-main:disabled { opacity: .35; cursor: default; }
+    .btn-secondary { padding: 10px 24px; background: transparent; color: var(--text2); border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; margin-top: 1.5rem; transition: background .15s; }
+    .btn-secondary:hover { background: var(--bg2); }
+    .btn-download { padding: 12px 24px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 1rem; transition: opacity .15s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-download:hover { opacity: .85; }
+    .success-screen { text-align: center; padding: 2rem 1rem; }
+    .success-screen h2 { font-family: 'Lora', serif; font-size: 28px; font-weight: 400; margin-bottom: .75rem; }
+    .success-screen p { font-size: 14px; color: var(--text2); line-height: 1.6; max-width: 400px; margin: 0 auto 1.5rem; }
+    .recap { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem 1.25rem; text-align: left; font-size: 13px; line-height: 1.7; }
+    .recap strong { font-weight: 500; display: block; margin-bottom: 2px; }
+    .recap .recap-block { margin-bottom: 14px; }
+    .recap .recap-val { color: var(--text2); }
+    .gcal-section { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem 1.25rem; text-align: left; margin-top: 1rem; }
+    .gcal-section h4 { font-size: 13px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .gcal-section p { font-size: 12px; color: var(--text2); line-height: 1.5; margin-bottom: 10px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 100; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    @media (max-width: 720px) {
+      .layout { flex-direction: column; }
+      #pdf-panel.active { flex: 0 0 50vh; max-width: 100%; border-right: none; border-bottom: 0.5px solid var(--border); }
+      #resizer { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <div id="pdf-panel">
+    <div class="pdf-toolbar">
+      <label class="btn">Ouvrir PDF<input id="pdf-file" type="file" accept="application/pdf" style="display:none"/></label>
+      <button id="pdf-prev" disabled>‹</button>
+      <span id="pdf-pagenum" style="font-size:12px;color:var(--text2)">—</span>
+      <button id="pdf-next" disabled>›</button>
+      <button id="pdf-zoom-out" disabled>−</button>
+      <button id="pdf-zoom-in" disabled>+</button>
+      <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)">🖍 Surligner</button>
+      <span class="pdf-info" id="pdf-filename"></span>
+    </div>
+    <div class="pdf-viewer" id="pdf-viewer">
+      <div class="pdf-empty">
+        Aucun PDF ouvert.<br>
+        <label>Sélectionner un fichier<input type="file" accept="application/pdf" style="display:none" onchange="loadPdfFromInput(event)"/></label>
+      </div>
+    </div>
+    <div class="highlights-bar" id="highlights-bar" style="display:none">
+      <h5>Passages surlignés (<span id="hl-count">0</span>)</h5>
+      <div id="hl-list"></div>
+    </div>
+  </div>
+  <div id="resizer"></div>
+  <div class="main-scroll">
+    <div class="app" id="app"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const STEPS_LIVRE = [
+  {phase:0,id:'type',title:'Type de note',num:'Démarrage'},
+  {phase:0,id:'ppu',title:'Définis ton objectif PPU',num:'Pré-lecture · 1/3'},
+  {phase:0,id:'tdm',title:'Repère les chapitres clés',num:'Pré-lecture · 2/3'},
+  {phase:0,id:'env',title:'Prépare ton environnement',num:'Pré-lecture · 3/3'},
+  {phase:1,id:'lecture',title:'Lecture active par blocs',num:'Lecture · 1/2'},
+  {phase:1,id:'pomodoro',title:'Lance ton bloc de lecture',num:'Lecture · 2/2'},
+  {phase:2,id:'synthese',title:'Synthèse en 5 idées',num:'Post-lecture · 1/3'},
+  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/3'},
+  {phase:2,id:'revision',title:'Planifie ta révision',num:'Post-lecture · 3/3'},
+];
+const STEPS_CHAPITRE = [
+  {phase:0,id:'type',title:'Type de note',num:'Démarrage'},
+  {phase:0,id:'ppu',title:'Objectif du chapitre',num:'Pré-lecture · 1/2'},
+  {phase:0,id:'env',title:'Prépare ton environnement',num:'Pré-lecture · 2/2'},
+  {phase:1,id:'lecture',title:'Lecture active par blocs',num:'Lecture · 1/2'},
+  {phase:1,id:'pomodoro',title:'Lance ton bloc de lecture',num:'Lecture · 2/2'},
+  {phase:2,id:'synthese',title:'Synthèse du chapitre',num:'Post-lecture · 1/3'},
+  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/3'},
+  {phase:2,id:'revision',title:'Planifie ta révision',num:'Post-lecture · 3/3'},
+];
+const PHASES = ['Pré-lecture','Lecture','Post-lecture'];
+
+const state = {
+  step: 0,
+  noteType: null,
+  bookTitle: '',
+  chapterTitle: '',
+  ppu: {perso:'',precis:'',utile:''},
+  tdm: {chapitres:'',ordre:''},
+  env: {'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
+  lecture: {question:''},
+  timer: {seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
+  synthese: ['','','','',''],
+  action: {conseil:'',quand:'',deadline:''},
+  highlights: [],
+  pdfPanelOpen: false,
+  done: false
+};
+
+const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null };
+
+function getSteps() { return state.noteType === 'chapitre' ? STEPS_CHAPITRE : STEPS_LIVRE; }
+function re() { render(); }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
+function escapeAttr(s) { return (s||'').replace(/"/g,'&quot;'); }
+function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ============= VOICE =============
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let currentRec = null;
+let currentMicBtn = null;
+
+function attachMic(wrapEl, targetEl) {
+  if (!SpeechRec) return;
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'mic-btn'; btn.title = 'Dictée vocale (fr-FR)'; btn.textContent = '🎤';
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (currentRec && currentMicBtn === btn) { currentRec.stop(); return; }
+    if (currentRec) { try { currentRec.stop(); } catch(_){} }
+    const rec = new SpeechRec();
+    rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = true;
+    let baseText = targetEl.value;
+    if (baseText && !baseText.endsWith(' ') && !baseText.endsWith('\n')) baseText += ' ';
+    rec.onresult = (ev) => {
+      let finalT = '', interimT = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) finalT += r[0].transcript; else interimT += r[0].transcript;
+      }
+      if (finalT) baseText += finalT;
+      targetEl.value = baseText + interimT;
+      targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    rec.onend = () => {
+      btn.classList.remove('listening');
+      if (currentRec === rec) { currentRec = null; currentMicBtn = null; }
+      targetEl.value = baseText.trim();
+      targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    rec.onerror = (e) => {
+      btn.classList.remove('listening');
+      if (e.error === 'not-allowed') showToast('Micro refusé — autorise l\'accès');
+      else if (e.error !== 'aborted' && e.error !== 'no-speech') showToast('Erreur micro : ' + e.error);
+    };
+    currentRec = rec; currentMicBtn = btn;
+    btn.classList.add('listening');
+    try { rec.start(); } catch(err) { btn.classList.remove('listening'); showToast('Micro indisponible'); }
+  });
+  wrapEl.appendChild(btn);
+}
+
+function wireVoiceOnAll() {
+  document.querySelectorAll('.input-wrap').forEach(wrap => {
+    if (wrap.dataset.micWired) return;
+    const target = wrap.querySelector('input, textarea');
+    if (!target) return;
+    attachMic(wrap, target);
+    wrap.dataset.micWired = '1';
+  });
+}
+
+// ============= PDF =============
+async function loadPdfFromInput(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  await loadPdfFile(file);
+  // reset l'input pour pouvoir recharger le même fichier après
+  e.target.value = '';
+}
+
+async function loadPdfFile(file) {
+  if (!window.pdfjsLib) { showToast('PDF.js non chargé'); return; }
+  const buf = await file.arrayBuffer();
+  try {
+    pdf.doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    pdf.page = 1;
+    pdf.total = pdf.doc.numPages;
+    pdf.name = file.name;
+    state.pdfPanelOpen = true;
+
+    // 🎯 Auto-fill du titre du livre depuis le nom du fichier
+    if (!state.bookTitle) {
+      const cleanName = file.name
+        .replace(/\.pdf$/i, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      state.bookTitle = cleanName;
+      showToast('Titre détecté : ' + cleanName);
+    }
+
+    renderPdfPanel();
+    await renderPage();
+    syncPdfPanel();
+    re();
+  } catch (err) {
+    showToast('Erreur lors du chargement du PDF');
+    console.error(err);
+  }
+}
+
+async function renderPage() {
+  if (!pdf.doc) return;
+  const page = await pdf.doc.getPage(pdf.page);
+  const viewport = page.getViewport({ scale: pdf.scale });
+  const viewer = document.getElementById('pdf-viewer');
+  viewer.innerHTML = '';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'pdf-canvas-wrap';
+  wrap.style.width = viewport.width + 'px';
+  wrap.style.height = viewport.height + 'px';
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  wrap.appendChild(canvas);
+
+  // Text layer pour permettre la sélection / surlignage
+  const textLayerDiv = document.createElement('div');
+  textLayerDiv.className = 'textLayer';
+  textLayerDiv.style.width = viewport.width + 'px';
+  textLayerDiv.style.height = viewport.height + 'px';
+  wrap.appendChild(textLayerDiv);
+  pdf.textLayerDiv = textLayerDiv;
+
+  viewer.appendChild(wrap);
+
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  try {
+    const textContent = await page.getTextContent();
+    pdfjsLib.renderTextLayer({
+      textContentSource: textContent,
+      container: textLayerDiv,
+      viewport: viewport,
+      textDivs: []
+    });
+  } catch (err) {
+    console.warn('text layer error', err);
+  }
+
+  document.getElementById('pdf-pagenum').textContent = `${pdf.page} / ${pdf.total}`;
+  document.getElementById('pdf-filename').textContent = pdf.name;
+  document.getElementById('pdf-prev').disabled = pdf.page <= 1;
+  document.getElementById('pdf-next').disabled = pdf.page >= pdf.total;
+  document.getElementById('pdf-zoom-in').disabled = false;
+  document.getElementById('pdf-zoom-out').disabled = false;
+  document.getElementById('pdf-highlight').disabled = false;
+}
+
+function renderPdfPanel() {
+  const panel = document.getElementById('pdf-panel');
+  panel.classList.toggle('active', state.pdfPanelOpen);
+}
+
+function syncPdfPanel() {
+  const btn = document.getElementById('btn-pdf-toggle');
+  if (btn) btn.classList.toggle('active', state.pdfPanelOpen);
+  renderHighlightsBar();
+}
+
+function captureHighlight() {
+  const sel = window.getSelection();
+  const txt = sel ? sel.toString().trim() : '';
+  if (!txt) { showToast('Sélectionne d\'abord du texte dans le PDF'); return; }
+  state.highlights.push({ page: pdf.page, text: txt, ts: Date.now() });
+  if (sel.removeAllRanges) sel.removeAllRanges();
+  showToast('📜 Citation archivée ✓');
+  renderHighlightsBar();
+  // Mettre à jour le panneau live si on est sur l'écran Pomodoro
+  if (document.getElementById('citations-live')) {
+    refreshCitationsLive();
+  }
+}
+
+function refreshCitationsLive() {
+  const list = document.querySelector('.citations-live-list');
+  const count = document.querySelector('.citations-count');
+  if (!list) return;
+  if (count) count.textContent = state.highlights.length;
+  if (state.highlights.length === 0) {
+    list.innerHTML = `<div class="citations-empty">Aucune citation pour l'instant — surligne ton premier passage à gauche !</div>`;
+    return;
+  }
+  list.innerHTML = state.highlights.slice().reverse().map((h, i) => {
+    const realIdx = state.highlights.length - 1 - i;
+    return `<div class="citation-card">
+      <div class="citation-meta">Page ${h.page} · ${new Date(h.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+      <blockquote>${escapeHtml(h.text)}</blockquote>
+      <button class="citation-del" data-idx="${realIdx}" title="Supprimer cette citation">✕</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.citation-del').forEach(btn => {
+    btn.onclick = () => {
+      const idx = parseInt(btn.dataset.idx);
+      state.highlights.splice(idx, 1);
+      refreshCitationsLive();
+      renderHighlightsBar();
+    };
+  });
+  // Auto-scroll vers le haut (la citation la plus récente)
+  list.scrollTop = 0;
+}
+
+function renderHighlightsBar() {
+  const bar = document.getElementById('highlights-bar');
+  const list = document.getElementById('hl-list');
+  const count = document.getElementById('hl-count');
+  if (!bar) return;
+  if (state.highlights.length === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  count.textContent = state.highlights.length;
+  list.innerHTML = state.highlights.map((h, i) => `
+    <div class="hl-item">
+      <span class="hl-page">p.${h.page}</span>
+      <span class="hl-text">${escapeHtml(h.text)}</span>
+      <button class="hl-del" data-i="${i}" title="Supprimer">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.hl-del').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const i = parseInt(e.target.dataset.i);
+      state.highlights.splice(i, 1);
+      renderHighlightsBar();
+    });
+  });
+}
+
+function wirePdfControls() {
+  const input = document.getElementById('pdf-file');
+  if (input && !input.dataset.wired) { input.dataset.wired = '1'; input.addEventListener('change', loadPdfFromInput); }
+  const bp = document.getElementById('pdf-prev');
+  if (bp) bp.onclick = () => { if (pdf.page > 1) { pdf.page--; renderPage(); } };
+  const bn = document.getElementById('pdf-next');
+  if (bn) bn.onclick = () => { if (pdf.page < pdf.total) { pdf.page++; renderPage(); } };
+  const zi = document.getElementById('pdf-zoom-in');
+  if (zi) zi.onclick = () => { pdf.scale = Math.min(3, pdf.scale + 0.2); renderPage(); };
+  const zo = document.getElementById('pdf-zoom-out');
+  if (zo) zo.onclick = () => { pdf.scale = Math.max(0.5, pdf.scale - 0.2); renderPage(); };
+  const hl = document.getElementById('pdf-highlight');
+  if (hl) hl.onclick = captureHighlight;
+}
+
+// Raccourci Ctrl+H pour surligner
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h' && pdf.doc) {
+    e.preventDefault();
+    captureHighlight();
+  }
+});
+
+// Popup automatique au-dessus de la sélection PDF
+let hlPopup = null;
+function ensureHlPopup() {
+  if (hlPopup) return hlPopup;
+  hlPopup = document.createElement('div');
+  hlPopup.className = 'hl-popup';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = '🖍 Enregistrer le surlignage';
+  // mousedown: empêcher la perte de focus/sélection avant le click
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    captureHighlight();
+    hideHlPopup();
+  });
+  hlPopup.appendChild(btn);
+  document.body.appendChild(hlPopup);
+  return hlPopup;
+}
+function hideHlPopup() { if (hlPopup) hlPopup.style.display = 'none'; }
+
+document.addEventListener('mouseup', () => {
+  setTimeout(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) { hideHlPopup(); return; }
+    const range = sel.getRangeAt(0);
+    const node = range.commonAncestorContainer;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el || !el.closest('.textLayer')) { hideHlPopup(); return; }
+    const rect = range.getBoundingClientRect();
+    if (!rect.width || !rect.height) { hideHlPopup(); return; }
+    const pop = ensureHlPopup();
+    pop.style.display = 'block';
+    // Positionner au-dessus de la sélection, centré
+    const popW = pop.offsetWidth;
+    const popH = pop.offsetHeight;
+    let left = rect.left + window.scrollX + rect.width / 2 - popW / 2;
+    let top = rect.top + window.scrollY - popH - 10;
+    // Si trop haut (hors viewport), passer en-dessous
+    if (top < window.scrollY + 4) {
+      top = rect.bottom + window.scrollY + 10;
+      pop.classList.add('below');
+    } else {
+      pop.classList.remove('below');
+    }
+    // Borner horizontalement
+    left = Math.max(4, Math.min(window.innerWidth - popW - 4, left));
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }, 10);
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (hlPopup && !hlPopup.contains(e.target)) hideHlPopup();
+});
+window.addEventListener('scroll', hideHlPopup, true);
+
+// Resizer
+(function setupResizer() {
+  const resizer = document.getElementById('resizer');
+  const panel = document.getElementById('pdf-panel');
+  let dragging = false;
+  resizer.addEventListener('mousedown', () => { dragging = true; document.body.style.cursor = 'col-resize'; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging || !panel.classList.contains('active')) return;
+    const w = Math.max(280, Math.min(window.innerWidth * 0.75, e.clientX));
+    panel.style.flex = `0 0 ${w}px`;
+  });
+  window.addEventListener('mouseup', () => { dragging = false; document.body.style.cursor = ''; });
+})();
+
+// ============= GOOGLE CALENDAR =============
+function gcalDateFormat(d) {
+  // Format YYYYMMDDTHHMMSSZ (UTC)
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function gcalUrl(title, startDate, durationMin, details) {
+  const end = new Date(startDate.getTime() + durationMin * 60000);
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${gcalDateFormat(startDate)}/${gcalDateFormat(end)}`,
+    details: details || ''
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function getCalendarEvents() {
+  const j1 = new Date(); j1.setDate(j1.getDate() + 1); j1.setHours(9, 0, 0, 0);
+  const j7 = new Date(); j7.setDate(j7.getDate() + 7); j7.setHours(9, 0, 0, 0);
+  const titre = state.bookTitle || (state.noteType === 'chapitre' ? state.chapterTitle : 'mes notes') || 'mes notes';
+
+  const synthese = state.synthese.filter(s => s.trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
+  const detailsJ1 = `Relire ma synthèse de "${titre}" (2 min).\n\nSynthèse :\n${synthese}\n\nObjectif : ${state.ppu.precis || ''}`;
+  const detailsJ7 = `Bilan de l'action testée après lecture de "${titre}".\n\nAction : ${state.action.conseil || ''}\nDémarrée : ${state.action.quand || ''}\n\nQuestions :\n- Est-ce que ça a marché ?\n- Faut-il ajuster ?\n- Explorer d'autres chapitres ?`;
+
+  return {
+    j1: gcalUrl(`📖 Relire mes notes — ${titre}`, j1, 15, detailsJ1),
+    j7: gcalUrl(`📖 Bilan d'action — ${titre}`, j7, 20, detailsJ7),
+    j1Date: j1, j7Date: j7
+  };
+}
+
+// ============= MARKDOWN =============
+function generateMarkdown() {
+  const date = new Date().toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric' });
+  const synItems = state.synthese.filter(s => s.trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
+  const isChapter = state.noteType === 'chapitre';
+
+  let md = `# ${isChapter ? 'Note de chapitre' : 'Note de livre'} — Lecture Intelligente\n\n`;
+  md += `> Session du ${date}\n\n`;
+  if (state.bookTitle) md += `**Livre** : ${state.bookTitle}\n`;
+  if (isChapter && state.chapterTitle) md += `**Chapitre** : ${state.chapterTitle}\n`;
+  md += `\n---\n\n`;
+
+  md += `## Objectif${isChapter ? ' du chapitre' : ' PPU'}\n\n`;
+  md += `- **Personnel** : ${state.ppu.perso || '—'}\n`;
+  md += `- **Précis** : ${state.ppu.precis || '—'}\n`;
+  md += `- **Utile** : ${state.ppu.utile || '—'}\n\n`;
+
+  if (!isChapter) {
+    md += `## Chapitres prioritaires\n\n`;
+    md += `${state.tdm.chapitres || '—'}\n\n`;
+    if (state.tdm.ordre) md += `**Ordre d'attaque** : ${state.tdm.ordre}\n\n`;
+  }
+
+  md += `## Question de lecture\n\n`;
+  md += `${state.lecture.question || '—'}\n\n`;
+
+  md += `## Synthèse\n\n`;
+  md += synItems ? `${synItems}\n\n` : '—\n\n';
+
+  md += `## Plan d'action\n\n`;
+  md += `- **Conseil à tester** : ${state.action.conseil || '—'}\n`;
+  md += `- **Quand** : ${state.action.quand || '—'}\n`;
+  md += `- **Deadline bilan** : ${state.action.deadline || '—'}\n\n`;
+
+  const cal = getCalendarEvents();
+  md += `## Révision espacée\n\n`;
+  md += `- [ ] **J+1 (${cal.j1Date.toLocaleDateString('fr-FR')})** — Relire la synthèse (2 min)\n`;
+  md += `  - 📅 [Ajouter au Google Agenda](${cal.j1})\n`;
+  md += `- [ ] **J+7 (${cal.j7Date.toLocaleDateString('fr-FR')})** — Bilan de l'action testée\n`;
+  md += `  - 📅 [Ajouter au Google Agenda](${cal.j7})\n\n`;
+
+  // 📜 Citations archivées (à la toute fin)
+  if (state.highlights.length > 0) {
+    md += `---\n\n`;
+    md += `## 📜 Citations (${state.highlights.length})\n\n`;
+    md += `*Passages surlignés pendant la lecture, archivés automatiquement.*\n\n`;
+    state.highlights.forEach((h, i) => {
+      md += `### ${i + 1}. Page ${h.page}\n\n`;
+      md += `> ${h.text.replace(/\n+/g, '\n> ')}\n\n`;
+    });
+  }
+
+  return md;
+}
+
+function defaultFilename() {
+  const date = new Date().toISOString().slice(0, 10);
+  const kind = state.noteType === 'chapitre' ? 'chapitre' : 'livre';
+  const slug = (state.bookTitle || 'lecture').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'lecture';
+  return `${kind}-${slug}-${date}.md`;
+}
+
+async function saveMarkdownAs() {
+  const md = generateMarkdown();
+  const filename = defaultFilename();
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(md);
+      await writable.close();
+      showToast('Fichier enregistré ✓');
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      console.warn('showSaveFilePicker failed, falling back', err);
+    }
+  }
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Téléchargement lancé');
+}
+
+// ============= RENDER =============
+function render() {
+  const app = document.getElementById('app');
+  const STEPS = getSteps();
+
+  if (state.done) { app.innerHTML = renderDone(); bindEvents(); wireVoiceOnAll(); wirePdfControls(); syncPdfPanel(); return; }
+
+  const s = STEPS[state.step];
+
+  const topBar = `<div class="top-bar">
+    <div class="app-title">Lecture Intelligente</div>
+    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF">📄 PDF</button>
+  </div>`;
+
+  let phases = '<div class="phase-bar">';
+  PHASES.forEach((p,i) => {
+    let cls = 'phase-tab';
+    if (i === s.phase) cls += ' active';
+    else if (i < s.phase) cls += ' done';
+    phases += `<div class="${cls}">${i < s.phase ? '✓ ' : ''}${p}</div>`;
+  });
+  phases += '</div>';
+
+  let dots = '<div class="progress-dots">';
+  STEPS.forEach((_,i) => {
+    let cls = 'dot';
+    if (i === state.step) cls += ' active';
+    else if (i < state.step) cls += ' done';
+    dots += `<div class="${cls}"></div>`;
+  });
+  dots += '</div>';
+
+  let body = '';
+  if (s.id==='type') body = renderType();
+  else if (s.id==='ppu') body = renderPPU();
+  else if (s.id==='tdm') body = renderTDM();
+  else if (s.id==='env') body = renderEnv();
+  else if (s.id==='lecture') body = renderLecture();
+  else if (s.id==='pomodoro') body = renderPomodoro();
+  else if (s.id==='synthese') body = renderSynthese();
+  else if (s.id==='action') body = renderAction();
+  else if (s.id==='revision') body = renderRevision();
+
+  app.innerHTML = topBar + phases + dots +
+    `<div class="step-number">${s.num}</div><div class="step-title">${s.title}</div>` + body;
+
+  bindEvents(); wireVoiceOnAll(); wirePdfControls(); syncPdfPanel();
+  // Câbler les boutons de suppression de citations dans le panneau Pomodoro
+  document.querySelectorAll('.citations-live-list .citation-del').forEach(btn => {
+    btn.onclick = () => {
+      const idx = parseInt(btn.dataset.idx);
+      state.highlights.splice(idx, 1);
+      refreshCitationsLive();
+      renderHighlightsBar();
+    };
+  });
+}
+
+function inputField(label, id, value, placeholder) {
+  return `<div class="field"><label>${label}</label><div class="input-wrap"><input id="${id}" type="text" placeholder="${placeholder||''}" value="${escapeAttr(value)}"/></div></div>`;
+}
+function textareaField(label, id, value, placeholder, rows) {
+  return `<div class="field"><label>${label}</label><div class="input-wrap"><textarea id="${id}" placeholder="${placeholder||''}" rows="${rows||2}">${escapeHtml(value)}</textarea></div></div>`;
+}
+
+function renderType() {
+  const isLivre = state.noteType === 'livre';
+  const isChap = state.noteType === 'chapitre';
+  return `
+  <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section.</div>
+  <div class="type-card ${isLivre?'selected':''}" data-type="livre">
+    <div class="type-icon">📚</div>
+    <div><h4>Note de livre</h4><p>Flux complet&nbsp;: objectif PPU, repérage des chapitres, lecture, synthèse, action, révision.</p></div>
+  </div>
+  <div class="type-card ${isChap?'selected':''}" data-type="chapitre">
+    <div class="type-icon">📄</div>
+    <div><h4>Note de chapitre</h4><p>Flux allégé centré sur un seul chapitre, sans étape de table des matières.</p></div>
+  </div>
+  <div class="field" style="margin-top:1.2rem">
+    <label>Titre du livre <span style="color:var(--text3);font-weight:400">(rempli auto si tu ouvres un PDF)</span></label>
+    <div class="input-wrap"><input id="book-title" type="text" placeholder="Ex: Why We Sleep" value="${escapeAttr(state.bookTitle)}"/></div>
+  </div>
+  ${isChap ? `<div class="field">
+    <label>Titre ou numéro du chapitre</label>
+    <div class="input-wrap"><input id="chapter-title" type="text" placeholder="Ex: Chapitre 3 — Le sommeil paradoxal" value="${escapeAttr(state.chapterTitle)}"/></div>
+  </div>` : ''}
+  <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType?'disabled':''}>Commencer →</button></div>`;
+}
+
+function renderPPU() {
+  const isChap = state.noteType === 'chapitre';
+  return `
+  <div class="step-why">Sans objectif clair, la lecture devient passive. Un objectif PPU (Personnel, Précis, Utile) augmente la rétention jusqu'à 25&nbsp;%.</div>
+  <div class="example-box"><strong>Exemple</strong>Personnel&nbsp;: «&nbsp;Je dors mal depuis des mois, je veux comprendre pourquoi.&nbsp;»<br>Précis&nbsp;: «&nbsp;Quelles habitudes adopter pour améliorer mon sommeil&nbsp;?&nbsp;»<br>Utile&nbsp;: «&nbsp;Je teste 2–3 conseils dès la semaine prochaine.&nbsp;»</div>
+  ${textareaField('Aspect Personnel — Pourquoi ' + (isChap?'ce chapitre':'ce livre') + ' m\'intéresse vraiment ?', 'ppu-perso', state.ppu.perso, 'Ce qui me motive personnellement…')}
+  ${inputField('Aspect Précis — Quelle question concrète veux-tu résoudre ?', 'ppu-precis', state.ppu.precis, '« Quelle technique… ? » ou « Comment éviter… ? »')}
+  ${textareaField('Aspect Utile — Quand et où vas-tu l\'appliquer ?', 'ppu-utile', state.ppu.utile, 'Je veux tester ça dans la situation suivante…')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.ppu.perso||!state.ppu.precis||!state.ppu.utile?'disabled':''}>Valider mon objectif →</button></div>`;
+}
+
+function renderTDM() {
+  return `
+  <div class="step-why">Identifier les chapitres prioritaires avant de commencer évite le mode pilote automatique et te fait gagner du temps précieux.</div>
+  <div class="block-step"><div class="block-num">1</div><div class="block-text">Survole la table des matières.</div></div>
+  <div class="block-step"><div class="block-num">2</div><div class="block-text">Pour chaque titre, demande-toi&nbsp;: «&nbsp;Est-ce que ça répond à mon objectif PPU&nbsp;?&nbsp;»</div></div>
+  <div class="block-step"><div class="block-num">3</div><div class="block-text">Classe-les en Prioritaires / Secondaires / Facultatifs.</div></div>
+  <div style="margin-top:1rem">${textareaField('Chapitres prioritaires', 'tdm-ch', state.tdm.chapitres, 'Ex: Chapitres 1-3, Chapitre 12, Conclusion…', 3)}</div>
+  ${inputField('Ordre d\'attaque — par quoi commences-tu ?', 'tdm-ordre', state.tdm.ordre, 'Ex: Je commence par le chapitre 3, puis 1, puis 12…')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.tdm.chapitres?'disabled':''}>Confirmer la sélection →</button></div>`;
+}
+
+function renderEnv() {
+  const items = Object.keys(state.env);
+  const checks = items.map(k => `
+    <div class="checklist-item" data-key="${k}">
+      <div class="check-box ${state.env[k]?'checked':''}"><div class="check-tick"></div></div>
+      <span>${k}</span>
+    </div>`).join('');
+  const allDone = items.every(k => state.env[k]);
+  return `
+  <div class="step-why">Un cadre propice évite les distractions et augmente ton immersion. 10–15 min concentrées valent mieux qu'1h en pointillé.</div>
+  ${checks}
+  <div style="margin-top:1rem;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--text2)">
+    Astuce&nbsp;: essaie le matin tôt ou le soir — les moments naturellement plus silencieux.
+  </div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!allDone?'disabled':''}>${!allDone?'Coche les 4 cases pour continuer':'Je suis prêt →'}</button></div>`;
+}
+
+function renderLecture() {
+  return `
+  <div class="step-why">Avant de lire, pose-toi une question. Après chaque bloc, synthétise à voix haute. Ça transforme la lecture passive en apprentissage actif.</div>
+  <div class="block-step"><div class="block-num">1</div><div class="block-text">Ouvre ton PDF dans le panneau de gauche (bouton 📄 PDF en haut).</div></div>
+  <div class="block-step"><div class="block-num">2</div><div class="block-text">Sélectionne un passage important et clique sur 🖍 <strong>Surligner</strong> (ou Ctrl+H).</div></div>
+  <div class="block-step"><div class="block-num">3</div><div class="block-text">Formule une question sur ce que tu espères trouver.</div></div>
+  <div class="block-step"><div class="block-num">4</div><div class="block-text">Toutes les 2–3 pages, arrête-toi&nbsp;: «&nbsp;Qu'est-ce que je retiens&nbsp;?&nbsp;»</div></div>
+  <div style="margin-top:1.2rem">${inputField('Ta question avant de commencer', 'lec-q', state.lecture.question, 'En quoi ce passage répond à mon objectif ?')}</div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Astuce&nbsp;: clique sur 🎤 à droite des champs pour dicter tes notes à la voix.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.lecture.question?'disabled':''}>Lancer le minuteur de lecture →</button></div>`;
+}
+
+function renderPomodoro() {
+  const t = state.timer;
+  const mins = Math.floor(t.seconds/60).toString().padStart(2,'0');
+  const secs = (t.seconds%60).toString().padStart(2,'0');
+  const isWork = t.phase === 'work';
+  return `
+  <div class="step-why">Ton cerveau se fatigue vite. Des blocs de 20–25 min + pause sont plus productifs qu'une longue session continue.</div>
+  <div class="timer-display">
+    <div class="timer-phase-label">${isWork ? `Bloc de lecture ${t.blocks+1}` : 'Pause — détends-toi 5 min'}</div>
+    <div class="timer-circle">
+      <div class="timer-time" id="timer-time">${mins}:${secs}</div>
+      <div class="timer-label">${isWork?'lecture':'pause'}</div>
+    </div>
+    <div class="timer-btns">
+      <button id="btn-toggle-timer" class="primary">${t.running?'Pause':'Démarrer'}</button>
+      <button id="btn-reset-timer">Reset</button>
+    </div>
+  </div>
+  ${t.blocks > 0 ? `<div class="revision-card"><h4>Blocs terminés&nbsp;: ${t.blocks}</h4><p>Avant de reprendre, rappelle-toi en 1 min les idées fortes du bloc précédent.</p></div>` : ''}
+  <div class="citations-live" id="citations-live">
+    <div class="citations-live-head">
+      <h4>📜 Citations archivées <span class="citations-count">${state.highlights.length}</span></h4>
+      <small>Sélectionne du texte dans le PDF/EPUB et clique « Enregistrer » — chaque citation s'archive ici puis dans le document final.</small>
+    </div>
+    <div class="citations-live-list">
+      ${state.highlights.length === 0 ? `<div class="citations-empty">Aucune citation pour l'instant — surligne ton premier passage à gauche !</div>` : state.highlights.slice().reverse().map((h, i) => `
+        <div class="citation-card">
+          <div class="citation-meta">Page ${h.page} · ${new Date(h.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+          <blockquote>${escapeHtml(h.text)}</blockquote>
+          <button class="citation-del" data-idx="${state.highlights.length - 1 - i}" title="Supprimer cette citation">✕</button>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+  <div class="field"><label>Ta question de lecture (rappel)</label><div style="padding:10px 12px;background:var(--bg2);border-radius:var(--radius);font-size:14px;color:var(--text2)">${escapeHtml(state.lecture.question) || '—'}</div></div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">J'ai terminé ma lecture →</button></div>`;
+}
+
+function renderSynthese() {
+  let items = '';
+  for (let i = 0; i < 5; i++) {
+    items += `<div class="synthesis-item"><div class="synthesis-num">${i+1}</div><div class="input-wrap"><textarea class="syn-input" data-i="${i}" rows="3" placeholder="Idée clé ${i+1}…">${escapeHtml(state.synthese[i])}</textarea></div></div>`;
+  }
+  const filled = state.synthese.filter(s => s.trim()).length;
+  return `
+  <div class="step-why">Ferme le livre. Un résumé dans tes propres mots fixe les idées en mémoire. Ne recopie pas l'auteur — reformule.</div>
+  ${state.highlights.length > 0 ? `<div style="font-size:12px;color:var(--text2);background:var(--bg2);padding:10px 12px;border-radius:var(--radius);margin-bottom:1rem;line-height:1.5">💡 Tu as ${state.highlights.length} passage${state.highlights.length>1?'s':''} surligné${state.highlights.length>1?'s':''} dans le PDF — utilise-les comme matière première pour reformuler.</div>` : ''}
+  <ul class="synthesis-list">${items}</ul>
+  <div style="font-size:12px;color:var(--text2);margin:8px 0 1.2rem;line-height:1.5">Remplis-en au moins 3 pour continuer. Astuce&nbsp;: utilise 🎤 pour dicter chaque idée.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${filled<3?'disabled':''}>Ma synthèse est prête →</button></div>`;
+}
+
+function renderAction() {
+  return `
+  <div class="step-why">Lire sans appliquer = peu de chances de s'en souvenir. Choisis <em>une seule</em> idée — la plus simple à tester maintenant.</div>
+  <div class="example-box"><strong>Exemple</strong>Conseil&nbsp;: «&nbsp;Éteindre tous mes écrans à 22h.&nbsp;»<br>Quand&nbsp;: «&nbsp;Ce soir même.&nbsp;»<br>Deadline&nbsp;: «&nbsp;Je teste 7 jours et vois si ça change quelque chose.&nbsp;»</div>
+  ${inputField('Le conseil le plus simple à tester tout de suite', 'act-conseil', state.action.conseil, 'Ex: Arrêter le café après 15h')}
+  ${inputField('Quand exactement vas-tu le tester ?', 'act-quand', state.action.quand, 'Ex: Ce soir, dès demain matin…')}
+  ${inputField('Ta deadline de bilan', 'act-deadline', state.action.deadline, 'Ex: Dans 7 jours')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.action.conseil||!state.action.quand?'disabled':''}>Mon plan d'action est prêt →</button></div>`;
+}
+
+function renderRevision() {
+  const cal = getCalendarEvents();
+  return `
+  <div class="step-why">La répétition espacée consolide la mémoire sur le long terme. Sans révision, on oublie 70&nbsp;% de ce qu'on a lu en 24h.</div>
+  <div class="revision-card">
+    <h4>J+1 — ${cal.j1Date.toLocaleDateString('fr-FR')}</h4>
+    <p>Relis ta synthèse en 2 min.</p>
+    <div class="gcal-row"><a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener">📅 Ajouter à Google Agenda</a></div>
+  </div>
+  <div class="revision-card">
+    <h4>J+7 — ${cal.j7Date.toLocaleDateString('fr-FR')}</h4>
+    <p>Bilan sur le conseil appliqué. Est-ce que ça a marché ? Ajuste si besoin.</p>
+    <div class="gcal-row"><a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener">📅 Ajouter à Google Agenda</a></div>
+  </div>
+  <div class="revision-card"><h4>Rappel de ton action</h4><p><strong>${escapeHtml(state.action.conseil) || '—'}</strong><br><span style="color:var(--text2);font-size:13px">${state.action.quand ? `Début&nbsp;: ${escapeHtml(state.action.quand)}` : ''} ${state.action.deadline ? `· Bilan&nbsp;: ${escapeHtml(state.action.deadline)}` : ''}</span></p></div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
+}
+
+function renderDone() {
+  const syn = state.synthese.filter(s => s.trim()).map(s => `<li>· ${escapeHtml(s)}</li>`).join('');
+  const cal = getCalendarEvents();
+  const topBar = `<div class="top-bar">
+    <div class="app-title">Lecture Intelligente</div>
+    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}">📄 PDF</button>
+  </div>`;
+  return topBar + `<div class="success-screen">
+    <div style="font-size:40px;margin-bottom:1rem">✓</div>
+    <h2>${state.noteType === 'chapitre' ? 'Chapitre terminé' : 'Lecture accomplie'}</h2>
+    <p>Tu as suivi toutes les étapes. Voici ce que tu emportes de cette session.</p>
+    <div class="recap">
+      ${state.bookTitle ? `<div class="recap-block"><strong>Livre</strong><span class="recap-val">${escapeHtml(state.bookTitle)}</span></div>` : ''}
+      ${state.noteType === 'chapitre' && state.chapterTitle ? `<div class="recap-block"><strong>Chapitre</strong><span class="recap-val">${escapeHtml(state.chapterTitle)}</span></div>` : ''}
+      <div class="recap-block"><strong>Objectif</strong><span class="recap-val">${escapeHtml(state.ppu.precis) || '—'}</span></div>
+      ${state.noteType !== 'chapitre' ? `<div class="recap-block"><strong>Chapitres prioritaires</strong><span class="recap-val">${escapeHtml(state.tdm.chapitres) || '—'}</span></div>` : ''}
+      ${state.highlights.length ? `<div class="recap-block"><strong>🖍 Passages surlignés</strong><span class="recap-val">${state.highlights.length} passage${state.highlights.length>1?'s':''} dans le PDF</span></div>` : ''}
+      <div class="recap-block"><strong>Synthèse</strong><ul style="list-style:none;padding:0;color:var(--text2);font-size:13px;margin-top:4px">${syn}</ul></div>
+      <div class="recap-block"><strong>Action à tester</strong><span class="recap-val">${escapeHtml(state.action.conseil) || '—'} — ${escapeHtml(state.action.quand) || ''} ${state.action.deadline ? `(bilan : ${escapeHtml(state.action.deadline)})` : ''}</span></div>
+    </div>
+    <div class="gcal-section">
+      <h4>📅 Programmer mes rappels</h4>
+      <p>Ajoute les deux échéances dans ton Google Agenda en un clic.</p>
+      <div class="gcal-row">
+        <a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener">📖 J+1 — Relire (${cal.j1Date.toLocaleDateString('fr-FR')})</a>
+        <a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener">📊 J+7 — Bilan (${cal.j7Date.toLocaleDateString('fr-FR')})</a>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
+      <button class="btn-download" id="btn-save-as">↓ Enregistrer sous… (.md)</button>
+      <button class="btn-secondary" id="btn-restart">Recommencer pour une nouvelle session</button>
+    </div>
+  </div>`;
+}
+
+// ============= EVENTS =============
+function bindEvents() {
+  const STEPS = getSteps();
+  const s = state.done ? null : STEPS[state.step];
+
+  document.querySelectorAll('textarea, input[type=text]').forEach(el => {
+    if (el.classList.contains('syn-input')) return;
+    el.addEventListener('input', () => {
+      const id = el.id;
+      if (id==='ppu-perso') state.ppu.perso = el.value;
+      else if (id==='ppu-precis') state.ppu.precis = el.value;
+      else if (id==='ppu-utile') state.ppu.utile = el.value;
+      else if (id==='tdm-ch') state.tdm.chapitres = el.value;
+      else if (id==='tdm-ordre') state.tdm.ordre = el.value;
+      else if (id==='lec-q') state.lecture.question = el.value;
+      else if (id==='act-conseil') state.action.conseil = el.value;
+      else if (id==='act-quand') state.action.quand = el.value;
+      else if (id==='act-deadline') state.action.deadline = el.value;
+      else if (id==='book-title') state.bookTitle = el.value;
+      else if (id==='chapter-title') state.chapterTitle = el.value;
+      const btn = document.getElementById('btn-next');
+      if (btn && s) updateNextBtn(btn, s);
+    });
+  });
+
+  document.querySelectorAll('.syn-input').forEach(el => {
+    el.addEventListener('input', () => {
+      state.synthese[parseInt(el.dataset.i)] = el.value;
+      const btn = document.getElementById('btn-next');
+      if (btn) btn.disabled = state.synthese.filter(x => x.trim()).length < 3;
+    });
+  });
+
+  document.querySelectorAll('.checklist-item').forEach(el => {
+    el.addEventListener('click', () => { state.env[el.dataset.key] = !state.env[el.dataset.key]; re(); });
+  });
+
+  document.querySelectorAll('.type-card').forEach(el => {
+    el.addEventListener('click', () => { state.noteType = el.dataset.type; re(); });
+  });
+
+  const btnPdf = document.getElementById('btn-pdf-toggle');
+  if (btnPdf) btnPdf.addEventListener('click', () => {
+    state.pdfPanelOpen = !state.pdfPanelOpen;
+    renderPdfPanel(); syncPdfPanel();
+  });
+
+  const btnNext = document.getElementById('btn-next');
+  if (btnNext) btnNext.addEventListener('click', () => {
+    if (state.step < getSteps().length - 1) state.step++;
+    else state.done = true;
+    re();
+  });
+
+  const btnBack = document.getElementById('btn-back');
+  if (btnBack) btnBack.addEventListener('click', () => { if (state.step > 0) { state.step--; re(); } });
+
+  const btnRestart = document.getElementById('btn-restart');
+  if (btnRestart) btnRestart.addEventListener('click', () => {
+    clearInterval(state.timer.interval);
+    Object.assign(state, {
+      step:0, noteType:null, bookTitle:'', chapterTitle:'',
+      ppu:{perso:'',precis:'',utile:''}, tdm:{chapitres:'',ordre:''},
+      env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
+      lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
+      synthese:['','','','',''], action:{conseil:'',quand:'',deadline:''},
+      highlights: [], done:false
+    });
+    re();
+  });
+
+  const btnSaveAs = document.getElementById('btn-save-as');
+  if (btnSaveAs) btnSaveAs.addEventListener('click', saveMarkdownAs);
+
+  const btnToggle = document.getElementById('btn-toggle-timer');
+  if (btnToggle) btnToggle.addEventListener('click', toggleTimer);
+
+  const btnReset = document.getElementById('btn-reset-timer');
+  if (btnReset) btnReset.addEventListener('click', () => {
+    clearInterval(state.timer.interval);
+    state.timer.running = false;
+    state.timer.seconds = state.timer.phase === 'work' ? 25*60 : 5*60;
+    re();
+  });
+}
+
+function updateNextBtn(btn, s) {
+  if (s.id==='type') btn.disabled = !state.noteType;
+  else if (s.id==='ppu') btn.disabled = !state.ppu.perso || !state.ppu.precis || !state.ppu.utile;
+  else if (s.id==='tdm') btn.disabled = !state.tdm.chapitres;
+  else if (s.id==='lecture') btn.disabled = !state.lecture.question;
+  else if (s.id==='action') btn.disabled = !state.action.conseil || !state.action.quand;
+}
+
+function toggleTimer() {
+  const t = state.timer;
+  if (t.running) {
+    clearInterval(t.interval); t.running = false; re();
+  } else {
+    t.running = true;
+    t.interval = setInterval(() => {
+      if (t.seconds > 0) {
+        t.seconds--;
+        const el = document.getElementById('timer-time');
+        if (el) el.textContent = `${Math.floor(t.seconds/60).toString().padStart(2,'0')}:${(t.seconds%60).toString().padStart(2,'0')}`;
+      } else {
+        clearInterval(t.interval); t.running = false;
+        if (t.phase === 'work') { t.phase = 'pause'; t.seconds = 5*60; t.blocks++; }
+        else { t.phase = 'work'; t.seconds = 25*60; }
+        re();
+      }
+    }, 1000);
+    re();
+  }
+}
+
+// Expose nécessaires pour library.js / notes.js / chapter-detect.js
+window.state = state;
+window.pdf = pdf;
+window.loadPdfFile = loadPdfFile;
+window.showToast = showToast;
+window.generateMarkdown = generateMarkdown;
+window.render = render;
+
+render();
+</script>
+<script src="library.js"></script>
+<script src="notes.js"></script>
+<script src="epub-reader.js"></script>
+<script src="chapter-detect.js"></script>
+<script src="vault.js"></script>
+<script src="gdrive.js"></script>
+</body>
+</html>

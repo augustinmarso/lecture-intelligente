@@ -1,0 +1,19 @@
+# Tunnel logs
+.tunnel.log
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Claude internal (privé)
+.claude/projects/
+.claude/sessions/
+
+# Temp
+*.tmp
+*.bak
