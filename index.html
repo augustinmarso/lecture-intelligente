@@ -231,6 +231,7 @@ const state = {
   step: 0,
   noteType: null,
   bookTitle: '',
+  bookAuthor: '',
   chapterTitle: '',
   ppu: {perso:'',precis:'',utile:''},
   tdm: {chapitres:'',ordre:''},
@@ -613,6 +614,11 @@ function getCalendarEvents() {
 }
 
 // ============= MARKDOWN =============
+function wikilink(s) {
+  if (!s) return '—';
+  return `[[${String(s).replace(/[\[\]]/g, '').trim()}]]`;
+}
+
 function generateMarkdown() {
   const date = new Date().toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric' });
   const synItems = state.synthese.filter(s => s.trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
@@ -620,8 +626,9 @@ function generateMarkdown() {
 
   let md = `# ${isChapter ? 'Note de chapitre' : 'Note de livre'} — Lecture Intelligente\n\n`;
   md += `> Session du ${date}\n\n`;
-  if (state.bookTitle) md += `**Livre** : ${state.bookTitle}\n`;
-  if (isChapter && state.chapterTitle) md += `**Chapitre** : ${state.chapterTitle}\n`;
+  if (state.bookTitle) md += `**Livre** : ${wikilink(state.bookTitle)}\n`;
+  if (state.bookAuthor) md += `**Auteur** : ${wikilink(state.bookAuthor)}\n`;
+  if (isChapter && state.chapterTitle) md += `**Chapitre** : ${wikilink(state.chapterTitle)}\n`;
   md += `\n---\n\n`;
 
   md += `## Objectif${isChapter ? ' du chapitre' : ' PPU'}\n\n`;
@@ -783,6 +790,10 @@ function renderType() {
   <div class="field" style="margin-top:1.2rem">
     <label>Titre du livre <span style="color:var(--text3);font-weight:400">(rempli auto si tu ouvres un PDF)</span></label>
     <div class="input-wrap"><input id="book-title" type="text" placeholder="Ex: Why We Sleep" value="${escapeAttr(state.bookTitle)}"/></div>
+  </div>
+  <div class="field">
+    <label>Auteur(s)</label>
+    <div class="input-wrap"><input id="book-author" type="text" placeholder="Ex: Matthew Walker" value="${escapeAttr(state.bookAuthor)}"/></div>
   </div>
   ${isChap ? `<div class="field">
     <label>Titre ou numéro du chapitre</label>
@@ -976,6 +987,7 @@ function bindEvents() {
       else if (id==='act-quand') state.action.quand = el.value;
       else if (id==='act-deadline') state.action.deadline = el.value;
       else if (id==='book-title') state.bookTitle = el.value;
+      else if (id==='book-author') state.bookAuthor = el.value;
       else if (id==='chapter-title') state.chapterTitle = el.value;
       const btn = document.getElementById('btn-next');
       if (btn && s) updateNextBtn(btn, s);
@@ -1018,7 +1030,7 @@ function bindEvents() {
   if (btnRestart) btnRestart.addEventListener('click', () => {
     clearInterval(state.timer.interval);
     Object.assign(state, {
-      step:0, noteType:null, bookTitle:'', chapterTitle:'',
+      step:0, noteType:null, bookTitle:'', bookAuthor:'', chapterTitle:'',
       ppu:{perso:'',precis:'',utile:''}, tdm:{chapitres:'',ordre:''},
       env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
       lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},

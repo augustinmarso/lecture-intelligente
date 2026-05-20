@@ -118,25 +118,42 @@ function _yamlValue(v) {
   return `"${s}"`;
 }
 
+function _wikilink(s) {
+  if (!s) return '';
+  return `[[${String(s).replace(/[\[\]]/g, '').trim()}]]`;
+}
+
 function buildObsidianMarkdown(note) {
   const dateISO = new Date(note.createdAt || Date.now()).toISOString().slice(0, 10);
   const tags = (note.tags || []).map(t => t.replace(/\s+/g, '-')).filter(Boolean);
+
+  // YAML frontmatter — strings simples (Obsidian le parse pour les propriétés)
   const fm = [
     '---',
     `title: ${_yamlValue(note.title || '')}`,
     `date: ${dateISO}`,
     `type: ${note.type || 'note'}`,
-    note.bookTitle ? `book: ${_yamlValue(note.bookTitle)}` : null,
-    note.chapterTitle ? `chapter: ${_yamlValue(note.chapterTitle)}` : null,
+    note.bookTitle ? `book: "[[${note.bookTitle.replace(/[\[\]"]/g,'')}]]"` : null,
+    note.bookAuthor ? `author: "[[${note.bookAuthor.replace(/[\[\]"]/g,'')}]]"` : null,
+    note.chapterTitle ? `chapter: "[[${note.chapterTitle.replace(/[\[\]"]/g,'')}]]"` : null,
     `tags: [${tags.map(t => t.includes(' ') ? `"${t}"` : t).join(', ')}]`,
     `source: lecture-intelligente`,
     '---',
     ''
   ].filter(Boolean).join('\n');
 
-  const tagsLine = tags.length ? `\n${tags.map(t => `#${t}`).join(' ')}\n` : '';
+  // Section liens (wikilinks Obsidian dans le body)
+  const links = [];
+  if (note.bookTitle) links.push(`- Livre : ${_wikilink(note.bookTitle)}`);
+  if (note.bookAuthor) links.push(`- Auteur : ${_wikilink(note.bookAuthor)}`);
+  if (note.chapterTitle) links.push(`- Chapitre : ${_wikilink(note.chapterTitle)}`);
+  const linksSection = links.length ? `## Liens\n\n${links.join('\n')}\n\n` : '';
+
+  // Tags en wikilinks ET en hashtags pour double indexation
+  const tagsWiki = tags.length ? `\n## Tags\n\n${tags.map(_wikilink).join(' · ')}\n\n${tags.map(t => `#${t}`).join(' ')}\n` : '';
+
   const body = note.markdown || '';
-  return fm + body + tagsLine;
+  return fm + linksSection + body + tagsWiki;
 }
 
 function _filenameForNote(note) {

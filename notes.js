@@ -90,6 +90,7 @@ async function autoSaveCurrentNote() {
     title: s.bookTitle || s.chapterTitle || 'Fiche sans titre',
     type: s.noteType || 'libre',
     bookTitle: s.bookTitle || '',
+    bookAuthor: s.bookAuthor || '',
     chapterTitle: s.chapterTitle || '',
     objectif: s.ppu?.precis || '',
     synthese: (s.synthese || []).filter(x => x && x.trim()),
