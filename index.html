@@ -321,8 +321,10 @@ async function loadPdfFile(file) {
   const buf = await file.arrayBuffer();
   try {
     pdf.doc = await pdfjsLib.getDocument({ data: buf }).promise;
-    pdf.page = 1;
     pdf.total = pdf.doc.numPages;
+    // Si une page de reprise a été demandée (depuis la lib), l'utiliser
+    pdf.page = (pdf.startPage && pdf.startPage <= pdf.total) ? pdf.startPage : 1;
+    pdf.startPage = null;
     pdf.name = file.name;
     state.pdfPanelOpen = true;
 
@@ -396,6 +398,11 @@ async function renderPage() {
   document.getElementById('pdf-zoom-in').disabled = false;
   document.getElementById('pdf-zoom-out').disabled = false;
   document.getElementById('pdf-highlight').disabled = false;
+
+  // 💾 Sauvegarder la position de lecture dans la bibliothèque
+  if (window.libSetLastPosition && pdf.bookId) {
+    window.libSetLastPosition(pdf.bookId, pdf.page, pdf.total);
+  }
 }
 
 function renderPdfPanel() {

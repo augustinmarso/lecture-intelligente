@@ -63,6 +63,31 @@ async function libDelete(id) {
   });
 }
 
+// Met à jour la dernière page lue (appelé automatiquement par renderPage)
+let _lastPosSaveTime = 0;
+async function libSetLastPosition(id, page, totalPages) {
+  if (!id) return;
+  // Throttle : pas plus d'un save toutes les 500ms
+  const now = Date.now();
+  if (now - _lastPosSaveTime < 500) return;
+  _lastPosSaveTime = now;
+  try {
+    const d = await openDB();
+    const tx = d.transaction('books', 'readwrite');
+    const s = tx.objectStore('books');
+    const g = s.get(id);
+    g.onsuccess = () => {
+      const b = g.result;
+      if (!b) return;
+      b.lastPage = page;
+      if (totalPages) b.totalPages = totalPages;
+      b.lastViewedAt = Date.now();
+      s.put(b);
+    };
+  } catch (_) {}
+}
+window.libSetLastPosition = libSetLastPosition;
+
 // =============================================================
 // Hook : auto-save sur ouverture PDF
 // =============================================================
@@ -74,15 +99,21 @@ if (_origLoadPdfFile) {
       const buf = await file.arrayBuffer();
       const existing = await libGetAll();
       const dup = existing.find(b => b.name === file.name && b.size === file.size);
-      if (!dup) {
-        await libAdd({
+      if (dup) {
+        // Livre déjà connu : enregistrer l'ID pour le tracking de position
+        if (window.pdf) window.pdf.bookId = dup.id;
+      } else {
+        const newId = await libAdd({
           title: (window.state && window.state.bookTitle) || file.name.replace(/\.pdf$/i,''),
           name: file.name,
           size: file.size,
           mime: 'application/pdf',
           data: buf,
-          addedAt: Date.now()
+          addedAt: Date.now(),
+          lastPage: 1,
+          lastViewedAt: Date.now()
         });
+        if (window.pdf) window.pdf.bookId = newId;
         if (window.showToast) window.showToast('📚 Ajouté à la bibliothèque');
       }
     } catch (e) { console.warn('lib save failed', e); }
@@ -151,20 +182,32 @@ async function renderLibrary() {
     body.innerHTML = `<div class="lib-empty">Aucun livre.<br><br>Ouvre un PDF, il sera automatiquement sauvegardé ici.<br>Ou clique sur <strong>+ Importer</strong> en haut à droite.</div>`;
     return;
   }
-  body.innerHTML = books.sort((a,b)=>b.addedAt-a.addedAt).map(b => `
+  // Tri : derniers consultés / récents en premier
+  books.sort((a, b) => (b.lastViewedAt || b.addedAt) - (a.lastViewedAt || a.addedAt));
+  body.innerHTML = books.map(b => {
+    const progress = (b.lastPage && b.totalPages) ? Math.round((b.lastPage / b.totalPages) * 100) : 0;
+    const hasProgress = b.lastPage && b.lastPage > 1;
+    return `
     <div class="lib-book" data-id="${b.id}">
       <div class="lib-book-info">
         <strong>${escHtmlLib(b.title)}</strong>
-        <small>${(b.size/1024/1024).toFixed(1)} Mo · ${new Date(b.addedAt).toLocaleDateString('fr-FR')} · ${escHtmlLib(b.name)}</small>
+        <small>${(b.size/1024/1024).toFixed(1)} Mo · Ajouté ${new Date(b.addedAt).toLocaleDateString('fr-FR')}${b.lastViewedAt && b.lastViewedAt !== b.addedAt ? ` · Vu ${new Date(b.lastViewedAt).toLocaleDateString('fr-FR')}` : ''}</small>
+        ${hasProgress ? `
+          <div class="lib-progress" title="${b.lastPage}/${b.totalPages || '?'} (${progress}%)">
+            <div class="lib-progress-bar"><div class="lib-progress-fill" style="width:${progress}%"></div></div>
+            <span class="lib-progress-text">📍 page ${b.lastPage}${b.totalPages ? '/' + b.totalPages : ''} · ${progress}%</span>
+          </div>
+        ` : ''}
       </div>
       <div class="lib-book-actions">
-        <button class="lib-action" data-act="open" title="Ouvrir dans le viewer PDF">📖 Ouvrir</button>
+        ${hasProgress ? `<button class="lib-action lib-resume" data-act="resume" title="Reprendre à la page ${b.lastPage}">▶ Reprendre</button>` : ''}
+        <button class="lib-action" data-act="open" title="Ouvrir à la première page">📖 ${hasProgress ? 'Début' : 'Ouvrir'}</button>
         <button class="lib-action" data-act="text" title="Lire en texte sur le web">📝 Lire</button>
         <button class="lib-action" data-act="epub" title="Télécharger en EPUB">📕 EPUB</button>
         <button class="lib-action lib-del" data-act="delete" title="Supprimer">🗑</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
   body.querySelectorAll('.lib-action').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = parseInt(btn.closest('.lib-book').dataset.id);
@@ -173,11 +216,19 @@ async function renderLibrary() {
         if (!confirm('Supprimer ce livre ?')) return;
         await libDelete(id);
         await renderLibrary();
-      } else if (act === 'open') {
+      } else if (act === 'open' || act === 'resume') {
         const book = await libGet(id);
         const file = new File([book.data], book.name, { type: 'application/pdf' });
         document.getElementById('lib-modal').classList.remove('open');
+        // Si "Reprendre" : démarrer à la dernière page
+        if (act === 'resume' && book.lastPage && window.pdf) {
+          window.pdf.startPage = book.lastPage;
+        }
         await _origLoadPdfFile(file);
+        if (window.pdf) window.pdf.bookId = id;
+        if (act === 'resume' && book.lastPage) {
+          if (window.showToast) window.showToast(`▶ Reprise à la page ${book.lastPage}`);
+        }
       } else if (act === 'text') {
         await viewBookAsText(id);
       } else if (act === 'epub') {
@@ -343,6 +394,12 @@ _libStyle.textContent = `
 .lib-action { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
 .lib-action:hover { background: var(--bg3); }
 .lib-action.lib-del:hover { background: rgba(220,38,38,.15); color: #dc2626; border-color: rgba(220,38,38,.4); }
+.lib-action.lib-resume { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 500; }
+.lib-action.lib-resume:hover { opacity: .9; }
+.lib-progress { margin-top: 6px; }
+.lib-progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.lib-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
+.lib-progress-text { font-size: 11px; color: var(--text2); }
 .lib-reader { display: flex; flex-direction: column; height: 100%; }
 .lib-reader-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 0 12px; border-bottom: 0.5px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
 .lib-reader-bar button { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }

@@ -92,8 +92,17 @@ async function showEpubReader(fileOrBlob, displayTitle) {
   if (!viewer) return;
   _epubPanelMode = 'pdf-panel';
 
-  let current = 0;
   const title = displayTitle || epub.title;
+  // 📍 Restaurer la position de lecture si on a déjà lu cet EPUB
+  const posKey = 'epub-pos-' + (title || 'unknown').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  let current = 0;
+  try {
+    const saved = parseInt(localStorage.getItem(posKey) || '0');
+    if (saved > 0 && saved < epub.chapters.length) {
+      current = saved;
+      if (window.showToast) window.showToast(`▶ Reprise section ${current + 1}/${epub.chapters.length}`);
+    }
+  } catch (_) {}
 
   function extractBody(html) {
     const parser = new DOMParser();
@@ -114,6 +123,8 @@ async function showEpubReader(fileOrBlob, displayTitle) {
     const next = document.getElementById('epub-next');
     if (prev) prev.disabled = current === 0;
     if (next) next.disabled = current >= epub.chapters.length - 1;
+    // 💾 Sauvegarder la position de lecture
+    try { localStorage.setItem(posKey, String(current)); } catch (_) {}
   }
 
   // Charger préférences
