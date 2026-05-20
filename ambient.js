@@ -221,6 +221,257 @@ function _playForest() {
   setTimeout(chirp, 2000 + Math.random() * 3000);
 }
 
+// =============================================================
+// Sons naturels organiques (multi-LFO + variations stochastiques)
+// =============================================================
+
+// Helper: ajouter un LFO sur un paramètre AudioParam
+function _addLFO(targetParam, freq, depth, type = 'sine', delay = 0) {
+  const ctx = _ensureCtx();
+  const lfo = _addNode(ctx.createOscillator());
+  lfo.type = type;
+  lfo.frequency.value = freq;
+  const amp = _addNode(ctx.createGain());
+  amp.gain.value = depth;
+  lfo.connect(amp).connect(targetParam);
+  lfo.start(ctx.currentTime + delay);
+  return lfo;
+}
+
+function _playOcean() {
+  // Vagues organiques : brown noise + filtrage + multi-LFO sur gain & cutoff
+  const ctx = _ensureCtx();
+  const src = _addNode(ctx.createBufferSource());
+  src.buffer = _createNoiseBuffer('brown', 20);
+  src.loop = true;
+
+  // Filtre principal pour adoucir (simule l'eau)
+  const lp = _addNode(ctx.createBiquadFilter());
+  lp.type = 'lowpass';
+  lp.frequency.value = 700;
+  lp.Q.value = 0.5;
+
+  // Gain modulé par 3 LFOs incommensurables → pas de répétition perceptible
+  const gain = _addNode(ctx.createGain());
+  gain.gain.value = 0.35;
+  _addLFO(gain.gain, 0.067, 0.30);  // vague principale ~15s
+  _addLFO(gain.gain, 0.131, 0.12);  // vague secondaire ~7.6s
+  _addLFO(gain.gain, 0.293, 0.05);  // ondulations ~3.4s
+  _addLFO(gain.gain, 0.041, 0.08, 'triangle'); // marée lente ~24s
+
+  // Filtre cutoff modulé (l'eau qui clapote, sons plus ou moins étouffés)
+  _addLFO(lp.frequency, 0.09, 250);
+  _addLFO(lp.frequency, 0.17, 100);
+
+  src.connect(lp).connect(gain).connect(_gainNode);
+  src.start();
+
+  // Vagues qui cassent occasionnellement (impulsions)
+  function breakingWave() {
+    if (_currentMode !== 'ocean') return;
+    const noise = ctx.createBufferSource();
+    const dur = 1.5 + Math.random() * 2;
+    const b = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < data.length; i++) {
+      const w = Math.random() * 2 - 1;
+      data[i] = (last + 0.04 * w) / 1.04;
+      last = data[i];
+    }
+    noise.buffer = b;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 800 + Math.random() * 1200;
+    f.Q.value = 0.7;
+    const env = ctx.createGain();
+    const now = ctx.currentTime;
+    const peak = 0.15 + Math.random() * 0.2;
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(peak, now + 0.3);
+    env.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(f).connect(env).connect(_gainNode);
+    noise.start();
+    noise.stop(now + dur);
+    setTimeout(breakingWave, 6000 + Math.random() * 14000);
+  }
+  setTimeout(breakingWave, 4000 + Math.random() * 8000);
+}
+
+function _playRain() {
+  // Pluie : white noise filtré + gouttes individuelles aléatoires
+  const ctx = _ensureCtx();
+  const src = _addNode(ctx.createBufferSource());
+  src.buffer = _createNoiseBuffer('white', 15);
+  src.loop = true;
+
+  const hp = _addNode(ctx.createBiquadFilter());
+  hp.type = 'highpass';
+  hp.frequency.value = 400;
+  const lp = _addNode(ctx.createBiquadFilter());
+  lp.type = 'lowpass';
+  lp.frequency.value = 2000;
+
+  const gain = _addNode(ctx.createGain());
+  gain.gain.value = 0.18;
+  // Variation lente d'intensité (pluie qui s'intensifie / diminue)
+  _addLFO(gain.gain, 0.029, 0.10, 'sine');
+  _addLFO(gain.gain, 0.083, 0.04);
+
+  src.connect(hp).connect(lp).connect(gain).connect(_gainNode);
+  src.start();
+
+  // Gouttes individuelles (petites impulsions hautes fréquences)
+  function drop() {
+    if (_currentMode !== 'rain') return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    const freq = 1800 + Math.random() * 2200;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.4, t + 0.04);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(0.04 + Math.random() * 0.04, t + 0.003);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(env).connect(_gainNode);
+    osc.start(t);
+    osc.stop(t + 0.1);
+    setTimeout(drop, 50 + Math.random() * 200);
+  }
+  setTimeout(drop, 100);
+}
+
+function _playWind() {
+  // Vent : pink noise multi-filtré avec rafales
+  const ctx = _ensureCtx();
+  const src = _addNode(ctx.createBufferSource());
+  src.buffer = _createNoiseBuffer('pink', 20);
+  src.loop = true;
+
+  const lp = _addNode(ctx.createBiquadFilter());
+  lp.type = 'lowpass';
+  lp.frequency.value = 900;
+  lp.Q.value = 0.7;
+
+  const gain = _addNode(ctx.createGain());
+  gain.gain.value = 0.4;
+
+  // Cutoff modulé par 3 LFOs → vent jamais constant
+  _addLFO(lp.frequency, 0.13, 500);
+  _addLFO(lp.frequency, 0.29, 200);
+  _addLFO(lp.frequency, 0.071, 350, 'triangle');
+
+  // Gain modulé (rafales)
+  _addLFO(gain.gain, 0.097, 0.20);
+  _addLFO(gain.gain, 0.19, 0.10);
+
+  src.connect(lp).connect(gain).connect(_gainNode);
+  src.start();
+
+  // Bourrasques occasionnelles
+  function gust() {
+    if (_currentMode !== 'wind') return;
+    const t = ctx.currentTime;
+    const dur = 2 + Math.random() * 3;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setTargetAtTime(0.7 + Math.random() * 0.3, t, 0.5);
+    gain.gain.setTargetAtTime(0.4, t + dur * 0.6, 1.0);
+    setTimeout(gust, 8000 + Math.random() * 12000);
+  }
+  setTimeout(gust, 6000 + Math.random() * 8000);
+}
+
+function _playForest() {
+  // Forêt : vent doux + bruissement de feuilles + chants d'oiseaux variés
+  _playWind();
+  // Override: reduce wind intensity for forest
+  const ctx = _ensureCtx();
+
+  // Bruissement feuilles (white haute fréquence filtrée modulée)
+  const src = _addNode(ctx.createBufferSource());
+  src.buffer = _createNoiseBuffer('white', 10);
+  src.loop = true;
+  const bp = _addNode(ctx.createBiquadFilter());
+  bp.type = 'bandpass';
+  bp.frequency.value = 4000;
+  bp.Q.value = 1.5;
+  const gain = _addNode(ctx.createGain());
+  gain.gain.value = 0.05;
+  _addLFO(gain.gain, 0.23, 0.04);
+  _addLFO(bp.frequency, 0.17, 1500);
+  src.connect(bp).connect(gain).connect(_gainNode);
+  src.start();
+
+  // Oiseaux variés (différentes mélodies courtes)
+  function bird() {
+    if (_currentMode !== 'forest') return;
+    const t = ctx.currentTime;
+    const notes = 2 + Math.floor(Math.random() * 4);
+    const baseFreq = 1800 + Math.random() * 2500;
+    for (let n = 0; n < notes; n++) {
+      const offset = n * (0.08 + Math.random() * 0.06);
+      const osc = ctx.createOscillator();
+      osc.type = Math.random() > 0.5 ? 'sine' : 'triangle';
+      const f = baseFreq * (0.85 + Math.random() * 0.4);
+      osc.frequency.setValueAtTime(f, t + offset);
+      osc.frequency.exponentialRampToValueAtTime(f * (0.7 + Math.random() * 0.3), t + offset + 0.15);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t + offset);
+      env.gain.linearRampToValueAtTime(0.07, t + offset + 0.02);
+      env.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.18);
+      osc.connect(env).connect(_gainNode);
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.2);
+    }
+    setTimeout(bird, 4000 + Math.random() * 10000);
+  }
+  setTimeout(bird, 1500 + Math.random() * 3000);
+}
+
+function _playStormImproved() {
+  // Pluie intense + variations + tonnerre lointain
+  _playRain();
+  const ctx = _ensureCtx();
+
+  function thunder() {
+    if (_currentMode !== 'storm') return;
+    const t = ctx.currentTime;
+    const dur = 3 + Math.random() * 4;
+    const noise = ctx.createBufferSource();
+    const b = ctx.createBuffer(2, ctx.sampleRate * dur, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = b.getChannelData(ch);
+      let last = 0;
+      for (let i = 0; i < data.length; i++) {
+        const w = Math.random() * 2 - 1;
+        data[i] = (last + 0.02 * w) / 1.02;
+        last = data[i];
+      }
+    }
+    noise.buffer = b;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 200 + Math.random() * 300;
+    const env = ctx.createGain();
+    const peak = 0.5 + Math.random() * 0.5;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(peak, t + 0.05 + Math.random() * 0.2);
+    // Roulement (modulation rapide pendant la décroissance)
+    for (let i = 0; i < 5; i++) {
+      const offset = 0.3 + i * (dur / 6);
+      env.gain.linearRampToValueAtTime(peak * (0.4 - i * 0.07), t + offset);
+      env.gain.linearRampToValueAtTime(peak * (0.6 - i * 0.1), t + offset + 0.15);
+    }
+    env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    noise.connect(filt).connect(env).connect(_gainNode);
+    noise.start(t);
+    noise.stop(t + dur);
+    setTimeout(thunder, 10000 + Math.random() * 20000);
+  }
+  setTimeout(thunder, 5000 + Math.random() * 8000);
+}
+
 function playAmbient(mode) {
   stopAmbient();
   _currentMode = mode;
@@ -229,28 +480,16 @@ function playAmbient(mode) {
   switch (mode) {
     case 'brown': case 'pink': case 'white':
       _playNoise(mode); break;
-    case 'ocean':
-      _playModulated('brown', 0.1, 0.5, 0.5); break;
-    case 'rain':
-      _playFiltered('white', 'lowpass', 1500); break;
-    case 'wind': {
-      const { filter } = _playFiltered('pink', 'lowpass', 800);
-      const ctx = _ensureCtx();
-      const lfo = _addNode(ctx.createOscillator());
-      lfo.frequency.value = 0.15;
-      const amp = _addNode(ctx.createGain());
-      amp.gain.value = 600;
-      lfo.connect(amp).connect(filter.frequency);
-      lfo.start();
-      break;
-    }
+    case 'ocean':  _playOcean(); break;
+    case 'rain':   _playRain(); break;
+    case 'wind':   _playWind(); break;
     case 'forest': _playForest(); break;
-    case 'storm': _playStorm(); break;
-    case 'delta': _playBinaural(2); break;
-    case 'theta': _playBinaural(6); break;
-    case 'alpha': _playBinaural(10); break;
-    case 'beta':  _playBinaural(20); break;
-    case 'gamma': _playBinaural(40); break;
+    case 'storm':  _playStormImproved(); break;
+    case 'delta':  _playBinaural(2); break;
+    case 'theta':  _playBinaural(6); break;
+    case 'alpha':  _playBinaural(10); break;
+    case 'beta':   _playBinaural(20); break;
+    case 'gamma':  _playBinaural(40); break;
   }
   _refreshAmbientUI();
 }
@@ -350,7 +589,7 @@ _ambStyle.textContent = `
 .ambient-wrap > #ambient-toggle:hover { background: var(--bg3); }
 .ambient-wrap > #ambient-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ambient-current { font-size: 11px; color: var(--text2); }
-.ambient-panel { position: absolute; top: 100%; right: 0; margin-top: 4px; background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 50; min-width: 320px; max-height: 70vh; overflow-y: auto; }
+.ambient-panel { position: fixed; top: 60px; left: 12px; max-width: 360px; width: calc(100vw - 24px); background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.35); z-index: 200; max-height: calc(100vh - 80px); overflow-y: auto; }
 .ambient-panel-title { font-size: 13px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
 .ambient-off-btn { width: 100%; padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
 .ambient-off-btn:hover { background: var(--bg3); color: var(--text); }
