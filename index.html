@@ -188,10 +188,6 @@
         <label>Sélectionner un fichier<input type="file" accept="application/pdf" style="display:none" onchange="loadPdfFromInput(event)"/></label>
       </div>
     </div>
-    <div class="highlights-bar" id="highlights-bar" style="display:none">
-      <h5>Passages surlignés (<span id="hl-count">0</span>)</h5>
-      <div id="hl-list"></div>
-    </div>
   </div>
   <div id="resizer"></div>
   <div class="main-scroll">
@@ -463,26 +459,8 @@ function refreshCitationsLive() {
 }
 
 function renderHighlightsBar() {
-  const bar = document.getElementById('highlights-bar');
-  const list = document.getElementById('hl-list');
-  const count = document.getElementById('hl-count');
-  if (!bar) return;
-  if (state.highlights.length === 0) { bar.style.display = 'none'; return; }
-  bar.style.display = 'block';
-  count.textContent = state.highlights.length;
-  list.innerHTML = state.highlights.map((h, i) => `
-    <div class="hl-item">
-      <span class="hl-page">p.${h.page}</span>
-      <span class="hl-text">${escapeHtml(h.text)}</span>
-      <button class="hl-del" data-i="${i}" title="Supprimer">✕</button>
-    </div>`).join('');
-  list.querySelectorAll('.hl-del').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const i = parseInt(e.target.dataset.i);
-      state.highlights.splice(i, 1);
-      renderHighlightsBar();
-    });
-  });
+  // Désactivée — les citations sont visibles uniquement dans le panneau Pomodoro
+  // et dans le document final exporté
 }
 
 function wirePdfControls() {
