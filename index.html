@@ -428,6 +428,8 @@ function captureHighlight() {
   if (document.getElementById('citations-live')) {
     refreshCitationsLive();
   }
+  // Mettre à jour la sidebar permanente
+  if (window.refreshCitationsSidebar) window.refreshCitationsSidebar();
 }
 
 function refreshCitationsLive() {
@@ -1071,13 +1073,16 @@ function toggleTimer() {
   }
 }
 
-// Expose nécessaires pour library.js / notes.js / chapter-detect.js
+// Expose nécessaires pour les modules externes
 window.state = state;
 window.pdf = pdf;
 window.loadPdfFile = loadPdfFile;
 window.showToast = showToast;
 window.generateMarkdown = generateMarkdown;
 window.render = render;
+window.captureHighlight = captureHighlight;
+window.renderHighlightsBar = renderHighlightsBar;
+window.refreshCitationsLive = refreshCitationsLive;
 
 render();
 </script>
@@ -1086,5 +1091,7 @@ render();
 <script src="epub-reader.js"></script>
 <script src="chapter-detect.js"></script>
 <script src="vault.js"></script>
+<script src="ambient.js"></script>
+<script src="citations-sidebar.js"></script>
 </body>
 </html>
