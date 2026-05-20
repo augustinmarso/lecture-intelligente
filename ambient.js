@@ -13,20 +13,59 @@ const AMBIENT_KEY = 'ambient-prefs-v1';
 
 const MODES = {
   off:    { label: 'Off',           cat: 'off',     desc: 'Désactivé' },
+  // Bruits synthétisés
   brown:  { label: 'Brown',         cat: 'noise',   desc: 'Brown noise — attention soutenue (Mehta 2016)' },
   pink:   { label: 'Pink',          cat: 'noise',   desc: 'Pink noise — mémoire & sommeil (Zhou 2012)' },
   white:  { label: 'White',         cat: 'noise',   desc: 'White noise — masque les distractions' },
-  ocean:  { label: '🌊 Vagues',     cat: 'nature',  desc: 'Vagues calmes (brown noise modulé)' },
-  rain:   { label: '🌧 Pluie',      cat: 'nature',  desc: 'Pluie continue (white noise filtré)' },
-  wind:   { label: '💨 Vent',       cat: 'nature',  desc: 'Vent doux (pink noise modulé)' },
-  forest: { label: '🌲 Forêt',      cat: 'nature',  desc: 'Bruissement et brise (pink + variations)' },
-  storm:  { label: '⛈ Orage',      cat: 'nature',  desc: 'Pluie + impulsions (tonnerre lointain)' },
+  // Synthétisé (nature simulée)
+  ocean:  { label: '🌊 Vagues',     cat: 'synth',   desc: 'Vagues synthétisées (brown noise modulé)' },
+  rain:   { label: '🌧 Pluie',      cat: 'synth',   desc: 'Pluie synthétisée (white noise filtré)' },
+  wind:   { label: '💨 Vent',       cat: 'synth',   desc: 'Vent synthétisé (pink noise modulé)' },
+  forest: { label: '🌲 Forêt',      cat: 'synth',   desc: 'Bruissement et brise (pink + variations)' },
+  storm:  { label: '⛈ Orage',      cat: 'synth',   desc: 'Pluie + impulsions (tonnerre lointain)' },
+  // Nature réelle (YouTube)
+  yt_rain:   { label: '🌧 Pluie réelle',    cat: 'nature', yt: 'q76bMs-NwRk', desc: 'Pluie tropicale 10h' },
+  yt_ocean:  { label: '🌊 Vagues océan',    cat: 'nature', yt: 'rEC3UQu14SE', desc: 'Vagues océan tropical' },
+  yt_forest: { label: '🌲 Forêt',           cat: 'nature', yt: 'xNN7iTA57jM', desc: 'Forêt avec oiseaux' },
+  yt_fire:   { label: '🔥 Cheminée',        cat: 'nature', yt: 'L_LUpnjgPso', desc: 'Feu de cheminée crépitant' },
+  yt_cafe:   { label: '☕ Café',            cat: 'nature', yt: 'BOdLmxy06H0', desc: 'Ambiance café parisien' },
+  yt_storm:  { label: '⛈ Orage',           cat: 'nature', yt: 'nDq6TstdEi8', desc: 'Pluie + tonnerre' },
+  // Musique classique & lo-fi
+  yt_pachelbel: { label: '🎻 Pachelbel',    cat: 'music',  yt: 'NlprozGcs80', desc: 'Canon en Ré majeur' },
+  yt_bach:      { label: '🎼 Bach',         cat: 'music',  yt: 'mGQLXRTl3Z0', desc: 'Bach pour la concentration' },
+  yt_mozart:    { label: '🎹 Mozart',       cat: 'music',  yt: 'jdlICnaWHJU', desc: 'Mozart Études' },
+  yt_vivaldi:   { label: '🎶 Vivaldi',      cat: 'music',  yt: 'GRxofEmo3HA', desc: 'Les Quatre Saisons' },
+  yt_chopin:    { label: '🎼 Chopin',       cat: 'music',  yt: 'wygy721nzRc', desc: 'Nocturnes Chopin' },
+  yt_lofi:      { label: '🎧 Lo-fi',        cat: 'music',  yt: 'jfKfPfyJRdk', desc: 'Lofi Girl beats 24/7' },
+  yt_jazz:      { label: '🎷 Jazz',         cat: 'music',  yt: 'Dx5qFachd3A', desc: 'Coffee Shop Jazz' },
+  // Binaural
   delta:  { label: 'Δ 2Hz Sommeil', cat: 'binaural',desc: 'Delta 2Hz — sommeil profond (casque)' },
   theta:  { label: 'θ 6Hz Méditation', cat: 'binaural', desc: 'Theta 6Hz — méditation, créativité (casque)' },
   alpha:  { label: 'α 10Hz Focus',  cat: 'binaural',desc: 'Alpha 10Hz — focus relaxé (casque)' },
   beta:   { label: 'β 20Hz Intense',cat: 'binaural',desc: 'Beta 20Hz — concentration intense (casque)' },
   gamma:  { label: 'γ 40Hz Cogn.',  cat: 'binaural',desc: 'Gamma 40Hz — haute cognition (casque)' },
 };
+
+let _ytPlayer = null;
+function _playYouTube(videoId) {
+  _stopYouTube();
+  const wrap = document.createElement('div');
+  wrap.id = 'ambient-yt-player';
+  wrap.innerHTML = `
+    <iframe width="320" height="90" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen
+      src="https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&modestbranding=1&rel=0"></iframe>
+    <button class="ambient-yt-close" title="Arrêter">✕</button>
+  `;
+  document.body.appendChild(wrap);
+  wrap.querySelector('.ambient-yt-close').onclick = () => { stopAmbient(); };
+  _ytPlayer = wrap;
+}
+function _stopYouTube() {
+  if (_ytPlayer) {
+    _ytPlayer.remove();
+    _ytPlayer = null;
+  }
+}
 
 function _loadAmbientPrefs() {
   try {
@@ -95,6 +134,7 @@ function stopAmbient() {
     try { n.disconnect(); } catch (_) {}
   });
   _activeNodes = [];
+  _stopYouTube();
   _currentMode = 'off';
   _refreshAmbientUI();
 }
@@ -477,6 +517,14 @@ function playAmbient(mode) {
   _currentMode = mode;
   if (mode === 'off') return;
 
+  // Mode YouTube ?
+  const m = MODES[mode];
+  if (m && m.yt) {
+    _playYouTube(m.yt);
+    _refreshAmbientUI();
+    return;
+  }
+
   switch (mode) {
     case 'brown': case 'pink': case 'white':
       _playNoise(mode); break;
@@ -529,9 +577,11 @@ function _injectAmbientUI() {
     toolbar.dataset.ambient = '1';
 
     const groups = {
-      noise: { title: 'Bruits scientifiques', items: ['brown','pink','white'] },
-      nature: { title: 'Nature', items: ['ocean','rain','wind','forest','storm'] },
-      binaural: { title: 'Binaural (casque)', items: ['delta','theta','alpha','beta','gamma'] }
+      music:    { title: '🎼 Musique classique & Lo-fi', items: ['yt_pachelbel','yt_bach','yt_mozart','yt_vivaldi','yt_chopin','yt_lofi','yt_jazz'] },
+      nature:   { title: '🌿 Nature (sons réels)', items: ['yt_rain','yt_ocean','yt_forest','yt_fire','yt_cafe','yt_storm'] },
+      noise:    { title: '🔊 Bruits scientifiques (synthétisés)', items: ['brown','pink','white'] },
+      synth:    { title: '🎛 Nature synthétisée (offline)', items: ['ocean','rain','wind','forest','storm'] },
+      binaural: { title: '🧠 Binaural (casque)', items: ['delta','theta','alpha','beta','gamma'] }
     };
     const groupsHtml = Object.entries(groups).map(([k, g]) => `
       <div class="ambient-group">
@@ -603,6 +653,13 @@ _ambStyle.textContent = `
 .ambient-volume-row label { font-size: 11px; color: var(--text2); min-width: 50px; }
 .ambient-volume-row input[type=range] { flex: 1; accent-color: var(--accent); }
 .ambient-note { font-size: 11px; color: var(--text2); line-height: 1.5; background: var(--bg2); padding: 8px 10px; border-radius: 6px; }
+#ambient-yt-player { position: fixed; bottom: 12px; right: 12px; z-index: 250; background: #000; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; display: flex; align-items: center; }
+#ambient-yt-player iframe { display: block; border: 0; }
+.ambient-yt-close { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(0,0,0,.7); color: #fff; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.ambient-yt-close:hover { background: rgba(220,38,38,.9); }
+@media (max-width: 720px) {
+  #ambient-yt-player { right: 8px; bottom: 8px; transform: scale(.85); transform-origin: bottom right; }
+}
 `;
 document.head.appendChild(_ambStyle);
 
