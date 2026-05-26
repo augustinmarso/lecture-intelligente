@@ -461,6 +461,7 @@ function _updateCurrentPageFromScroll() {
     if (window.libSetLastPosition && pdf.bookId) {
       window.libSetLastPosition(pdf.bookId, pdf.page, pdf.total);
     }
+    if (window.dashboardTrackPage) window.dashboardTrackPage(pdf.bookId, pdf.page);
   }
 }
 
@@ -497,6 +498,7 @@ function captureHighlight() {
   state.highlights.push({ page: pdf.page, text: txt, ts: Date.now() });
   if (sel.removeAllRanges) sel.removeAllRanges();
   showToast('📜 Citation archivée ✓');
+  if (window.dashboardTrackCitation) window.dashboardTrackCitation();
   renderHighlightsBar();
   // Mettre à jour le panneau live si on est sur l'écran Pomodoro
   if (document.getElementById('citations-live')) {
@@ -1145,9 +1147,12 @@ function updateNextBtn(btn, s) {
 function toggleTimer() {
   const t = state.timer;
   if (t.running) {
-    clearInterval(t.interval); t.running = false; re();
+    clearInterval(t.interval); t.running = false;
+    if (window.dashboardStopReadingTimer) window.dashboardStopReadingTimer();
+    re();
   } else {
     t.running = true;
+    if (window.dashboardStartReadingTimer && t.phase === 'work') window.dashboardStartReadingTimer();
     t.interval = setInterval(() => {
       if (t.seconds > 0) {
         t.seconds--;
@@ -1184,5 +1189,6 @@ render();
 <script src="vault.js"></script>
 <script src="music-player.js"></script>
 <script src="ambient.js"></script>
+<script src="dashboard.js"></script>
 </body>
 </html>
