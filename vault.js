@@ -335,3 +335,4 @@ window.vaultConnect = vaultConnect;
 window.vaultIsConnected = vaultIsConnected;
 window.vaultSaveNote = vaultSaveNote;
 window.vaultSyncAllNotes = vaultSyncAllNotes;
+window._getVaultHandle = () => _vaultHandle;
