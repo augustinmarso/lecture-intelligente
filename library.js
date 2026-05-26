@@ -151,7 +151,7 @@ function injectLibraryUI() {
   };
 
   // Bouton dans le top-bar (réinjecté à chaque rendu)
-  const observer = new MutationObserver(() => {
+  const _injectBtns = () => {
     document.querySelectorAll('.top-bar').forEach(bar => {
       if (bar.dataset.libBtn) return;
       bar.dataset.libBtn = '1';
@@ -165,9 +165,11 @@ function injectLibraryUI() {
       if (pdfBtn) bar.insertBefore(btn, pdfBtn);
       else bar.appendChild(btn);
     });
-  });
+  };
+  const observer = new MutationObserver(_injectBtns);
   const appEl = document.getElementById('app');
   if (appEl) observer.observe(appEl, { childList: true, subtree: true });
+  _injectBtns(); // Traiter les top-bars déjà présents
 }
 
 async function openLibrary() {

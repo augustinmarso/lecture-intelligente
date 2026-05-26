@@ -96,7 +96,7 @@ window.setChapterFromCurrentView = setChapterFromCurrentView;
 //  - la toolbar EPUB
 // =============================================================
 function _injectChapterButton() {
-  const obs = new MutationObserver(() => {
+  const _doInject = () => {
     // Toolbar PDF
     const pdfToolbar = document.querySelector('#pdf-panel .pdf-toolbar');
     if (pdfToolbar && !pdfToolbar.dataset.chapBtn) {
@@ -126,8 +126,9 @@ function _injectChapterButton() {
       if (nav) nav.insertBefore(btn, nav.firstChild);
       else epubBar.appendChild(btn);
     }
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
+  };
+  new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
+  _doInject();
 }
 
 if (document.readyState === 'loading') {

@@ -222,7 +222,7 @@ function _renderVaultBar() {
 }
 
 function _injectVaultBar() {
-  const obs = new MutationObserver(() => {
+  const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
     if (!modalContent || modalContent.dataset.vaultWired) return;
     const gdBar = modalContent.querySelector('.gd-bar');
@@ -248,8 +248,9 @@ function _injectVaultBar() {
     document.getElementById('vault-disconnect').onclick = vaultDisconnect;
     document.getElementById('vault-sync-all').onclick = vaultSyncAllNotes;
     _renderVaultBar();
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
+  };
+  new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
+  _doInject();
 }
 
 async function vaultSyncAllNotes() {

@@ -326,7 +326,7 @@ window.openDashboard = openDashboard;
 // Bouton dans le top-bar
 // =============================================================
 function _injectDashboardButton() {
-  const obs = new MutationObserver(() => {
+  const _inject = () => {
     document.querySelectorAll('.top-bar').forEach(bar => {
       if (bar.dataset.dashBtn) return;
       bar.dataset.dashBtn = '1';
@@ -340,8 +340,9 @@ function _injectDashboardButton() {
       if (pdfBtn) bar.insertBefore(btn, pdfBtn);
       else bar.appendChild(btn);
     });
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
+  };
+  new MutationObserver(_inject).observe(document.body, { childList: true, subtree: true });
+  _inject();
 }
 
 // =============================================================

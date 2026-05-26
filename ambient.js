@@ -547,7 +547,7 @@ function _refreshAmbientUI() {
 }
 
 function _injectAmbientUI() {
-  const obs = new MutationObserver(() => {
+  const _doInject = () => {
     const toolbar = document.querySelector('#pdf-panel .pdf-toolbar');
     if (!toolbar || toolbar.dataset.ambient) return;
     toolbar.dataset.ambient = '1';
@@ -600,8 +600,9 @@ function _injectAmbientUI() {
     });
     wrap.querySelector('#ambient-volume').oninput = (e) => setAmbientVolume(e.target.value / 100);
     _refreshAmbientUI();
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
+  };
+  new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
+  _doInject();
 }
 
 // =============================================================
