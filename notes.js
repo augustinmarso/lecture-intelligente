@@ -348,41 +348,46 @@ function _hookLibraryTabs() {
 // =============================================================
 const _notesStyle = document.createElement('style');
 _notesStyle.textContent = `
-.tags-section { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem 1.25rem; text-align: left; margin-top: 1rem; }
-.tags-section h4 { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
-.tags-hint { font-size: 12px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
-.tags-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 0.5px solid var(--border2); border-radius: 999px; background: var(--bg); font-size: 12px; cursor: pointer; transition: all .15s; user-select: none; }
-.tag-chip:hover { background: var(--bg3); }
-.tag-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
-.tag-chip.small { padding: 2px 8px; font-size: 11px; cursor: default; }
-.tag-chip small { font-size: 10px; opacity: .7; }
+.tags-section { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; text-align: left; margin-top: 1rem; box-shadow: inset 0 0 0 1px var(--border); }
+.tags-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+.tags-hint { font-size: 13px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
+.tags-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 3px; background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; transition: background .1s; user-select: none; font-weight: 500; }
+.tag-chip:hover { background: var(--hover-strong); }
+.tag-chip.active { background: var(--accent); color: #fff; }
+.tag-chip.small { padding: 1px 8px; font-size: 12px; cursor: default; }
+.tag-chip small { font-size: 11px; opacity: .7; margin-left: 2px; }
 .tag-x { padding-left: 4px; opacity: .5; }
 .tag-chip.active .tag-x { opacity: 1; }
 .tag-chip:hover .tag-x { opacity: 1; }
 .tags-input-row { display: flex; gap: 6px; margin-bottom: 10px; }
-.tags-input-row input { flex: 1; padding: 6px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); }
-.tags-input-row button { padding: 6px 12px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
+.tags-input-row input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; }
+.tags-input-row input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.tags-input-row button { padding: 4px 12px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; }
+.tags-input-row button:hover { background: var(--accent-hover); }
 .notes-actions { display: flex; gap: 6px; }
 .notes-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.notes-tabs { display: flex; gap: 4px; }
-.notes-tab { padding: 6px 12px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
-.notes-tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
-#notes-search { padding: 6px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); min-width: 180px; }
-.notes-tags-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 0.5px dashed var(--border); }
-.notes-list { display: flex; flex-direction: column; gap: 8px; }
-.note-card { padding: 12px 14px; border: 0.5px solid var(--border); border-radius: var(--radius-lg); }
-.note-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
-.note-header strong { font-family: 'Lora', serif; font-size: 15px; font-weight: 500; }
-.note-header small { font-size: 11px; color: var(--text3); }
-.note-objective { font-size: 13px; color: var(--text2); margin-bottom: 6px; line-height: 1.4; }
+.notes-tabs { display: flex; gap: 2px; }
+.notes-tab { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; }
+.notes-tab:hover { background: var(--hover); color: var(--text); }
+.notes-tab.active { background: var(--hover-strong); color: var(--text); font-weight: 500; }
+#notes-search { padding: 4px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); min-width: 200px; height: 28px; box-shadow: inset 0 0 0 1px var(--border); }
+#notes-search:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
+.notes-tags-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.notes-list { display: flex; flex-direction: column; gap: 2px; }
+.note-card { padding: 12px 14px; border-radius: var(--radius); transition: background .1s; cursor: default; }
+.note-card:hover { background: var(--hover); }
+.note-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+.note-header strong { font-size: 15px; font-weight: 600; color: var(--text); }
+.note-header small { font-size: 12px; color: var(--text3); }
+.note-objective { font-size: 13px; color: var(--text2); margin-bottom: 6px; line-height: 1.5; }
 .note-synth { list-style: none; padding: 0; margin: 6px 0; }
-.note-synth li { font-size: 12px; color: var(--text2); padding-left: 14px; position: relative; line-height: 1.5; margin-bottom: 2px; }
-.note-synth li::before { content: '·'; position: absolute; left: 4px; }
+.note-synth li { font-size: 13px; color: var(--text2); padding-left: 14px; position: relative; line-height: 1.5; margin-bottom: 2px; }
+.note-synth li::before { content: '·'; position: absolute; left: 4px; color: var(--text3); }
 .note-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
-.note-actions { display: flex; gap: 6px; margin-top: 8px; }
+.note-actions { display: flex; gap: 2px; margin-top: 8px; }
 .note-view-content { padding: 12px 0; }
-.md-render { font-family: 'Lora', serif; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: var(--text); padding: 12px 14px; background: var(--bg2); border-radius: var(--radius); margin-top: 12px; }
+.md-render { font-size: 14px; line-height: 1.65; white-space: pre-wrap; color: var(--text); padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); margin-top: 12px; box-shadow: inset 0 0 0 1px var(--border); }
 `;
 document.head.appendChild(_notesStyle);
 

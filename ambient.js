@@ -611,24 +611,24 @@ function _injectAmbientUI() {
 const _ambStyle = document.createElement('style');
 _ambStyle.textContent = `
 .ambient-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.ambient-wrap > #ambient-toggle { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
-.ambient-wrap > #ambient-toggle:hover { background: var(--bg3); }
-.ambient-wrap > #ambient-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.ambient-current { font-size: 11px; color: var(--text2); }
-.ambient-panel { position: fixed; top: 60px; left: 12px; max-width: 360px; width: calc(100vw - 24px); background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.35); z-index: 200; max-height: calc(100vh - 80px); overflow-y: auto; }
-.ambient-panel-title { font-size: 13px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
-.ambient-off-btn { width: 100%; padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text2); border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; margin-bottom: 10px; }
-.ambient-off-btn:hover { background: var(--bg3); color: var(--text); }
-.ambient-group { margin-bottom: 10px; }
-.ambient-group-title { font-size: 10px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; font-weight: 500; }
+.ambient-wrap > #ambient-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; height: 28px; transition: background .1s; }
+.ambient-wrap > #ambient-toggle:hover { background: var(--hover); color: var(--text); }
+.ambient-wrap > #ambient-toggle.active { background: var(--hover-strong); color: var(--text); }
+.ambient-current { font-size: 12px; color: var(--text2); font-weight: 500; }
+.ambient-panel { position: fixed; top: 56px; left: 12px; max-width: 360px; width: calc(100vw - 24px); background: var(--bg); border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow); z-index: 200; max-height: calc(100vh - 80px); overflow-y: auto; }
+.ambient-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+.ambient-off-btn { width: 100%; padding: 6px 10px; border: none; background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; margin-bottom: 12px; height: 30px; transition: background .1s; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
+.ambient-off-btn:hover { background: var(--bg3); }
+.ambient-group { margin-bottom: 12px; }
+.ambient-group-title { font-size: 11px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
 .ambient-modes { display: flex; flex-wrap: wrap; gap: 4px; }
-.ambient-modes button { padding: 5px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: 6px; font-family: inherit; font-size: 11px; cursor: pointer; flex: 1; min-width: 60px; transition: all .15s; }
+.ambient-modes button { padding: 4px 10px; border: none; background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; flex: 1; min-width: 64px; transition: background .1s; height: 28px; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
 .ambient-modes button:hover { background: var(--bg3); }
-.ambient-modes button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 500; }
-.ambient-volume-row { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; padding-top: 10px; border-top: 0.5px solid var(--border); }
-.ambient-volume-row label { font-size: 11px; color: var(--text2); min-width: 50px; }
+.ambient-modes button.active { background: var(--accent); color: #fff; box-shadow: none; }
+.ambient-volume-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ambient-volume-row label { font-size: 12px; color: var(--text2); min-width: 50px; font-weight: 500; }
 .ambient-volume-row input[type=range] { flex: 1; accent-color: var(--accent); }
-.ambient-note { font-size: 11px; color: var(--text2); line-height: 1.5; background: var(--bg2); padding: 8px 10px; border-radius: 6px; }
+.ambient-note { font-size: 12px; color: var(--text2); line-height: 1.5; background: var(--bg2); padding: 10px 12px; border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
 `;
 document.head.appendChild(_ambStyle);
 

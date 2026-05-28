@@ -377,40 +377,41 @@ const _libStyle = document.createElement('style');
 _libStyle.textContent = `
 #lib-modal { position: fixed; inset: 0; z-index: 500; display: none; }
 #lib-modal.open { display: block; }
-.lib-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
-.lib-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 800px; height: 90vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,.3); overflow: hidden; }
-.lib-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 0.5px solid var(--border); }
-.lib-header h3 { font-family: 'Lora', serif; font-size: 18px; font-weight: 500; }
-.lib-header-actions { display: flex; gap: 6px; }
-.lib-import { padding: 6px 12px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; font-weight: 500; }
-.lib-import:hover { opacity: .85; }
-.lib-close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text2); padding: 4px 10px; border-radius: var(--radius); }
-.lib-close:hover { background: var(--bg2); }
-.lib-body { flex: 1; overflow-y: auto; padding: 14px 18px; }
-.lib-empty { text-align: center; color: var(--text2); padding: 3rem 1rem; font-size: 14px; line-height: 1.7; }
-.lib-book { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; gap: 12px; flex-wrap: wrap; }
+.lib-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.lib-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 820px; height: 90vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
+.lib-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.lib-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+.lib-header-actions { display: flex; gap: 4px; }
+.lib-import { padding: 6px 12px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; font-weight: 500; height: 28px; transition: background .1s; }
+.lib-import:hover { background: var(--accent-hover); }
+.lib-close { background: transparent; border: none; font-size: 16px; cursor: pointer; color: var(--text2); padding: 4px 8px; border-radius: var(--radius); height: 28px; min-width: 28px; transition: background .1s; }
+.lib-close:hover { background: var(--hover); color: var(--text); }
+.lib-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.lib-empty { text-align: center; color: var(--text2); padding: 3rem 1rem; font-size: 14px; line-height: 1.6; }
+.lib-book { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: var(--radius); margin-bottom: 2px; gap: 12px; flex-wrap: wrap; transition: background .1s; }
+.lib-book:hover { background: var(--hover); }
 .lib-book-info { flex: 1; min-width: 180px; }
-.lib-book-info strong { display: block; font-weight: 500; margin-bottom: 4px; font-size: 14px; }
+.lib-book-info strong { display: block; font-weight: 600; margin-bottom: 2px; font-size: 14px; color: var(--text); }
 .lib-book-info small { font-size: 12px; color: var(--text2); }
-.lib-book-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.lib-action { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
-.lib-action:hover { background: var(--bg3); }
-.lib-action.lib-del:hover { background: rgba(220,38,38,.15); color: #dc2626; border-color: rgba(220,38,38,.4); }
-.lib-action.lib-resume { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 500; }
-.lib-action.lib-resume:hover { opacity: .9; }
-.lib-progress { margin-top: 6px; }
-.lib-progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.lib-book-actions { display: flex; gap: 2px; flex-wrap: wrap; }
+.lib-action { padding: 4px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s, color .1s; box-shadow: inset 0 0 0 1px var(--border); }
+.lib-action:hover { background: var(--hover); color: var(--text); }
+.lib-action.lib-del:hover { background: rgba(224,62,62,0.12); color: var(--danger); box-shadow: inset 0 0 0 1px rgba(224,62,62,0.3); }
+.lib-action.lib-resume { background: var(--accent); color: #fff; box-shadow: none; font-weight: 500; }
+.lib-action.lib-resume:hover { background: var(--accent-hover); color: #fff; }
+.lib-progress { margin-top: 6px; max-width: 280px; }
+.lib-progress-bar { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
 .lib-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
 .lib-progress-text { font-size: 11px; color: var(--text2); }
 .lib-reader { display: flex; flex-direction: column; height: 100%; }
-.lib-reader-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 0 12px; border-bottom: 0.5px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
-.lib-reader-bar button { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
-.lib-reader-bar button:hover { background: var(--bg3); }
-.lib-reader-bar strong { font-family: 'Lora', serif; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-reader-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+.lib-reader-bar button { padding: 4px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; box-shadow: inset 0 0 0 1px var(--border); }
+.lib-reader-bar button:hover { background: var(--hover); color: var(--text); }
+.lib-reader-bar strong { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .lib-reader-content { flex: 1; overflow-y: auto; padding-right: 6px; }
-.lib-page { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 0.5px dashed var(--border); }
-.lib-page h4 { font-size: 11px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
-.lib-page-text { font-family: 'Lora', serif; font-size: 16px; line-height: 1.7; color: var(--text); }
+.lib-page { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.lib-page h4 { font-size: 12px; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
+.lib-page-text { font-size: 15px; line-height: 1.65; color: var(--text); white-space: pre-wrap; }
 @media (max-width: 600px) {
   .lib-content { width: 100vw; height: 100vh; top: 0; border-radius: 0; }
 }
