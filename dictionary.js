@@ -37,13 +37,13 @@ async function fetchDefinition(word) {
   const cacheKey = `${lang}::${word}`;
   if (cache[cacheKey]) return cache[cacheKey];
 
-  // Try dictionaryapi.dev
+  // 1. dictionaryapi.dev (langues supportées: en, hi, es, fr, ja, ru, de, it, ko, ar, tr, pt-BR, zh-CN)
   try {
     const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/${lang}/${encodeURIComponent(word)}`);
     if (r.ok) {
       const data = await r.json();
-      if (Array.isArray(data) && data.length) {
-        const result = { source: 'dictionaryapi.dev', entries: data };
+      if (Array.isArray(data) && data.length && data[0].meanings?.length) {
+        const result = { source: 'dictionaryapi.dev', entries: data, word };
         cache[cacheKey] = result;
         _saveCache();
         return result;
@@ -51,18 +51,41 @@ async function fetchDefinition(word) {
     }
   } catch (e) { console.warn('dict api error', e); }
 
-  // Fallback: Wiktionary (REST API)
+  // 2. Wiktionary REST API (préféré pour le français)
   try {
-    const wikiLang = lang === 'fr' ? 'fr' : lang;
+    const wikiLang = lang;
     const r = await fetch(`https://${wikiLang}.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`);
     if (r.ok) {
       const data = await r.json();
-      const result = { source: 'wiktionary', wiki: data };
-      cache[cacheKey] = result;
-      _saveCache();
-      return result;
+      // Garde tout, on rendera tout
+      if (Object.keys(data).length > 0) {
+        const result = { source: 'wiktionary', wiki: data, word, lang: wikiLang };
+        cache[cacheKey] = result;
+        _saveCache();
+        return result;
+      }
     }
-  } catch (e) { console.warn('wiktionary error', e); }
+  } catch (e) { console.warn('wiktionary rest error', e); }
+
+  // 3. MediaWiki Action API (extrait du Wiktionnaire — plus complet)
+  try {
+    const wikiLang = lang;
+    const url = `https://${wikiLang}.wiktionary.org/w/api.php?action=query&format=json&origin=*&prop=extracts&explaintext=true&exsectionformat=plain&titles=${encodeURIComponent(word)}`;
+    const r = await fetch(url);
+    if (r.ok) {
+      const data = await r.json();
+      const pages = data.query?.pages;
+      if (pages) {
+        const page = Object.values(pages)[0];
+        if (page && page.extract && !page.missing) {
+          const result = { source: 'mediawiki', extract: page.extract, word, lang: wikiLang };
+          cache[cacheKey] = result;
+          _saveCache();
+          return result;
+        }
+      }
+    }
+  } catch (e) { console.warn('mediawiki error', e); }
 
   return null;
 }
@@ -91,11 +114,31 @@ function removeWord(word, lang) {
 // =============================================================
 // Rendering définition
 // =============================================================
+// Nettoie HTML mais garde la mise en forme légère (italiques pour exemples)
+function _cleanHtml(s) {
+  if (!s) return '';
+  // Convertir certaines balises en équivalent texte
+  return s
+    .replace(/<i>(.*?)<\/i>/g, '<em>$1</em>')
+    .replace(/<\/?(a|span|abbr|sup|sub|cite|code|var|small)[^>]*>/g, '')
+    .replace(/<dl>[\s\S]*?<\/dl>/g, '')  // listes définitions imbriquées
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const POS_LABELS = {
+  noun: 'nom', verb: 'verbe', adjective: 'adjectif', adverb: 'adverbe',
+  pronoun: 'pronom', preposition: 'préposition', conjunction: 'conjonction',
+  determiner: 'déterminant', exclamation: 'interjection', article: 'article',
+  'proper noun': 'nom propre', 'numeral': 'numéral'
+};
+
 function _renderDef(word, data) {
   if (!data) {
     return `<div class="dict-empty">Aucune définition trouvée pour <strong>${_esc(word)}</strong>.</div>
-      <div class="dict-actions">
-        <a href="https://${_dictLang() === 'fr' ? 'fr' : 'en'}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir sur Wiktionnaire ↗</a>
+      <div style="margin-top:8px">
+        <a href="https://${_dictLang()}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir sur Wiktionnaire ↗</a>
       </div>`;
   }
 
@@ -106,11 +149,12 @@ function _renderDef(word, data) {
       <h3>${_esc(entry.word || word)}</h3>
       ${phonetic ? `<span class="dict-phonetic">${_esc(phonetic)}</span>` : ''}
     </div>`;
-    entry.meanings.slice(0, 3).forEach(m => {
+    entry.meanings.forEach(m => {
+      const pos = POS_LABELS[m.partOfSpeech] || m.partOfSpeech;
       html += `<div class="dict-meaning">
-        <div class="dict-pos">${_esc(m.partOfSpeech)}</div>
-        <ol class="dict-defs">${m.definitions.slice(0, 3).map(d =>
-          `<li>${_esc(d.definition)}${d.example ? `<em class="dict-ex">"${_esc(d.example)}"</em>` : ''}</li>`
+        <div class="dict-pos">${_esc(pos)}</div>
+        <ol class="dict-defs">${m.definitions.slice(0, 6).map(d =>
+          `<li>${_esc(d.definition)}${d.example ? `<em class="dict-ex">« ${_esc(d.example)} »</em>` : ''}</li>`
         ).join('')}</ol>
       </div>`;
     });
@@ -119,18 +163,56 @@ function _renderDef(word, data) {
 
   if (data.source === 'wiktionary') {
     let html = `<div class="dict-head"><h3>${_esc(word)}</h3></div>`;
-    const lang = _dictLang();
-    const langData = data.wiki[lang] || data.wiki['fr'] || data.wiki['en'] || Object.values(data.wiki)[0];
-    if (langData && langData.length) {
-      langData.slice(0, 3).forEach(item => {
+    const lang = data.lang;
+    // Wiktionary REST: data.wiki est un objet keyed par code de langue (ex: "fr": [...])
+    let langData = data.wiki[lang] || data.wiki[_dictLang()];
+    if (!langData) {
+      // Prend la première qui n'est pas "other"
+      const keys = Object.keys(data.wiki).filter(k => k !== 'other');
+      langData = data.wiki[keys[0]] || data.wiki['other'];
+    }
+    if (Array.isArray(langData) && langData.length) {
+      langData.forEach(item => {
+        const pos = POS_LABELS[(item.partOfSpeech||'').toLowerCase()] || item.partOfSpeech || '';
+        const defs = item.definitions || [];
+        if (!defs.length) return;
         html += `<div class="dict-meaning">
-          <div class="dict-pos">${_esc(item.partOfSpeech || '')}</div>
-          <ol class="dict-defs">${(item.definitions || []).slice(0, 3).map(d =>
-            `<li>${(d.definition || '').replace(/<[^>]+>/g, '')}</li>`
-          ).join('')}</ol>
+          ${pos ? `<div class="dict-pos">${_esc(pos.toLowerCase())}</div>` : ''}
+          <ol class="dict-defs">${defs.slice(0, 8).map(d => {
+            const defText = _cleanHtml(d.definition || '');
+            const examples = (d.parsedExamples || d.examples || []).slice(0, 2);
+            const examplesHtml = examples.map(ex => {
+              const t = typeof ex === 'string' ? ex : (ex.example || ex);
+              return `<em class="dict-ex">« ${_cleanHtml(t)} »</em>`;
+            }).join('');
+            return `<li>${defText}${examplesHtml}</li>`;
+          }).join('')}</ol>
         </div>`;
       });
+    } else {
+      html += `<div class="dict-empty">Mot trouvé mais sans définitions structurées.</div>`;
     }
+    return html;
+  }
+
+  if (data.source === 'mediawiki') {
+    // Extract en texte brut — montrer les premières lignes pertinentes
+    const lines = data.extract.split('\n').filter(l => l.trim().length > 0);
+    let html = `<div class="dict-head"><h3>${_esc(word)}</h3></div>`;
+    html += `<div class="dict-meaning"><ol class="dict-defs" style="list-style:none;padding-left:0">`;
+    let count = 0;
+    for (const line of lines) {
+      if (line.length < 10 || line.startsWith('=')) continue;
+      if (count >= 12) break;
+      // Section headers (langue, catégorie grammaticale)
+      if (line.toUpperCase() === line && line.length < 50) {
+        html += `<li class="dict-section">${_esc(line)}</li>`;
+      } else {
+        html += `<li style="padding-left:0">${_esc(line)}</li>`;
+      }
+      count++;
+    }
+    html += `</ol></div>`;
     return html;
   }
   return '';
@@ -159,13 +241,18 @@ async function showDefinitionPopup(word, rect, context) {
   popup.style.display = 'block';
 
   // Positionner au-dessus de la sélection
-  const popW = 360;
+  const popW = 440;
   let left = rect.left + window.scrollX + rect.width / 2 - popW / 2;
   let top = rect.top + window.scrollY - 10;
   left = Math.max(8, Math.min(window.innerWidth - popW - 8, left));
   popup.style.left = left + 'px';
   popup.style.top = top + 'px';
   popup.style.transform = 'translateY(-100%)';
+  // Si pas assez de place en haut, placer en dessous
+  if (rect.top < 300) {
+    popup.style.top = (rect.bottom + window.scrollY + 10) + 'px';
+    popup.style.transform = 'none';
+  }
 
   const data = await fetchDefinition(word);
   if (_dictPopup !== popup || popup.style.display === 'none') return;
@@ -331,7 +418,9 @@ function _injectDictButton() {
 const _dictStyle = document.createElement('style');
 _dictStyle.textContent = `
 /* Popup définition */
-#dict-popup { position: absolute; width: 360px; max-width: calc(100vw - 16px); background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 600; padding: 14px 16px; font-size: 14px; color: var(--text); line-height: 1.5; }
+#dict-popup { position: absolute; width: 440px; max-width: calc(100vw - 16px); max-height: 500px; overflow-y: auto; background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 600; padding: 16px 18px; font-size: 14px; color: var(--text); line-height: 1.5; }
+.dict-section { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; padding: 8px 0 4px !important; border-top: 1px solid var(--border); margin-top: 6px; }
+.dict-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 .dict-loading { color: var(--text2); font-size: 13px; }
 .dict-empty { color: var(--text2); font-size: 13px; line-height: 1.5; }
 .dict-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
