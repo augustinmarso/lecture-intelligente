@@ -18,18 +18,18 @@ const MODES = {
   pink:   { label: 'Pink',          cat: 'noise',   desc: 'Pink noise — mémoire & sommeil (Zhou 2012)' },
   white:  { label: 'White',         cat: 'noise',   desc: 'White noise — masque les distractions' },
   // Synthétisé (nature simulée)
-  ocean:  { label: '🌊 Vagues',     cat: 'synth',   desc: 'Vagues synthétisées (brown noise modulé)' },
-  rain:   { label: '🌧 Pluie',      cat: 'synth',   desc: 'Pluie synthétisée (white noise filtré)' },
-  wind:   { label: '💨 Vent',       cat: 'synth',   desc: 'Vent synthétisé (pink noise modulé)' },
-  forest: { label: '🌲 Forêt',      cat: 'synth',   desc: 'Bruissement et brise (pink + variations)' },
-  storm:  { label: '⛈ Orage',      cat: 'synth',   desc: 'Pluie + impulsions (tonnerre lointain)' },
+  ocean:  { label: 'Vagues',     icon: 'waves',        cat: 'synth',   desc: 'Vagues synthétisées (brown noise modulé)' },
+  rain:   { label: 'Pluie',      icon: 'rainy',        cat: 'synth',   desc: 'Pluie synthétisée (white noise filtré)' },
+  wind:   { label: 'Vent',       icon: 'air',          cat: 'synth',   desc: 'Vent synthétisé (pink noise modulé)' },
+  forest: { label: 'Forêt',      icon: 'forest',       cat: 'synth',   desc: 'Bruissement et brise (pink + variations)' },
+  storm:  { label: 'Orage',      icon: 'thunderstorm', cat: 'synth',   desc: 'Pluie + impulsions (tonnerre lointain)' },
   // Musique classique générée localement (Web Audio synthèse)
-  pachelbel: { label: '🎻 Pachelbel',    cat: 'music', score: 'pachelbel', desc: 'Canon en Ré majeur (généré)' },
-  bach:      { label: '🎼 Bach',         cat: 'music', score: 'bach',      desc: 'Prélude en Do BWV 846 (généré)' },
-  elise:     { label: '🎹 Pour Élise',   cat: 'music', score: 'elise',     desc: 'Beethoven — thème principal (généré)' },
-  satie:     { label: '🎶 Satie',        cat: 'music', score: 'satie',     desc: 'Gymnopédie n°1 (généré)' },
-  chopin:    { label: '🎼 Chopin',       cat: 'music', score: 'chopin',    desc: 'Prélude op.28 n°7 (généré)' },
-  debussy:   { label: '🌙 Debussy',      cat: 'music', score: 'debussy',   desc: 'Clair de Lune (généré)' },
+  pachelbel: { label: 'Pachelbel',    icon: 'queue_music', cat: 'music', score: 'pachelbel', desc: 'Canon en Ré majeur (généré)' },
+  bach:      { label: 'Bach',         icon: 'music_note',  cat: 'music', score: 'bach',      desc: 'Prélude en Do BWV 846 (généré)' },
+  elise:     { label: 'Pour Élise',   icon: 'piano',       cat: 'music', score: 'elise',     desc: 'Beethoven — thème principal (généré)' },
+  satie:     { label: 'Satie',        icon: 'audiotrack',  cat: 'music', score: 'satie',     desc: 'Gymnopédie n°1 (généré)' },
+  chopin:    { label: 'Chopin',       icon: 'music_note',  cat: 'music', score: 'chopin',    desc: 'Prélude op.28 n°7 (généré)' },
+  debussy:   { label: 'Debussy',      icon: 'nights_stay', cat: 'music', score: 'debussy',   desc: 'Clair de Lune (généré)' },
   // Binaural
   delta:  { label: 'Δ 2Hz Sommeil', cat: 'binaural',desc: 'Delta 2Hz — sommeil profond (casque)' },
   theta:  { label: 'θ 6Hz Méditation', cat: 'binaural', desc: 'Theta 6Hz — méditation, créativité (casque)' },
@@ -177,63 +177,6 @@ function _playBinaural(beatFreq, carrier = 200) {
   }
   oscL.start();
   oscR.start();
-}
-
-function _playStorm() {
-  // Pluie (white lowpass) + impulsions de tonnerre aléatoires
-  _playFiltered('white', 'lowpass', 1500);
-  const ctx = _ensureCtx();
-  function thunder() {
-    if (_currentMode !== 'storm') return;
-    const noise = ctx.createBufferSource();
-    const dur = 2 + Math.random() * 3;
-    const b = ctx.createBuffer(2, ctx.sampleRate * dur, ctx.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = b.getChannelData(ch);
-      let last = 0;
-      for (let i = 0; i < data.length; i++) {
-        const white = Math.random() * 2 - 1;
-        data[i] = (last + 0.02 * white) / 1.02;
-        last = data[i];
-      }
-    }
-    noise.buffer = b;
-    const filt = ctx.createBiquadFilter();
-    filt.type = 'lowpass';
-    filt.frequency.value = 300;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.1);
-    env.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
-    noise.connect(filt).connect(env).connect(_gainNode);
-    noise.start();
-    noise.stop(ctx.currentTime + dur);
-    setTimeout(thunder, 8000 + Math.random() * 15000);
-  }
-  setTimeout(thunder, 4000 + Math.random() * 6000);
-}
-
-function _playForest() {
-  // Pink noise modulé (vent) + petits chirps aléatoires (oiseaux subtils)
-  _playModulated('pink', 0.12, 0.3, 0.5);
-  const ctx = _ensureCtx();
-  function chirp() {
-    if (_currentMode !== 'forest') return;
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    const startFreq = 2000 + Math.random() * 3000;
-    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(startFreq * 0.7, ctx.currentTime + 0.15);
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0, ctx.currentTime);
-    env.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.02);
-    env.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-    osc.connect(env).connect(_gainNode);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.2);
-    setTimeout(chirp, 3000 + Math.random() * 8000);
-  }
-  setTimeout(chirp, 2000 + Math.random() * 3000);
 }
 
 // =============================================================
@@ -537,7 +480,7 @@ function _refreshAmbientUI() {
   const indicator = document.getElementById('ambient-toggle');
   if (indicator) {
     indicator.classList.toggle('active', _currentMode !== 'off');
-    indicator.textContent = _currentMode === 'off' ? '🎵' : '🎧';
+    indicator.innerHTML = _currentMode === 'off' ? icon('music_note') : icon('headphones');
   }
   const label = document.getElementById('ambient-current');
   if (label) {
@@ -553,16 +496,16 @@ function _injectAmbientUI() {
     toolbar.dataset.ambient = '1';
 
     const groups = {
-      music:    { title: '🎼 Musique classique (générée localement)', items: ['pachelbel','bach','elise','satie','chopin','debussy'] },
-      noise:    { title: '🔊 Bruits scientifiques', items: ['brown','pink','white'] },
-      synth:    { title: '🌿 Nature (multi-LFO organique)', items: ['ocean','rain','wind','forest','storm'] },
-      binaural: { title: '🧠 Binaural (casque)', items: ['delta','theta','alpha','beta','gamma'] }
+      music:    { title: `${icon('music_note',14)} Musique classique (générée localement)`, items: ['pachelbel','bach','elise','satie','chopin','debussy'] },
+      noise:    { title: `${icon('volume_up',14)} Bruits scientifiques`, items: ['brown','pink','white'] },
+      synth:    { title: `${icon('eco',14)} Nature (multi-LFO organique)`, items: ['ocean','rain','wind','forest','storm'] },
+      binaural: { title: `${icon('psychology',14)} Binaural (casque)`, items: ['delta','theta','alpha','beta','gamma'] }
     };
     const groupsHtml = Object.entries(groups).map(([k, g]) => `
       <div class="ambient-group">
         <div class="ambient-group-title">${g.title}</div>
         <div class="ambient-modes">
-          ${g.items.map(m => `<button data-mode="${m}" title="${MODES[m].desc}">${MODES[m].label}</button>`).join('')}
+          ${g.items.map(m => `<button data-mode="${m}" title="${MODES[m].desc}">${MODES[m].icon ? icon(MODES[m].icon,14) + ' ' : ''}${MODES[m].label}</button>`).join('')}
         </div>
       </div>
     `).join('');
@@ -570,17 +513,17 @@ function _injectAmbientUI() {
     const wrap = document.createElement('div');
     wrap.className = 'ambient-wrap';
     wrap.innerHTML = `
-      <button id="ambient-toggle" title="Musique d'ambiance">🎵</button>
+      <button id="ambient-toggle" title="Ambiance sonore">${icon('music_note')}</button>
       <span id="ambient-current" class="ambient-current"></span>
       <div class="ambient-panel" style="display:none">
-        <div class="ambient-panel-title">🎧 Musique d'ambiance</div>
-        <button data-mode="off" class="ambient-off-btn">⏹ Couper</button>
+        <div class="ambient-panel-title">${icon('headphones',15)} Musique d'ambiance</div>
+        <button data-mode="off" class="ambient-off-btn">${icon('stop',15)} Couper</button>
         ${groupsHtml}
         <div class="ambient-volume-row">
           <label>Volume</label>
           <input type="range" id="ambient-volume" min="0" max="100" value="40"/>
         </div>
-        <div class="ambient-note">💡 <strong>Brown noise</strong> recommandé pour concentration soutenue. Binaurals : casque indispensable.</div>
+        <div class="ambient-note">${icon('lightbulb',14)} <strong>Brown noise</strong> recommandé pour concentration soutenue. Binaurals : casque indispensable.</div>
       </div>
     `;
     toolbar.appendChild(wrap);
@@ -611,7 +554,7 @@ function _injectAmbientUI() {
 const _ambStyle = document.createElement('style');
 _ambStyle.textContent = `
 .ambient-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.ambient-wrap > #ambient-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; height: 28px; transition: background .1s; }
+.ambient-wrap > #ambient-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; height: 36px; min-width: 36px; transition: background .1s; }
 .ambient-wrap > #ambient-toggle:hover { background: var(--hover); color: var(--text); }
 .ambient-wrap > #ambient-toggle.active { background: var(--hover-strong); color: var(--text); }
 .ambient-current { font-size: 12px; color: var(--text2); font-weight: 500; }

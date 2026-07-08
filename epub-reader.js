@@ -100,7 +100,7 @@ async function showEpubReader(fileOrBlob, displayTitle) {
     const saved = parseInt(localStorage.getItem(posKey) || '0');
     if (saved > 0 && saved < epub.chapters.length) {
       current = saved;
-      if (window.showToast) window.showToast(`▶ Reprise section ${current + 1}/${epub.chapters.length}`);
+      if (window.showToast) window.showToast(`Reprise section ${current + 1}/${epub.chapters.length}`);
     }
   } catch (_) {}
 
@@ -137,7 +137,7 @@ async function showEpubReader(fileOrBlob, displayTitle) {
         <button id="epub-back" class="lib-action" title="Fermer le lecteur EPUB (Esc)">✕</button>
         <strong title="${(title||'').replace(/"/g,'&quot;')}">${(title||'').replace(/</g,'&lt;')}</strong>
         <div class="epub-toolbar-actions">
-          <button id="epub-settings-toggle" class="lib-action" title="Réglages d'affichage">⚙</button>
+          <button id="epub-settings-toggle" class="lib-action" title="Réglages d'affichage">${icon('tune', 15)}</button>
           <div class="epub-nav">
             <button id="epub-prev" class="lib-action" title="Précédent (←)">‹</button>
             <span id="epub-progress">–</span>
@@ -336,7 +336,7 @@ function _attachEpubLibButtons() {
       readBtn.className = 'lib-action';
       readBtn.dataset.act = 'read-epub';
       readBtn.title = 'Lire en EPUB dans le navigateur';
-      readBtn.textContent = '📖 EPUB Web';
+      readBtn.innerHTML = icon('auto_stories', 15) + ' EPUB Web';
       readBtn.onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -443,7 +443,7 @@ _epubStyle.textContent = `
 
 /* Toolbar */
 .epub-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 0.5px solid var(--epub-border); background: color-mix(in srgb, var(--epub-bg) 92%, var(--epub-text) 8%); flex-wrap: wrap; }
-.epub-bar strong { font-family: 'Lora', serif; font-size: 14px; font-weight: 500; flex: 1; min-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--epub-text); }
+.epub-bar strong { font-family: 'Newsreader', Georgia, serif; font-size: 14px; font-weight: 500; flex: 1; min-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--epub-text); }
 .epub-toolbar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .epub-nav { display: flex; align-items: center; gap: 4px; }
 .epub-nav span { font-size: 12px; color: var(--epub-text-muted); min-width: 56px; text-align: center; }
@@ -480,7 +480,7 @@ _epubStyle.textContent = `
 .epub-reader-panel[data-width="wide"] .epub-content { max-width: 960px; }
 
 /* Typographie */
-.epub-reader-panel[data-font="serif"] .epub-content { font-family: 'Lora', Georgia, 'Times New Roman', serif; }
+.epub-reader-panel[data-font="serif"] .epub-content { font-family: 'Newsreader', Georgia, 'Times New Roman', serif; }
 .epub-reader-panel[data-font="sans"] .epub-content { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .epub-reader-panel[data-font="dys"] .epub-content { font-family: 'Comic Sans MS', 'Comic Sans', 'Trebuchet MS', sans-serif; letter-spacing: .02em; }
 

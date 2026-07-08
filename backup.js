@@ -24,8 +24,7 @@ async function collectAllData(includeBooks = false) {
   const lsKeys = [
     'reading-stats-v1',
     'epub-reader-prefs-v1',
-    'ambient-prefs-v1',
-    'cit-sidebar-collapsed'
+    'ambient-prefs-v1'
   ];
   for (const k of lsKeys) {
     try { const v = localStorage.getItem(k); if (v) data.preferences[k] = v; } catch (_) {}
@@ -253,14 +252,14 @@ function _injectBackupSection() {
     const section = document.createElement('div');
     section.className = 'dash-section dash-backup';
     section.innerHTML = `
-      <h3>💾 Sauvegarde de mes données</h3>
+      <h3>${icon('save',15)} Sauvegarde de mes données</h3>
       <p class="backup-desc">Tes stats, fiches, citations et positions de lecture sont stockées dans ton navigateur. Sauvegarde-les pour ne rien perdre.</p>
       <div class="backup-actions">
         <button class="backup-btn primary" data-act="export">↓ Télécharger un backup</button>
         <button class="backup-btn" data-act="export-full">↓ Backup complet (avec PDFs)</button>
         <button class="backup-btn" data-act="import">↑ Restaurer depuis fichier</button>
-        <button class="backup-btn" data-act="vault-save">☁ Sauver dans le vault</button>
-        <button class="backup-btn" data-act="vault-restore">⤴ Restaurer du vault</button>
+        <button class="backup-btn" data-act="vault-save">${icon('cloud_upload',15)} Sauver dans le vault</button>
+        <button class="backup-btn" data-act="vault-restore">${icon('restore',15)} Restaurer du vault</button>
       </div>
       <div class="backup-info" id="backup-info"></div>
     `;
@@ -271,7 +270,7 @@ function _injectBackupSection() {
     section.querySelector('[data-act="import"]').onclick = importBackupFile;
     section.querySelector('[data-act="vault-save"]').onclick = async () => {
       const ok = await vaultAutoBackup();
-      if (window.showToast) window.showToast(ok ? '✓ Backup vault OK' : 'Vault non connecté — va dans 📚 Biblio pour le connecter');
+      if (window.showToast) window.showToast(ok ? '✓ Backup vault OK' : 'Vault non connecté — va dans Biblio pour le connecter');
     };
     section.querySelector('[data-act="vault-restore"]').onclick = vaultRestore;
   });

@@ -138,7 +138,7 @@ function _renderDef(word, data) {
   if (!data) {
     return `<div class="dict-empty">Aucune définition trouvée pour <strong>${_esc(word)}</strong>.</div>
       <div style="margin-top:8px">
-        <a href="https://${_dictLang()}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir sur Wiktionnaire ↗</a>
+        <a href="https://${_dictLang()}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir sur Wiktionnaire ${icon('open_in_new', 13)}</a>
       </div>`;
   }
 
@@ -280,7 +280,7 @@ async function showDefinitionPopup(word, rect, context) {
       if (window.showToast) window.showToast('Retiré de mes mots');
     } else {
       saveWord(word.toLowerCase(), defText, context);
-      if (window.showToast) window.showToast('📖 Mot enregistré');
+      if (window.showToast) window.showToast('Mot enregistré');
     }
     _hidePopup();
   };
@@ -351,7 +351,7 @@ function openSavedWords() {
     <div class="dw-overlay"></div>
     <div class="dw-content">
       <div class="dw-header">
-        <h2>📖 Mes mots <span class="dw-count">${list.length}</span></h2>
+        <h2>${icon('menu_book', 18)} Mes mots <span class="dw-count">${list.length}</span></h2>
         <button class="dw-close">✕</button>
       </div>
       <div class="dw-body">
@@ -366,7 +366,7 @@ function openSavedWords() {
               <div class="dw-def">${_esc(w.definition || '—')}</div>
               ${w.context ? `<div class="dw-ctx">« …${_esc(w.context)}… »</div>` : ''}
               <div class="dw-actions">
-                <button class="dw-del">🗑</button>
+                <button class="dw-del">${icon('delete', 15)}</button>
               </div>
             </div>
           `).join('')
@@ -400,8 +400,8 @@ function _injectDictButton() {
       bar.dataset.dictBtn = '1';
       const btn = document.createElement('button');
       btn.className = 'btn-pdf-toggle';
-      btn.title = 'Mes mots (double-clic sur un mot pour la définition)';
-      btn.textContent = '📖';
+      btn.title = 'Dictionnaire';
+      btn.innerHTML = icon('dictionary');
       btn.onclick = openSavedWords;
       const pdfBtn = bar.querySelector('#btn-pdf-toggle');
       if (pdfBtn) bar.insertBefore(btn, pdfBtn);
@@ -444,7 +444,7 @@ _dictStyle.textContent = `
 /* Modal mots enregistrés */
 #dict-words-modal { position: fixed; inset: 0; z-index: 555; }
 .dw-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-.dw-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 700px; height: 90vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
+.dw-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 700px; height: 90vh; height: 90dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
 .dw-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .dw-header h2 { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
 .dw-count { font-size: 11px; color: var(--text2); padding: 1px 8px; background: var(--bg3); border-radius: 3px; font-weight: 500; }
@@ -459,13 +459,13 @@ _dictStyle.textContent = `
 .dw-head small { font-size: 11px; color: var(--text3); font-weight: 500; }
 .dw-def { font-size: 13px; color: var(--text); line-height: 1.55; }
 .dw-ctx { margin-top: 6px; font-size: 12px; color: var(--text2); font-style: italic; }
-.dw-actions { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity .1s; }
+.dw-actions { position: absolute; top: 8px; right: 8px; opacity: .55; transition: opacity .1s; }
 .dw-card:hover .dw-actions { opacity: 1; }
 .dw-del { background: transparent; border: none; color: var(--text3); cursor: pointer; padding: 4px 8px; border-radius: var(--radius); height: 28px; transition: background .1s; }
 .dw-del:hover { background: rgba(224,62,62,0.12); color: var(--danger); }
 
 @media (max-width: 600px) {
-  .dw-content { width: 100vw; height: 100vh; top: 0; border-radius: 0; }
+  .dw-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; }
   #dict-popup { width: calc(100vw - 16px); }
 }
 `;

@@ -1,0 +1,13 @@
+{
+  "name": "Lecture Intelligente",
+  "short_name": "Lecture",
+  "description": "Méthode de lecture active : pré-lecture, lecture par blocs, synthèse et révision espacée.",
+  "lang": "fr",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ECE2D2",
+  "theme_color": "#C0603A",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

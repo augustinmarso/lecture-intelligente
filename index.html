@@ -4,79 +4,88 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lecture Intelligente</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M2 5 L12 7 L12 21 L2 19 Z' fill='none' stroke='%231a1916' stroke-width='1.6' stroke-linejoin='round'/><path d='M22 5 L12 7 L12 21 L22 19 Z' fill='none' stroke='%231a1916' stroke-width='1.6' stroke-linejoin='round'/><circle cx='12' cy='13' r='2.6' fill='%23c2410c'/></svg>"/>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C0603A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7'/><path d='M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7'/><path d='M12 6.5V19'/></svg>"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300,0,0&display=block" rel="stylesheet"/>
+  <link rel="manifest" href="manifest.webmanifest"/>
+  <meta name="theme-color" content="#C0603A"/>
+  <link rel="apple-touch-icon" href="icon.svg"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
-      /* Notion light palette */
-      --bg: #ffffff;
-      --bg2: #f7f7f5;          /* Notion sidebar bg */
-      --bg3: #efeeec;          /* Notion hover deeper */
-      --text: #37352f;         /* Notion default text */
-      --text2: #787774;        /* Notion light text */
-      --text3: #9b9a97;        /* Notion lighter text */
-      --border: rgba(55,53,47,0.09);  /* Notion divider */
-      --border2: rgba(55,53,47,0.16);
-      --border3: rgba(55,53,47,0.3);
-      --hover: rgba(55,53,47,0.06);   /* Notion hover bg */
-      --hover-strong: rgba(55,53,47,0.10);
-      --accent: #2383E2;       /* Notion blue */
-      --accent-hover: #1A6AB9;
-      --highlight: rgba(35,131,226,0.18);
-      --success: #0F7B6C;
-      --warning: #D9730D;
-      --danger: #E03E3E;
-      --shadow-sm: rgba(15,15,15,0.05) 0px 0px 0px 1px;
-      --shadow: rgba(15,15,15,0.05) 0px 0px 0px 1px, rgba(15,15,15,0.1) 0px 3px 6px, rgba(15,15,15,0.2) 0px 9px 24px;
-      --shadow-lg: rgba(15,15,15,0.05) 0px 0px 0px 1px, rgba(15,15,15,0.08) 0px 5px 12px, rgba(15,15,15,0.15) 0px 15px 40px;
-      --radius: 4px;
-      --radius-lg: 6px;
-      --radius-xl: 8px;
+      /* Warm paper palette — d'après le prototype « Lecture Intelligente » */
+      --page: linear-gradient(160deg, #ECE2D2 0%, #E4D8C4 100%); /* fond crème de la scène */
+      --bg: #FBF8F2;           /* papier — surface principale */
+      --bg2: #F3EBDC;          /* carte / champ chaud */
+      --bg3: #EADFCB;          /* survol profond / plateau de lecture */
+      --text: #2A2520;         /* encre */
+      --text2: #6F665A;        /* texte secondaire */
+      --text3: #9C8F78;        /* texte tertiaire */
+      --border: rgba(120,105,85,0.16);  /* filet chaud */
+      --border2: rgba(120,105,85,0.28);
+      --border3: rgba(120,105,85,0.42);
+      --hover: rgba(120,105,85,0.08);
+      --hover-strong: rgba(120,105,85,0.14);
+      --accent: #C0603A;       /* corail */
+      --accent-hover: #A94F2F;
+      --highlight: rgba(244,210,114,0.45);  /* surlignage jaune */
+      --success: #5E7B52;
+      --warning: #C77A34;
+      --danger: #B4402E;
+      --shadow-sm: rgba(60,45,30,0.10) 0px 0px 0px 1px;
+      --shadow: rgba(60,45,30,0.06) 0px 0px 0px 1px, rgba(60,45,30,0.12) 0px 3px 8px, rgba(60,45,30,0.18) 0px 12px 30px;
+      --shadow-lg: rgba(60,45,30,0.06) 0px 0px 0px 1px, rgba(60,45,30,0.14) 0px 8px 20px, rgba(60,45,30,0.24) 0px 24px 55px;
+      --radius: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        /* Notion dark palette */
-        --bg: #191919;
-        --bg2: #202020;          /* Sidebar dark */
-        --bg3: #2f2f2f;
-        --text: rgba(255,255,255,0.81);
-        --text2: rgba(255,255,255,0.46);
-        --text3: rgba(255,255,255,0.28);
-        --border: rgba(255,255,255,0.094);
-        --border2: rgba(255,255,255,0.13);
-        --border3: rgba(255,255,255,0.2);
-        --hover: rgba(255,255,255,0.055);
-        --hover-strong: rgba(255,255,255,0.094);
-        --accent: #2E8FF0;
-        --accent-hover: #4FA3F2;
-        --highlight: rgba(46,143,240,0.25);
-        --shadow-sm: rgba(0,0,0,0.3) 0px 0px 0px 1px;
-        --shadow: rgba(0,0,0,0.3) 0px 0px 0px 1px, rgba(0,0,0,0.4) 0px 3px 6px, rgba(0,0,0,0.5) 0px 9px 24px;
-        --shadow-lg: rgba(0,0,0,0.3) 0px 0px 0px 1px, rgba(0,0,0,0.5) 0px 5px 12px, rgba(0,0,0,0.6) 0px 15px 40px;
+        /* Warm espresso dark — pendant nocturne du thème papier */
+        --page: linear-gradient(160deg, #221C16 0%, #17130F 100%);
+        --bg: #1E1912;
+        --bg2: #271F17;
+        --bg3: #342A20;
+        --text: rgba(245,238,228,0.90);
+        --text2: rgba(245,238,228,0.52);
+        --text3: rgba(245,238,228,0.32);
+        --border: rgba(245,238,228,0.10);
+        --border2: rgba(245,238,228,0.15);
+        --border3: rgba(245,238,228,0.24);
+        --hover: rgba(245,238,228,0.06);
+        --hover-strong: rgba(245,238,228,0.10);
+        --accent: #D2764B;
+        --accent-hover: #E08C5F;
+        --highlight: rgba(244,210,114,0.28);
+        --shadow-sm: rgba(0,0,0,0.4) 0px 0px 0px 1px;
+        --shadow: rgba(0,0,0,0.4) 0px 0px 0px 1px, rgba(0,0,0,0.45) 0px 3px 8px, rgba(0,0,0,0.55) 0px 12px 30px;
+        --shadow-lg: rgba(0,0,0,0.4) 0px 0px 0px 1px, rgba(0,0,0,0.5) 0px 8px 20px, rgba(0,0,0,0.6) 0px 24px 55px;
       }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Helvetica, sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    /* Material Symbols — icônes minimalistes (fonts.google.com/icons) */
+    .ms { font-family: 'Material Symbols Outlined'; font-weight: 300; font-style: normal; font-size: 18px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; vertical-align: -4px; user-select: none; -webkit-font-smoothing: antialiased; font-variation-settings: 'opsz' 24; }
+    body { background: var(--page); background-attachment: fixed; color: var(--text); font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     button, input, textarea, select { font-family: inherit; color: inherit; -webkit-font-smoothing: antialiased; }
     ::selection { background: var(--highlight); }
-    .layout { display: flex; height: 100vh; width: 100%; }
+    .layout { display: flex; height: 100vh; height: 100dvh; width: 100%; }
+    button, .checklist-item, .type-card { touch-action: manipulation; }
     #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; }
     #pdf-panel.active { display: flex; flex: 0 0 50%; }
     .pdf-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--bg); flex-wrap: wrap; }
     .pdf-toolbar button, .pdf-toolbar label.btn { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
     .pdf-toolbar button:hover:not(:disabled), .pdf-toolbar label.btn:hover { background: var(--bg3); }
     .pdf-toolbar button:disabled { opacity: .4; cursor: default; }
-    .pdf-toolbar button.highlight-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .pdf-toolbar button.highlight-btn:hover { opacity: .85; }
+    .pdf-toolbar button.highlight-btn { background: #F4D272; color: #4A3A15; border-color: #E3BE55; font-weight: 600; }
+    .pdf-toolbar button.highlight-btn:hover { background: #EFC85B; opacity: 1; }
     .pdf-toolbar .pdf-info { font-size: 12px; color: var(--text2); margin-left: auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pdf-viewer { flex: 1; overflow: auto; background: var(--bg3); padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; scroll-behavior: smooth; }
-    .pdf-page-slot { position: relative; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px; }
+    .pdf-page-slot { position: relative; background: #FBF8F2; box-shadow: 0 6px 20px -8px rgba(60,45,30,.4); display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 12px; border-radius: 4px; }
     .pdf-page-slot::before { content: attr(data-page-label); position: absolute; top: -22px; left: 0; font-size: 10px; color: var(--text3); letter-spacing: .05em; text-transform: uppercase; }
-    .pdf-canvas-wrap { position: relative; box-shadow: 0 2px 8px rgba(0,0,0,.15); background: #fff; }
+    .pdf-canvas-wrap { position: relative; box-shadow: 0 6px 20px -8px rgba(60,45,30,.4); background: #FBF8F2; border-radius: 4px; }
     .pdf-canvas-wrap canvas { display: block; max-width: 100%; height: auto; }
     .textLayer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.25; line-height: 1.0; }
     .textLayer > span { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
@@ -101,14 +110,15 @@
     #resizer:hover { background: var(--border2); }
     .main-scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 2rem 1rem 4rem; }
     .app { width: 100%; max-width: 620px; position: relative; }
-    .top-bar { position: sticky; top: 0; background: var(--bg); padding: .5rem 0; margin: -2rem 0 2rem; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); }
-    .btn-pdf-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .1s; height: 28px; }
+    .top-bar { position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding: .5rem 0; margin: -2rem 0 2rem; z-index: 5; display: flex; justify-content: flex-start; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
+    .top-bar .app-title { margin-right: auto; }
+    .btn-pdf-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background .1s; height: 36px; min-width: 36px; flex-shrink: 0; }
     .btn-pdf-toggle:hover { background: var(--hover); color: var(--text); }
     .btn-pdf-toggle.active { background: var(--hover-strong); color: var(--text); }
-    .app-title { font-size: 14px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
-    .app-logo { color: var(--text2); flex-shrink: 0; }
-    .app-title:hover .app-logo circle { transform-origin: 12px 13px; animation: pulseLogo 1.4s ease-in-out infinite; }
-    @keyframes pulseLogo { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: .7; } }
+    .app-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 19px; font-weight: 500; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
+    .app-logo { color: var(--accent); flex-shrink: 0; }
+    .app-title:hover .app-logo { transform-origin: 12px 12px; animation: pulseLogo 1.4s ease-in-out infinite; }
+    @keyframes pulseLogo { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .75; } }
     .phase-bar { display: flex; margin-bottom: 1.5rem; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
     .phase-tab { padding: 6px 12px; font-size: 14px; font-weight: 500; text-align: center; color: var(--text3); line-height: 1.3; transition: all .1s; cursor: default; position: relative; margin-bottom: -1px; }
     .phase-tab.active { color: var(--text); border-bottom: 2px solid var(--text); }
@@ -118,7 +128,7 @@
     .dot.active { background: var(--text); }
     .dot.done { background: var(--text2); opacity: .5; }
     .step-number { font-size: 12px; font-weight: 500; color: var(--text2); letter-spacing: 0; text-transform: none; margin-bottom: .5rem; }
-    .step-title { font-size: 32px; font-weight: 700; line-height: 1.2; margin-bottom: 1.5rem; letter-spacing: -0.024em; color: var(--text); font-family: inherit; }
+    .step-title { font-family: 'Newsreader', Georgia, serif; font-size: 34px; font-weight: 500; line-height: 1.15; margin-bottom: 1.5rem; letter-spacing: -0.01em; color: var(--text); }
     .step-why { font-size: 14px; color: var(--text2); line-height: 1.6; padding: 12px 16px 12px 18px; background: var(--bg2); border-radius: var(--radius); margin-bottom: 1.5rem; border: none; }
     .example-box { background: var(--bg2); border: none; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 1.5rem; font-size: 14px; color: var(--text); line-height: 1.55; box-shadow: inset 0 0 0 1px var(--border); }
     .example-box strong { color: var(--text2); font-weight: 600; font-size: 12px; display: block; margin-bottom: 6px; letter-spacing: 0; text-transform: none; }
@@ -139,7 +149,7 @@
     .block-text { font-size: 14px; color: var(--text); line-height: 1.5; padding-top: 2px; }
     .checklist-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius); margin-bottom: 2px; cursor: pointer; transition: background .1s; font-size: 14px; color: var(--text); }
     .checklist-item:hover { background: var(--hover); }
-    .check-box { width: 16px; height: 16px; border: 1.5px solid var(--border3); border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .1s; background: var(--bg); }
+    .check-box { width: 18px; height: 18px; border: 1.5px solid var(--border3); border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .1s; background: var(--bg); }
     .check-box.checked { background: var(--accent); border-color: var(--accent); }
     .check-tick { display: none; width: 8px; height: 5px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translate(1px,-1px); }
     .check-box.checked .check-tick { display: block; }
@@ -175,8 +185,8 @@
     .citations-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 1rem; font-style: italic; }
     .citation-card { position: relative; padding: 10px 32px 10px 12px; background: var(--bg); border-radius: var(--radius); border-left: 3px solid var(--accent); }
     .citation-meta { font-size: 10px; color: var(--text3); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
-    .citation-card blockquote { font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; color: var(--text); font-style: italic; }
-    .citation-del { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: none; background: transparent; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+    .citation-card blockquote { font-family: 'Newsreader', Georgia, serif; font-size: 14px; line-height: 1.5; color: var(--text); font-style: italic; }
+    .citation-del { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
     .citation-del:hover { background: var(--bg3); color: var(--accent); }
     .revision-card { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; box-shadow: inset 0 0 0 1px var(--border); }
     .revision-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
@@ -195,7 +205,7 @@
     .btn-download { padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 1rem; transition: background .1s; display: inline-flex; align-items: center; gap: 6px; height: 32px; }
     .btn-download:hover { background: var(--accent-hover); }
     .success-screen { text-align: center; padding: 2rem 1rem; }
-    .success-screen h2 { font-size: 32px; font-weight: 700; margin-bottom: .75rem; letter-spacing: -0.024em; }
+    .success-screen h2 { font-family: 'Newsreader', Georgia, serif; font-size: 34px; font-weight: 500; margin-bottom: .75rem; letter-spacing: -0.01em; }
     .success-screen p { font-size: 14px; color: var(--text2); line-height: 1.6; max-width: 400px; margin: 0 auto 1.5rem; }
     .recap { background: var(--bg2); border-radius: var(--radius); padding: 1.25rem 1.5rem; text-align: left; font-size: 14px; line-height: 1.6; box-shadow: inset 0 0 0 1px var(--border); }
     .recap strong { font-weight: 500; display: block; margin-bottom: 2px; }
@@ -208,8 +218,20 @@
     .toast.show { opacity: 1; }
     @media (max-width: 720px) {
       .layout { flex-direction: column; }
-      #pdf-panel.active { flex: 0 0 50vh; max-width: 100%; border-right: none; border-bottom: 0.5px solid var(--border); }
+      #pdf-panel.active { flex: 0 0 50vh; flex-basis: 50dvh; max-width: 100%; min-width: 0; border-right: none; border-bottom: 0.5px solid var(--border); }
       #resizer { display: none; }
+      .checklist-item { padding: 10px 8px; }
+      .block-step { padding: 8px; }
+    }
+    @media (max-width: 480px) {
+      .main-scroll { padding: 1.25rem .75rem 3rem; }
+      .top-bar { overflow-x: auto; scrollbar-width: none; }
+      .top-bar::-webkit-scrollbar { display: none; }
+      .app-title { font-size: 16px; }
+      .step-title { font-size: 26px; }
+      .timer-time { font-size: 32px; }
+      .phase-tab { padding: 6px 8px; font-size: 13px; }
+      .pdf-toolbar button, .pdf-toolbar label.btn { min-height: 36px; }
     }
   </style>
 </head>
@@ -223,7 +245,7 @@
       <button id="pdf-next" disabled>›</button>
       <button id="pdf-zoom-out" disabled>−</button>
       <button id="pdf-zoom-in" disabled>+</button>
-      <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)">🖍 Surligner</button>
+      <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)"><span class="ms" style="font-size:16px">ink_highlighter</span> Surligner</button>
       <span class="pdf-info" id="pdf-filename"></span>
     </div>
     <div class="pdf-viewer" id="pdf-viewer">
@@ -289,6 +311,8 @@ const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: 
 
 function getSteps() { return state.noteType === 'chapitre' ? STEPS_CHAPITRE : STEPS_LIVRE; }
 function re() { render(); }
+// Icône Material Symbols (fonts.google.com/icons) — helper global pour tous les modules
+window.icon = function(name, size) { return `<span class="ms"${size ? ` style="font-size:${size}px"` : ''}>${name}</span>`; };
 function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
 function escapeAttr(s) { return (s||'').replace(/"/g,'&quot;'); }
 function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -301,7 +325,7 @@ let currentMicBtn = null;
 function attachMic(wrapEl, targetEl) {
   if (!SpeechRec) return;
   const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'mic-btn'; btn.title = 'Dictée vocale (fr-FR)'; btn.textContent = '🎤';
+  btn.type = 'button'; btn.className = 'mic-btn'; btn.title = 'Dictée vocale (fr-FR)'; btn.innerHTML = icon('mic', 15);
   btn.addEventListener('click', (e) => {
     e.preventDefault();
     if (currentRec && currentMicBtn === btn) { currentRec.stop(); return; }
@@ -535,7 +559,7 @@ function captureHighlight() {
   if (!txt) { showToast('Sélectionne d\'abord du texte dans le PDF'); return; }
   state.highlights.push({ page: pdf.page, text: txt, ts: Date.now() });
   if (sel.removeAllRanges) sel.removeAllRanges();
-  showToast('📜 Citation archivée ✓');
+  showToast('Citation archivée ✓');
   if (window.dashboardTrackCitation) window.dashboardTrackCitation();
   renderHighlightsBar();
   // Mettre à jour le panneau live si on est sur l'écran Pomodoro
@@ -621,7 +645,7 @@ function ensureHlPopup() {
   hlPopup.className = 'hl-popup';
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.innerHTML = '🖍 Enregistrer le surlignage';
+  btn.innerHTML = icon('ink_highlighter', 15) + ' Enregistrer le surlignage';
   // mousedown: empêcher la perte de focus/sélection avant le click
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', (e) => {
@@ -676,13 +700,17 @@ window.addEventListener('scroll', hideHlPopup, true);
   const resizer = document.getElementById('resizer');
   const panel = document.getElementById('pdf-panel');
   let dragging = false;
-  resizer.addEventListener('mousedown', () => { dragging = true; document.body.style.cursor = 'col-resize'; });
-  window.addEventListener('mousemove', (e) => {
+  resizer.style.touchAction = 'none';
+  resizer.addEventListener('pointerdown', (e) => {
+    dragging = true; document.body.style.cursor = 'col-resize';
+    resizer.setPointerCapture && resizer.setPointerCapture(e.pointerId);
+  });
+  window.addEventListener('pointermove', (e) => {
     if (!dragging || !panel.classList.contains('active')) return;
     const w = Math.max(280, Math.min(window.innerWidth * 0.75, e.clientX));
     panel.style.flex = `0 0 ${w}px`;
   });
-  window.addEventListener('mouseup', () => { dragging = false; document.body.style.cursor = ''; });
+  window.addEventListener('pointerup', () => { dragging = false; document.body.style.cursor = ''; });
 })();
 
 // ============= GOOGLE CALENDAR =============
@@ -825,14 +853,14 @@ function render() {
 
   const topBar = `<div class="top-bar">
     <div class="app-title">
-      <svg class="app-logo" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M2 5 L12 7 L12 21 L2 19 Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <path d="M22 5 L12 7 L12 21 L22 19 Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <circle cx="12" cy="13" r="2.6" fill="var(--accent)"/>
+      <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7"/>
+        <path d="M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7"/>
+        <path d="M12 6.5V19"/>
       </svg>
       <span>Lecture Intelligente</span>
     </div>
-    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF">📄 PDF</button>
+    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
   </div>`;
 
   let phases = '<div class="phase-bar">';
@@ -892,11 +920,11 @@ function renderType() {
   return `
   <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section.</div>
   <div class="type-card ${isLivre?'selected':''}" data-type="livre">
-    <div class="type-icon">📚</div>
+    <div class="type-icon"><span class="ms" style="font-size:24px">auto_stories</span></div>
     <div><h4>Note de livre</h4><p>Flux complet&nbsp;: objectif PPU, repérage des chapitres, lecture, synthèse, action, révision.</p></div>
   </div>
   <div class="type-card ${isChap?'selected':''}" data-type="chapitre">
-    <div class="type-icon">📄</div>
+    <div class="type-icon"><span class="ms" style="font-size:24px">article</span></div>
     <div><h4>Note de chapitre</h4><p>Flux allégé centré sur un seul chapitre, sans étape de table des matières.</p></div>
   </div>
   <div class="field" style="margin-top:1.2rem">
@@ -956,12 +984,12 @@ function renderEnv() {
 function renderLecture() {
   return `
   <div class="step-why">Avant de lire, pose-toi une question. Après chaque bloc, synthétise à voix haute. Ça transforme la lecture passive en apprentissage actif.</div>
-  <div class="block-step"><div class="block-num">1</div><div class="block-text">Ouvre ton PDF dans le panneau de gauche (bouton 📄 PDF en haut).</div></div>
-  <div class="block-step"><div class="block-num">2</div><div class="block-text">Sélectionne un passage important et clique sur 🖍 <strong>Surligner</strong> (ou Ctrl+H).</div></div>
+  <div class="block-step"><div class="block-num">1</div><div class="block-text">Ouvre ton PDF dans le panneau de gauche (bouton <span class="ms" style="font-size:15px">picture_as_pdf</span> en haut).</div></div>
+  <div class="block-step"><div class="block-num">2</div><div class="block-text">Sélectionne un passage important et clique sur <span class="ms" style="font-size:15px">ink_highlighter</span> <strong>Surligner</strong> (ou Ctrl+H).</div></div>
   <div class="block-step"><div class="block-num">3</div><div class="block-text">Formule une question sur ce que tu espères trouver.</div></div>
   <div class="block-step"><div class="block-num">4</div><div class="block-text">Toutes les 2–3 pages, arrête-toi&nbsp;: «&nbsp;Qu'est-ce que je retiens&nbsp;?&nbsp;»</div></div>
   <div style="margin-top:1.2rem">${inputField('Ta question avant de commencer', 'lec-q', state.lecture.question, 'En quoi ce passage répond à mon objectif ?')}</div>
-  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Astuce&nbsp;: clique sur 🎤 à droite des champs pour dicter tes notes à la voix.</div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Astuce&nbsp;: clique sur <span class="ms" style="font-size:15px">mic</span> à droite des champs pour dicter tes notes à la voix.</div>
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.lecture.question?'disabled':''}>Lancer le minuteur de lecture →</button></div>`;
 }
 
@@ -986,7 +1014,7 @@ function renderPomodoro() {
   ${t.blocks > 0 ? `<div class="revision-card"><h4>Blocs terminés&nbsp;: ${t.blocks}</h4><p>Avant de reprendre, rappelle-toi en 1 min les idées fortes du bloc précédent.</p></div>` : ''}
   <div class="citations-live" id="citations-live">
     <div class="citations-live-head">
-      <h4>📜 Citations archivées <span class="citations-count">${state.highlights.length}</span></h4>
+      <h4><span class="ms" style="font-size:16px">format_quote</span> Citations archivées <span class="citations-count">${state.highlights.length}</span></h4>
       <small>Sélectionne du texte dans le PDF/EPUB et clique « Enregistrer » — chaque citation s'archive ici puis dans le document final.</small>
     </div>
     <div class="citations-live-list">
@@ -1011,9 +1039,9 @@ function renderSynthese() {
   const filled = state.synthese.filter(s => s.trim()).length;
   return `
   <div class="step-why">Ferme le livre. Un résumé dans tes propres mots fixe les idées en mémoire. Ne recopie pas l'auteur — reformule.</div>
-  ${state.highlights.length > 0 ? `<div style="font-size:12px;color:var(--text2);background:var(--bg2);padding:10px 12px;border-radius:var(--radius);margin-bottom:1rem;line-height:1.5">💡 Tu as ${state.highlights.length} passage${state.highlights.length>1?'s':''} surligné${state.highlights.length>1?'s':''} dans le PDF — utilise-les comme matière première pour reformuler.</div>` : ''}
+  ${state.highlights.length > 0 ? `<div style="font-size:12px;color:var(--text2);background:var(--bg2);padding:10px 12px;border-radius:var(--radius);margin-bottom:1rem;line-height:1.5"><span class="ms" style="font-size:14px">lightbulb</span> Tu as ${state.highlights.length} passage${state.highlights.length>1?'s':''} surligné${state.highlights.length>1?'s':''} dans le PDF — utilise-les comme matière première pour reformuler.</div>` : ''}
   <ul class="synthesis-list">${items}</ul>
-  <div style="font-size:12px;color:var(--text2);margin:8px 0 1.2rem;line-height:1.5">Remplis-en au moins 3 pour continuer. Astuce&nbsp;: utilise 🎤 pour dicter chaque idée.</div>
+  <div style="font-size:12px;color:var(--text2);margin:8px 0 1.2rem;line-height:1.5">Remplis-en au moins 3 pour continuer. Astuce&nbsp;: utilise <span class="ms" style="font-size:15px">mic</span> pour dicter chaque idée.</div>
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${filled<3?'disabled':''}>Ma synthèse est prête →</button></div>`;
 }
 
@@ -1034,12 +1062,12 @@ function renderRevision() {
   <div class="revision-card">
     <h4>J+1 — ${cal.j1Date.toLocaleDateString('fr-FR')}</h4>
     <p>Relis ta synthèse en 2 min.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener">📅 Ajouter à Google Agenda</a></div>
+    <div class="gcal-row"><a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event</span> Ajouter à Google Agenda</a></div>
   </div>
   <div class="revision-card">
     <h4>J+7 — ${cal.j7Date.toLocaleDateString('fr-FR')}</h4>
     <p>Bilan sur le conseil appliqué. Est-ce que ça a marché ? Ajuste si besoin.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener">📅 Ajouter à Google Agenda</a></div>
+    <div class="gcal-row"><a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event</span> Ajouter à Google Agenda</a></div>
   </div>
   <div class="revision-card"><h4>Rappel de ton action</h4><p><strong>${escapeHtml(state.action.conseil) || '—'}</strong><br><span style="color:var(--text2);font-size:13px">${state.action.quand ? `Début&nbsp;: ${escapeHtml(state.action.quand)}` : ''} ${state.action.deadline ? `· Bilan&nbsp;: ${escapeHtml(state.action.deadline)}` : ''}</span></p></div>
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
@@ -1050,17 +1078,17 @@ function renderDone() {
   const cal = getCalendarEvents();
   const topBar = `<div class="top-bar">
     <div class="app-title">
-      <svg class="app-logo" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M2 5 L12 7 L12 21 L2 19 Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <path d="M22 5 L12 7 L12 21 L22 19 Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <circle cx="12" cy="13" r="2.6" fill="var(--accent)"/>
+      <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7"/>
+        <path d="M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7"/>
+        <path d="M12 6.5V19"/>
       </svg>
       <span>Lecture Intelligente</span>
     </div>
-    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}">📄 PDF</button>
+    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
   </div>`;
   return topBar + `<div class="success-screen">
-    <div style="font-size:40px;margin-bottom:1rem">✓</div>
+    <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
     <h2>${state.noteType === 'chapitre' ? 'Chapitre terminé' : 'Lecture accomplie'}</h2>
     <p>Tu as suivi toutes les étapes. Voici ce que tu emportes de cette session.</p>
     <div class="recap">
@@ -1068,20 +1096,20 @@ function renderDone() {
       ${state.noteType === 'chapitre' && state.chapterTitle ? `<div class="recap-block"><strong>Chapitre</strong><span class="recap-val">${escapeHtml(state.chapterTitle)}</span></div>` : ''}
       <div class="recap-block"><strong>Objectif</strong><span class="recap-val">${escapeHtml(state.ppu.precis) || '—'}</span></div>
       ${state.noteType !== 'chapitre' ? `<div class="recap-block"><strong>Chapitres prioritaires</strong><span class="recap-val">${escapeHtml(state.tdm.chapitres) || '—'}</span></div>` : ''}
-      ${state.highlights.length ? `<div class="recap-block"><strong>🖍 Passages surlignés</strong><span class="recap-val">${state.highlights.length} passage${state.highlights.length>1?'s':''} dans le PDF</span></div>` : ''}
+      ${state.highlights.length ? `<div class="recap-block"><strong><span class="ms" style="font-size:14px">ink_highlighter</span> Passages surlignés</strong><span class="recap-val">${state.highlights.length} passage${state.highlights.length>1?'s':''} dans le PDF</span></div>` : ''}
       <div class="recap-block"><strong>Synthèse</strong><ul style="list-style:none;padding:0;color:var(--text2);font-size:13px;margin-top:4px">${syn}</ul></div>
       <div class="recap-block"><strong>Action à tester</strong><span class="recap-val">${escapeHtml(state.action.conseil) || '—'} — ${escapeHtml(state.action.quand) || ''} ${state.action.deadline ? `(bilan : ${escapeHtml(state.action.deadline)})` : ''}</span></div>
     </div>
     <div class="gcal-section">
-      <h4>📅 Programmer mes rappels</h4>
+      <h4><span class="ms" style="font-size:16px">event</span> Programmer mes rappels</h4>
       <p>Ajoute les deux échéances dans ton Google Agenda en un clic.</p>
       <div class="gcal-row">
-        <a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener">📖 J+1 — Relire (${cal.j1Date.toLocaleDateString('fr-FR')})</a>
-        <a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener">📊 J+7 — Bilan (${cal.j7Date.toLocaleDateString('fr-FR')})</a>
+        <a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">menu_book</span> J+1 — Relire (${cal.j1Date.toLocaleDateString('fr-FR')})</a>
+        <a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">monitoring</span> J+7 — Bilan (${cal.j7Date.toLocaleDateString('fr-FR')})</a>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
-      <button class="btn-download" id="btn-save-as">↓ Enregistrer sous… (.md)</button>
+      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
       <button class="btn-secondary" id="btn-restart">Recommencer pour une nouvelle session</button>
     </div>
   </div>`;

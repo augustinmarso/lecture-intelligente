@@ -81,7 +81,7 @@ async function setChapterFromCurrentView() {
     // Re-render si la fonction existe
     if (typeof window.render === 'function') window.render();
   }
-  if (window.showToast) window.showToast(`📍 Chapitre défini : ${title.slice(0,50)}${title.length>50?'…':''}`);
+  if (window.showToast) window.showToast(`Chapitre défini : ${title.slice(0,50)}${title.length>50?'…':''}`);
 
   // Met à jour visuellement le champ s'il est ouvert
   const inp = document.getElementById('chapter-title');
@@ -104,7 +104,7 @@ function _injectChapterButton() {
       const btn = document.createElement('button');
       btn.id = 'pdf-set-chapter';
       btn.title = 'Définir le chapitre courant comme chapitre de la note';
-      btn.textContent = '📍 Ce chapitre';
+      btn.innerHTML = icon('bookmark', 15) + ' Ce chapitre';
       btn.style.background = 'var(--bg2)';
       btn.onclick = setChapterFromCurrentView;
       const hl = pdfToolbar.querySelector('#pdf-highlight');
@@ -119,7 +119,7 @@ function _injectChapterButton() {
       const btn = document.createElement('button');
       btn.id = 'epub-set-chapter';
       btn.title = 'Définir cette section comme chapitre de la note';
-      btn.textContent = '📍';
+      btn.innerHTML = icon('bookmark', 15);
       btn.className = 'lib-action';
       btn.onclick = setChapterFromCurrentView;
       const nav = epubBar.querySelector('.epub-nav');
