@@ -1,0 +1,386 @@
+// =============================================================
+// ai.js — Assistant IA (API Claude directement depuis le
+// navigateur, clé stockée en local). Propose des idées quand on
+// bloque : objectif PPU, question de lecture, synthèse, action.
+// Fournit aussi la génération de cartes Anki (utilisée par anki.js).
+// =============================================================
+
+const AI_STORE_KEY = 'li-ai';
+const AI_DEFAULTS = { key: '', model: 'claude-opus-4-8' };
+
+function _aiSettings() {
+  try { return Object.assign({}, AI_DEFAULTS, JSON.parse(localStorage.getItem(AI_STORE_KEY) || '{}')); }
+  catch (_) { return Object.assign({}, AI_DEFAULTS); }
+}
+function _aiSave(patch) {
+  localStorage.setItem(AI_STORE_KEY, JSON.stringify(Object.assign(_aiSettings(), patch)));
+}
+function aiIsConfigured() { return !!_aiSettings().key; }
+
+function _escAi(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// --- Appel API Claude (fetch direct navigateur : app statique sans build,
+// le SDK npm n'est pas disponible ; header dédié à l'accès navigateur) ---
+async function aiCall({ system, user, schema, maxTokens }) {
+  const s = _aiSettings();
+  if (!s.key) throw new Error('Clé API manquante — configure-la dans la bibliothèque (barre « Assistant IA »)');
+  const body = {
+    model: s.model || AI_DEFAULTS.model,
+    max_tokens: maxTokens || 2000,
+    system: system || 'Tu es un assistant de lecture active en français. Réponds de façon concrète et concise.',
+    messages: [{ role: 'user', content: user }]
+  };
+  if (schema) body.output_config = { format: { type: 'json_schema', schema } };
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': s.key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    let msg = 'Erreur API (' + resp.status + ')';
+    try { const j = await resp.json(); if (j.error && j.error.message) msg = j.error.message; } catch (_) {}
+    if (resp.status === 401) msg = 'Clé API invalide — vérifie-la dans les réglages IA';
+    if (resp.status === 429) msg = 'Limite de requêtes atteinte — réessaie dans une minute';
+    throw new Error(msg);
+  }
+  const data = await resp.json();
+  if (data.stop_reason === 'refusal') throw new Error('Requête refusée par l\'API');
+  const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  if (schema) {
+    try { return JSON.parse(text); }
+    catch (e) { throw new Error('Réponse IA illisible — réessaie'); }
+  }
+  return text;
+}
+window.aiCall = aiCall;
+window.aiIsConfigured = aiIsConfigured;
+
+// --- Contexte du livre pour les prompts ---
+function _bookContext() {
+  const st = window.state || {};
+  const lines = [];
+  if (st.bookTitle) lines.push('Livre : ' + st.bookTitle);
+  if (st.bookAuthor) lines.push('Auteur : ' + st.bookAuthor);
+  if (st.chapterTitle) lines.push('Chapitre : ' + st.chapterTitle);
+  if (st.ppu && st.ppu.precis) lines.push('Objectif du lecteur : ' + st.ppu.precis);
+  if (st.ppu && st.ppu.perso) lines.push('Motivation personnelle : ' + st.ppu.perso);
+  if (st.lecture && st.lecture.question) lines.push('Question de lecture : ' + st.lecture.question);
+  const cites = (st.highlights || []).slice(0, 12).map(h => `- (p.${h.page}) « ${h.text.slice(0, 300)} »`);
+  if (cites.length) lines.push('Passages surlignés pendant la lecture :\n' + cites.join('\n'));
+  const syn = (st.synthese || []).filter(x => x && x.trim());
+  if (syn.length) lines.push('Idées déjà notées dans la synthèse :\n' + syn.map((x, i) => `${i + 1}. ${x}`).join('\n'));
+  return lines.join('\n');
+}
+
+// --- Suggestions par écran ---
+const AI_SCREENS = {
+  ppu: {
+    detect: () => document.getElementById('ppu-perso'),
+    title: 'Idées d\'objectif PPU',
+    schema: {
+      type: 'object',
+      properties: { suggestions: { type: 'array', items: {
+        type: 'object',
+        properties: { perso: { type: 'string' }, precis: { type: 'string' }, utile: { type: 'string' } },
+        required: ['perso', 'precis', 'utile'], additionalProperties: false
+      } } },
+      required: ['suggestions'], additionalProperties: false
+    },
+    prompt: (extra) => `${_bookContext()}\n\nPropose 3 objectifs de lecture PPU (Personnel, Précis, Utile) plausibles et différents pour ce livre. Chaque objectif : "perso" = pourquoi ce livre m'intéresse vraiment (1 phrase à la première personne), "precis" = une question concrète à résoudre, "utile" = quand et où l'appliquer.${extra ? '\nContrainte du lecteur : ' + extra : ''}`,
+    render: (item) => `<strong>${_escAi(item.precis)}</strong><br><span>${_escAi(item.perso)}</span><br><span>${_escAi(item.utile)}</span>`,
+    apply: (item) => {
+      const st = window.state;
+      st.ppu.perso = item.perso; st.ppu.precis = item.precis; st.ppu.utile = item.utile;
+      window.render();
+    }
+  },
+  lecture: {
+    detect: () => document.getElementById('lec-q'),
+    title: 'Idées de question de lecture',
+    schema: {
+      type: 'object',
+      properties: { suggestions: { type: 'array', items: { type: 'string' } } },
+      required: ['suggestions'], additionalProperties: false
+    },
+    prompt: (extra) => `${_bookContext()}\n\nPropose 4 questions de lecture actives, courtes et concrètes, que le lecteur peut garder en tête pendant sa lecture pour rester engagé et répondre à son objectif.${extra ? '\nContrainte du lecteur : ' + extra : ''}`,
+    render: (item) => `<span>${_escAi(item)}</span>`,
+    apply: (item) => {
+      window.state.lecture.question = item;
+      window.render();
+    }
+  },
+  synthese: {
+    detect: () => document.querySelector('.syn-input'),
+    title: 'Pistes pour ta synthèse',
+    schema: {
+      type: 'object',
+      properties: { suggestions: { type: 'array', items: { type: 'string' } } },
+      required: ['suggestions'], additionalProperties: false
+    },
+    prompt: (extra) => `${_bookContext()}\n\nLe lecteur doit formuler 5 idées clés avec ses propres mots (synthèse). Propose 5 pistes de reformulation en t'appuyant en priorité sur ses passages surlignés et son objectif. Chaque piste : 1 à 2 phrases claires, à la première personne quand c'est pertinent. Ne recopie pas les citations mot à mot — reformule. N'utilise pas les idées déjà notées.${extra ? '\nContrainte du lecteur : ' + extra : ''}`,
+    render: (item) => `<span>${_escAi(item)}</span>`,
+    apply: (item) => {
+      const st = window.state;
+      const idx = st.synthese.findIndex(x => !x || !x.trim());
+      if (idx === -1) { if (window.showToast) window.showToast('Les 5 idées sont déjà remplies'); return; }
+      st.synthese[idx] = item;
+      window.render();
+    }
+  },
+  action: {
+    detect: () => document.getElementById('act-conseil'),
+    title: 'Idées d\'action à tester',
+    schema: {
+      type: 'object',
+      properties: { suggestions: { type: 'array', items: {
+        type: 'object',
+        properties: { conseil: { type: 'string' }, quand: { type: 'string' }, deadline: { type: 'string' } },
+        required: ['conseil', 'quand', 'deadline'], additionalProperties: false
+      } } },
+      required: ['suggestions'], additionalProperties: false
+    },
+    prompt: (extra) => `${_bookContext()}\n\nPropose 4 actions simples et immédiatement testables tirées de cette lecture. Chaque action : "conseil" = l'action la plus simple à tester tout de suite, "quand" = un moment concret pour commencer, "deadline" = un délai réaliste pour faire le bilan.${extra ? '\nContrainte du lecteur : ' + extra : ''}`,
+    render: (item) => `<strong>${_escAi(item.conseil)}</strong><br><span>${_escAi(item.quand)} · bilan : ${_escAi(item.deadline)}</span>`,
+    apply: (item) => {
+      const st = window.state;
+      st.action.conseil = item.conseil; st.action.quand = item.quand; st.action.deadline = item.deadline;
+      window.render();
+    }
+  }
+};
+
+// --- Popup de suggestions ---
+let _aiPopup = null;
+let _aiLastItems = [];
+let _aiCurrentScreen = null;
+
+function _ensureAiPopup() {
+  if (_aiPopup) return _aiPopup;
+  _aiPopup = document.createElement('div');
+  _aiPopup.id = 'ai-popup';
+  _aiPopup.innerHTML = `
+    <div class="ai-overlay"></div>
+    <div class="ai-panel">
+      <div class="ai-head">
+        <h4 id="ai-title">${icon('lightbulb', 16)} Suggestions</h4>
+        <button class="ai-close" title="Fermer">✕</button>
+      </div>
+      <div class="ai-body" id="ai-body"></div>
+      <div class="ai-foot">
+        <input id="ai-extra" type="text" placeholder="Préciser (facultatif) : « plutôt orienté travail », « plus simple »…"/>
+        <button id="ai-regen" class="gd-btn">${icon('refresh', 15)} Regénérer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(_aiPopup);
+  _aiPopup.querySelector('.ai-close').onclick = () => _aiPopup.classList.remove('open');
+  _aiPopup.querySelector('.ai-overlay').onclick = () => _aiPopup.classList.remove('open');
+  _aiPopup.querySelector('#ai-regen').onclick = () => {
+    if (_aiCurrentScreen) _runAiSuggest(_aiCurrentScreen, document.getElementById('ai-extra').value.trim());
+  };
+  _aiPopup.querySelector('#ai-extra').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && _aiCurrentScreen) _runAiSuggest(_aiCurrentScreen, e.target.value.trim());
+  });
+  return _aiPopup;
+}
+
+async function _runAiSuggest(screenKey, extra) {
+  const screen = AI_SCREENS[screenKey];
+  const pop = _ensureAiPopup();
+  _aiCurrentScreen = screenKey;
+  pop.classList.add('open');
+  pop.querySelector('#ai-title').innerHTML = `${icon('lightbulb', 16)} ${screen.title}`;
+  const body = pop.querySelector('#ai-body');
+
+  if (!aiIsConfigured()) {
+    body.innerHTML = `<div class="ai-empty">Aucune clé API configurée.<br><br>Ouvre la bibliothèque (${icon('library_books', 14)} en haut) et colle ta clé dans la barre « Assistant IA ».<br>La clé reste sur ton ordinateur (localStorage).</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="ai-empty">${icon('hourglass_top', 14)} Réflexion en cours…</div>`;
+  try {
+    const result = await aiCall({
+      system: 'Tu es un coach de lecture active en français. Tu aides un étudiant à formuler ses propres idées — tes propositions sont des points de départ, pas des réponses définitives. Style direct, concret, sans jargon.',
+      user: screen.prompt(extra || ''),
+      schema: screen.schema,
+      maxTokens: 1500
+    });
+    _aiLastItems = result.suggestions || [];
+    if (_aiLastItems.length === 0) { body.innerHTML = '<div class="ai-empty">Aucune suggestion — réessaie.</div>'; return; }
+    body.innerHTML = _aiLastItems.map((item, i) => `
+      <div class="ai-card">
+        <div class="ai-card-text">${screen.render(item)}</div>
+        <div class="ai-card-actions">
+          <button class="gd-btn ai-use" data-i="${i}">${icon('check', 15)} Utiliser</button>
+          ${window.ankiQuickAdd ? `<button class="gd-btn ai-anki" data-i="${i}" title="Créer une carte Anki avec cette idée">${icon('style', 15)} Anki</button>` : ''}
+        </div>
+      </div>`).join('');
+    body.querySelectorAll('.ai-use').forEach(btn => {
+      btn.onclick = () => {
+        const item = _aiLastItems[parseInt(btn.dataset.i)];
+        screen.apply(item);
+        _aiPopup.classList.remove('open');
+        if (window.showToast) window.showToast('Suggestion appliquée — reformule-la avec tes mots');
+      };
+    });
+    body.querySelectorAll('.ai-anki').forEach(btn => {
+      btn.onclick = async () => {
+        const item = _aiLastItems[parseInt(btn.dataset.i)];
+        const text = typeof item === 'string' ? item : Object.values(item).join(' — ');
+        const book = (window.state && window.state.bookTitle) || 'Lecture';
+        await window.ankiQuickAdd(book + ' — quelle idée avais-tu retenue ici ?', text, book);
+      };
+    });
+  } catch (e) {
+    body.innerHTML = `<div class="ai-empty">${_escAi(e.message)}</div>`;
+  }
+}
+
+// --- Génération de cartes Anki (utilisée par anki.js) ---
+async function aiGenerateCards(note) {
+  const parts = [];
+  if (note.bookTitle) parts.push('Livre : ' + note.bookTitle + (note.bookAuthor ? ' — ' + note.bookAuthor : ''));
+  if (note.chapterTitle) parts.push('Chapitre : ' + note.chapterTitle);
+  if (note.objectif) parts.push('Objectif de lecture : ' + note.objectif);
+  if (note.synthese && note.synthese.length) parts.push('Synthèse du lecteur :\n' + note.synthese.map((x, i) => `${i + 1}. ${x}`).join('\n'));
+  if (note.action && note.action.conseil) parts.push('Action décidée : ' + note.action.conseil + (note.action.quand ? ' (' + note.action.quand + ')' : ''));
+  const cites = (note.highlights || []).slice(0, 10).map(h => `- (p.${h.page}) « ${h.text.slice(0, 300)} »`);
+  if (cites.length) parts.push('Citations surlignées :\n' + cites.join('\n'));
+
+  const result = await aiCall({
+    system: 'Tu crées des flashcards Anki en français pour la répétition espacée. Règles : une seule idée par carte ; question précise et autosuffisante (mentionne le livre si utile) ; réponse courte ; privilégie les questions "pourquoi/comment/qu\'est-ce que" plutôt que "cite la liste" ; pas de carte triviale.',
+    user: parts.join('\n\n') + '\n\nGénère entre 5 et 10 flashcards question/réponse qui permettront de retenir durablement l\'essentiel de cette fiche de lecture.',
+    schema: {
+      type: 'object',
+      properties: { cards: { type: 'array', items: {
+        type: 'object',
+        properties: { recto: { type: 'string' }, verso: { type: 'string' } },
+        required: ['recto', 'verso'], additionalProperties: false
+      } } },
+      required: ['cards'], additionalProperties: false
+    },
+    maxTokens: 3000
+  });
+  return result.cards || [];
+}
+window.aiGenerateCards = aiGenerateCards;
+
+// --- Bouton "Idées IA" injecté sur les écrans concernés ---
+function _injectAiButtons() {
+  const obs = new MutationObserver(() => {
+    const app = document.getElementById('app');
+    if (!app) return;
+    for (const key of Object.keys(AI_SCREENS)) {
+      const anchor = AI_SCREENS[key].detect();
+      if (!anchor) continue;
+      const why = app.querySelector('.step-why');
+      if (!why || why.dataset.aiWired) return;
+      why.dataset.aiWired = '1';
+      const btn = document.createElement('button');
+      btn.className = 'ai-suggest-btn';
+      btn.type = 'button';
+      btn.innerHTML = icon('lightbulb', 15) + ' Je bloque — donne-moi des idées';
+      btn.onclick = () => _runAiSuggest(key, '');
+      why.insertAdjacentElement('afterend', btn);
+      return;
+    }
+  });
+  obs.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
+}
+
+// --- Barre de configuration dans le modal bibliothèque ---
+function _renderAiBar() {
+  const status = document.getElementById('ai-status');
+  if (!status) return;
+  const s = _aiSettings();
+  if (s.key) {
+    status.textContent = 'Clé enregistrée · ' + (s.model === 'claude-haiku-4-5' ? 'Haiku (éco)' : 'Opus');
+    status.classList.add('connected');
+  } else {
+    status.textContent = 'Aucune clé API';
+    status.classList.remove('connected');
+  }
+}
+
+function _injectAiBar() {
+  const _doInject = () => {
+    const modalContent = document.querySelector('#lib-modal .lib-content');
+    if (!modalContent || modalContent.dataset.aiWired) return;
+    const header = modalContent.querySelector('.lib-header');
+    if (!header) return;
+    modalContent.dataset.aiWired = '1';
+
+    const s = _aiSettings();
+    const bar = document.createElement('div');
+    bar.className = 'vault-bar ai-bar';
+    bar.innerHTML = `
+      <div class="vault-left">
+        <strong>${icon('lightbulb', 14)} Assistant IA</strong>
+        <span id="ai-status" class="vault-status">Aucune clé API</span>
+      </div>
+      <div class="vault-actions">
+        <input id="ai-key" type="password" placeholder="Clé API Claude (sk-ant-…)" value="${_escAi(s.key)}"/>
+        <select id="ai-model" title="Modèle utilisé">
+          <option value="claude-opus-4-8" ${s.model !== 'claude-haiku-4-5' ? 'selected' : ''}>Opus 4.8 (qualité)</option>
+          <option value="claude-haiku-4-5" ${s.model === 'claude-haiku-4-5' ? 'selected' : ''}>Haiku 4.5 (éco)</option>
+        </select>
+        <button id="ai-test" class="gd-btn" title="Enregistrer et tester la clé">${icon('check', 15)} Tester</button>
+      </div>
+    `;
+    header.insertAdjacentElement('afterend', bar);
+    document.getElementById('ai-test').onclick = async () => {
+      _aiSave({ key: document.getElementById('ai-key').value.trim(), model: document.getElementById('ai-model').value });
+      _renderAiBar();
+      if (!aiIsConfigured()) { if (window.showToast) window.showToast('Colle d\'abord ta clé API'); return; }
+      if (window.showToast) window.showToast('Test de la clé…');
+      try {
+        await aiCall({ user: 'Réponds uniquement : ok', maxTokens: 16 });
+        if (window.showToast) window.showToast('Clé valide — assistant IA actif');
+      } catch (e) {
+        if (window.showToast) window.showToast(e.message);
+      }
+    };
+    document.getElementById('ai-model').onchange = (e) => { _aiSave({ model: e.target.value }); _renderAiBar(); };
+    _renderAiBar();
+  };
+  new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
+  _doInject();
+}
+
+// --- Styles ---
+const _aiStyle = document.createElement('style');
+_aiStyle.textContent = `
+.ai-suggest-btn { display: inline-flex; align-items: center; gap: 6px; margin: -0.75rem 0 1.25rem; padding: 5px 12px; border: none; background: transparent; color: var(--accent); border-radius: var(--radius); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); transition: background .1s; }
+.ai-suggest-btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+#ai-popup { position: fixed; inset: 0; z-index: 600; display: none; }
+#ai-popup.open { display: block; }
+.ai-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); }
+.ai-panel { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: 92vw; max-width: 560px; max-height: 84vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
+.ai-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ai-head h4 { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.ai-close { background: transparent; border: none; font-size: 15px; cursor: pointer; color: var(--text2); padding: 4px 8px; border-radius: var(--radius); }
+.ai-close:hover { background: var(--hover); color: var(--text); }
+.ai-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.ai-empty { text-align: center; color: var(--text2); padding: 2rem 1rem; font-size: 13px; line-height: 1.6; }
+.ai-card { padding: 12px 14px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
+.ai-card-text { font-size: 14px; line-height: 1.55; color: var(--text); margin-bottom: 8px; }
+.ai-card-text span { color: var(--text2); font-size: 13px; }
+.ai-card-actions { display: flex; gap: 6px; }
+.ai-foot { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg2); }
+.ai-foot input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; }
+.ai-foot input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.ai-bar input#ai-key { width: 200px; padding: 4px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; }
+.ai-bar input#ai-key:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.ai-bar select { padding: 4px 8px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; cursor: pointer; }
+`;
+document.head.appendChild(_aiStyle);
+
+// --- Init ---
+window.addEventListener('load', () => {
+  _injectAiBar();
+  _injectAiButtons();
+});
