@@ -120,7 +120,7 @@ function _injectNoteUI() {
       const section = document.createElement('div');
       section.className = 'tags-section';
       section.innerHTML = `
-        <h4>🏷 Tags pour retrouver cette fiche</h4>
+        <h4>${icon('sell', 14)} Tags pour retrouver cette fiche</h4>
         <p class="tags-hint">Suggestions automatiques (cliquables pour activer/désactiver) ou ajoute les tiens.</p>
         <div class="tags-list" id="tags-list"></div>
         <div class="tags-input-row">
@@ -128,7 +128,7 @@ function _injectNoteUI() {
           <button id="tag-add">+ Ajouter</button>
         </div>
         <div class="notes-actions">
-          <button id="open-notes" class="lib-action">📂 Voir toutes mes fiches</button>
+          <button id="open-notes" class="lib-action">${icon('folder_open', 15)} Voir toutes mes fiches</button>
         </div>
       `;
       // Insérer avant les boutons "Enregistrer sous"
@@ -227,10 +227,10 @@ async function renderNotesView() {
   body.innerHTML = `
     <div class="notes-toolbar">
       <div class="notes-tabs">
-        <button class="notes-tab active" data-view="notes">📝 Mes fiches (${all.length})</button>
-        <button class="notes-tab" data-view="books">📚 Mes livres</button>
+        <button class="notes-tab active" data-view="notes">${icon('edit_note', 15)} Mes fiches (${all.length})</button>
+        <button class="notes-tab" data-view="books">${icon('library_books', 15)} Mes livres</button>
       </div>
-      <input id="notes-search" type="search" placeholder="🔍 Rechercher…" value="${_esc(_notesFilter.text)}"/>
+      <input id="notes-search" type="search" placeholder="Rechercher…" value="${_esc(_notesFilter.text)}"/>
     </div>
     ${tagChips ? `<div class="notes-tags-bar"><span class="tag-chip ${!_notesFilter.tag?'active':''}" data-filter-tag="">Tous</span>${tagChips}</div>` : ''}
     <div class="notes-list">
@@ -240,13 +240,13 @@ async function renderNotesView() {
             <strong>${_esc(n.title)}</strong>
             <small>${new Date(n.createdAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' })} · ${n.type}</small>
           </div>
-          ${n.objectif ? `<p class="note-objective">🎯 ${_esc(n.objectif)}</p>` : ''}
+          ${n.objectif ? `<p class="note-objective">${icon('target', 14)} ${_esc(n.objectif)}</p>` : ''}
           ${n.synthese && n.synthese.length ? `<ul class="note-synth">${n.synthese.slice(0,3).map(s => `<li>${_esc(s)}</li>`).join('')}${n.synthese.length>3?'<li>…</li>':''}</ul>` : ''}
           <div class="note-tags">${(n.tags||[]).map(t => `<span class="tag-chip small">${_esc(t)}</span>`).join('')}</div>
           <div class="note-actions">
-            <button class="lib-action" data-act="view">👁 Voir</button>
+            <button class="lib-action" data-act="view">${icon('visibility', 15)} Voir</button>
             <button class="lib-action" data-act="md">↓ .md</button>
-            <button class="lib-action lib-del" data-act="delete">🗑</button>
+            <button class="lib-action lib-del" data-act="delete">${icon('delete', 15)}</button>
           </div>
         </div>
       `).join('')}
@@ -324,10 +324,10 @@ function _hookLibraryTabs() {
       headerActions.dataset.notesBtnWired = '1';
       const btn = document.createElement('button');
       btn.className = 'lib-import';
-      btn.textContent = '📝 Fiches';
+      btn.innerHTML = icon('edit_note');
       btn.style.background = 'var(--bg2)';
       btn.style.color = 'var(--text)';
-      btn.title = 'Mes fiches de lecture';
+      btn.title = 'Mes fiches';
       btn.onclick = openNotes;
       const closeBtn = headerActions.querySelector('.lib-close');
       if (closeBtn) headerActions.insertBefore(btn, closeBtn);
@@ -357,7 +357,7 @@ _notesStyle.textContent = `
 .tag-chip.active { background: var(--accent); color: #fff; }
 .tag-chip.small { padding: 1px 8px; font-size: 12px; cursor: default; }
 .tag-chip small { font-size: 11px; opacity: .7; margin-left: 2px; }
-.tag-x { padding-left: 4px; opacity: .5; }
+.tag-x { padding-left: 4px; opacity: .55; }
 .tag-chip.active .tag-x { opacity: 1; }
 .tag-chip:hover .tag-x { opacity: 1; }
 .tags-input-row { display: flex; gap: 6px; margin-bottom: 10px; }

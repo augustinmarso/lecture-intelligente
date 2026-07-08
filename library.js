@@ -114,7 +114,7 @@ if (_origLoadPdfFile) {
           lastViewedAt: Date.now()
         });
         if (window.pdf) window.pdf.bookId = newId;
-        if (window.showToast) window.showToast('📚 Ajouté à la bibliothèque');
+        if (window.showToast) window.showToast('Ajouté à la bibliothèque');
       }
     } catch (e) { console.warn('lib save failed', e); }
   };
@@ -130,7 +130,7 @@ function injectLibraryUI() {
     <div class="lib-overlay"></div>
     <div class="lib-content">
       <div class="lib-header">
-        <h3>📚 Ma bibliothèque</h3>
+        <h3>${icon('library_books', 15)} Ma bibliothèque</h3>
         <div class="lib-header-actions">
           <button class="lib-import" title="Importer un PDF">+ Importer</button>
           <button class="lib-close">✕</button>
@@ -158,7 +158,7 @@ function injectLibraryUI() {
       const btn = document.createElement('button');
       btn.className = 'btn-pdf-toggle';
       btn.title = 'Bibliothèque';
-      btn.textContent = '📚 Biblio';
+      btn.innerHTML = icon('library_books');
       btn.style.marginRight = '6px';
       btn.onclick = openLibrary;
       const pdfBtn = bar.querySelector('#btn-pdf-toggle');
@@ -197,16 +197,16 @@ async function renderLibrary() {
         ${hasProgress ? `
           <div class="lib-progress" title="${b.lastPage}/${b.totalPages || '?'} (${progress}%)">
             <div class="lib-progress-bar"><div class="lib-progress-fill" style="width:${progress}%"></div></div>
-            <span class="lib-progress-text">📍 page ${b.lastPage}${b.totalPages ? '/' + b.totalPages : ''} · ${progress}%</span>
+            <span class="lib-progress-text">page ${b.lastPage}${b.totalPages ? '/' + b.totalPages : ''} · ${progress}%</span>
           </div>
         ` : ''}
       </div>
       <div class="lib-book-actions">
-        ${hasProgress ? `<button class="lib-action lib-resume" data-act="resume" title="Reprendre à la page ${b.lastPage}">▶ Reprendre</button>` : ''}
-        <button class="lib-action" data-act="open" title="Ouvrir à la première page">📖 ${hasProgress ? 'Début' : 'Ouvrir'}</button>
-        <button class="lib-action" data-act="text" title="Lire en texte sur le web">📝 Lire</button>
-        <button class="lib-action" data-act="epub" title="Télécharger en EPUB">📕 EPUB</button>
-        <button class="lib-action lib-del" data-act="delete" title="Supprimer">🗑</button>
+        ${hasProgress ? `<button class="lib-action lib-resume" data-act="resume" title="Reprendre à la page ${b.lastPage}">${icon('play_arrow', 15)} Reprendre</button>` : ''}
+        <button class="lib-action" data-act="open" title="Ouvrir à la première page">${icon('menu_book', 15)} ${hasProgress ? 'Début' : 'Ouvrir'}</button>
+        <button class="lib-action" data-act="text" title="Lire en texte sur le web">${icon('article', 15)} Lire</button>
+        <button class="lib-action" data-act="epub" title="Télécharger en EPUB">${icon('auto_stories', 15)} EPUB</button>
+        <button class="lib-action lib-del" data-act="delete" title="Supprimer">${icon('delete', 15)}</button>
       </div>
     </div>`;
   }).join('');
@@ -229,7 +229,7 @@ async function renderLibrary() {
         await _origLoadPdfFile(file);
         if (window.pdf) window.pdf.bookId = id;
         if (act === 'resume' && book.lastPage) {
-          if (window.showToast) window.showToast(`▶ Reprise à la page ${book.lastPage}`);
+          if (window.showToast) window.showToast(`Reprise à la page ${book.lastPage}`);
         }
       } else if (act === 'text') {
         await viewBookAsText(id);
@@ -266,7 +266,7 @@ async function viewBookAsText(id) {
   const book = await libGet(id);
   if (window.showToast) window.showToast('Extraction du texte…');
   const body = document.getElementById('lib-body');
-  body.innerHTML = `<div class="lib-empty">Extraction en cours… ⏳</div>`;
+  body.innerHTML = `<div class="lib-empty">Extraction en cours… ${icon('hourglass_top', 14)}</div>`;
   const pages = await extractPdfText(book.data);
   body.innerHTML = `
     <div class="lib-reader">
@@ -378,7 +378,7 @@ _libStyle.textContent = `
 #lib-modal { position: fixed; inset: 0; z-index: 500; display: none; }
 #lib-modal.open { display: block; }
 .lib-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-.lib-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 820px; height: 90vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
+.lib-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 820px; height: 90vh; height: 90dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
 .lib-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .lib-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
 .lib-header-actions { display: flex; gap: 4px; }
@@ -413,7 +413,7 @@ _libStyle.textContent = `
 .lib-page h4 { font-size: 12px; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
 .lib-page-text { font-size: 15px; line-height: 1.65; color: var(--text); white-space: pre-wrap; }
 @media (max-width: 600px) {
-  .lib-content { width: 100vw; height: 100vh; top: 0; border-radius: 0; }
+  .lib-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; }
 }
 `;
 document.head.appendChild(_libStyle);

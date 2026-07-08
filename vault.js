@@ -178,7 +178,7 @@ async function vaultSaveNote(note) {
     const writable = await fileHandle.createWritable();
     await writable.write(md);
     await writable.close();
-    if (window.showToast) window.showToast(`💾 Sauvée dans le vault : ${filename}`);
+    if (window.showToast) window.showToast(`Sauvée dans le vault : ${filename}`);
     return true;
   } catch (e) {
     console.error('vault save error', e);
@@ -234,11 +234,11 @@ function _injectVaultBar() {
     bar.className = 'vault-bar';
     bar.innerHTML = `
       <div class="vault-left">
-        <strong>🧠 Second Cerveau</strong>
+        <strong>${icon('psychology', 14)} Second Cerveau</strong>
         <span id="vault-status" class="vault-status">Aucun dossier connecté</span>
       </div>
       <div class="vault-actions">
-        <button id="vault-connect" class="gd-btn vault-primary">📁 Choisir dossier</button>
+        <button id="vault-connect" class="gd-btn vault-primary">${icon('folder_open', 15)} Choisir dossier</button>
         <button id="vault-sync-all" class="gd-btn" disabled title="Exporter toutes mes fiches dans le dossier">↑ Tout sync</button>
         <button id="vault-disconnect" class="gd-btn" disabled title="Déconnexion">✕</button>
       </div>

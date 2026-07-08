@@ -47,35 +47,35 @@ function xpForLevel(level) {
   return level * level * 50;
 }
 function titleForLevel(level) {
-  if (level >= 30) return '🌟 Sage';
-  if (level >= 20) return '📚 Érudit';
-  if (level >= 12) return '🎓 Étudiant';
-  if (level >= 7)  return '🔍 Lecteur curieux';
-  if (level >= 3)  return '📖 Apprenti';
-  return '🌱 Débutant';
+  if (level >= 30) return icon('star', 15) + ' Sage';
+  if (level >= 20) return icon('library_books', 15) + ' Érudit';
+  if (level >= 12) return icon('school', 15) + ' Étudiant';
+  if (level >= 7)  return icon('search', 15) + ' Lecteur curieux';
+  if (level >= 3)  return icon('menu_book', 15) + ' Apprenti';
+  return icon('eco', 15) + ' Débutant';
 }
 
 // =============================================================
 // Badges
 // =============================================================
 const BADGES = [
-  { id: 'first-page',  icon: '👣', name: 'Premier pas',     desc: 'Lire ta toute première page', check: s => Object.keys(s.pagesRead).length >= 1 },
-  { id: '100-pages',   icon: '📄', name: 'Centurion',       desc: 'Lire 100 pages au total',    check: s => Object.keys(s.pagesRead).length >= 100 },
-  { id: '1000-pages',  icon: '📚', name: 'Millénaire',      desc: '1000 pages — un vrai lecteur', check: s => Object.keys(s.pagesRead).length >= 1000 },
-  { id: '1-book',      icon: '🥉', name: 'Premier livre',   desc: 'Ouvrir ton premier livre',   check: s => Object.keys(s.booksOpened).length >= 1 },
-  { id: '10-books',    icon: '📖', name: 'Bibliophile',     desc: '10 livres dans ta bibliothèque', check: s => Object.keys(s.booksOpened).length >= 10 },
-  { id: '50-books',    icon: '🏆', name: 'Collectionneur',  desc: '50 livres — collection sérieuse', check: s => Object.keys(s.booksOpened).length >= 50 },
-  { id: 'streak-3',    icon: '🔥', name: 'Régularité',      desc: '3 jours consécutifs',        check: s => s.streakDays >= 3 },
-  { id: 'streak-7',    icon: '⚡', name: 'Semaine de feu',  desc: '7 jours consécutifs',        check: s => s.streakDays >= 7 },
-  { id: 'streak-30',   icon: '💎', name: 'Mois parfait',    desc: '30 jours consécutifs',       check: s => s.streakDays >= 30 },
-  { id: '1h-day',      icon: '⏰', name: 'Marathonien',     desc: '1 heure de lecture en une journée', check: s => Object.values(s.daily).some(d => d.minutes >= 60) },
-  { id: '10-citations',icon: '📜', name: 'Citateur',        desc: '10 citations archivées',     check: s => s.citations >= 10 },
-  { id: '100-citations',icon: '✨', name: 'Anthologiste',   desc: '100 citations archivées',    check: s => s.citations >= 100 },
-  { id: '1-note',      icon: '📝', name: 'Première fiche',  desc: 'Créer ta première fiche',    check: s => s.notes >= 1 },
-  { id: '10-notes',    icon: '🧠', name: 'Bâtisseur de second cerveau', desc: '10 fiches créées', check: s => s.notes >= 10 },
-  { id: 'level-5',     icon: '🎖', name: 'Niveau 5',        desc: 'Atteindre le niveau 5',     check: s => levelFromXp(s.xp) >= 5 },
-  { id: 'level-10',    icon: '🏅', name: 'Niveau 10',       desc: 'Atteindre le niveau 10',    check: s => levelFromXp(s.xp) >= 10 },
-  { id: 'level-20',    icon: '👑', name: 'Niveau 20',       desc: 'Atteindre le niveau 20',    check: s => levelFromXp(s.xp) >= 20 },
+  { id: 'first-page',  icon: 'footprint', name: 'Premier pas',     desc: 'Lire ta toute première page', check: s => Object.keys(s.pagesRead).length >= 1 },
+  { id: '100-pages',   icon: 'article', name: 'Centurion',       desc: 'Lire 100 pages au total',    check: s => Object.keys(s.pagesRead).length >= 100 },
+  { id: '1000-pages',  icon: 'library_books', name: 'Millénaire',      desc: '1000 pages — un vrai lecteur', check: s => Object.keys(s.pagesRead).length >= 1000 },
+  { id: '1-book',      icon: 'military_tech', name: 'Premier livre',   desc: 'Ouvrir ton premier livre',   check: s => Object.keys(s.booksOpened).length >= 1 },
+  { id: '10-books',    icon: 'menu_book', name: 'Bibliophile',     desc: '10 livres dans ta bibliothèque', check: s => Object.keys(s.booksOpened).length >= 10 },
+  { id: '50-books',    icon: 'trophy', name: 'Collectionneur',  desc: '50 livres — collection sérieuse', check: s => Object.keys(s.booksOpened).length >= 50 },
+  { id: 'streak-3',    icon: 'local_fire_department', name: 'Régularité',      desc: '3 jours consécutifs',        check: s => s.streakDays >= 3 },
+  { id: 'streak-7',    icon: 'bolt', name: 'Semaine de feu',  desc: '7 jours consécutifs',        check: s => s.streakDays >= 7 },
+  { id: 'streak-30',   icon: 'diamond', name: 'Mois parfait',    desc: '30 jours consécutifs',       check: s => s.streakDays >= 30 },
+  { id: '1h-day',      icon: 'schedule', name: 'Marathonien',     desc: '1 heure de lecture en une journée', check: s => Object.values(s.daily).some(d => d.minutes >= 60) },
+  { id: '10-citations',icon: 'format_quote', name: 'Citateur',        desc: '10 citations archivées',     check: s => s.citations >= 10 },
+  { id: '100-citations',icon: 'auto_awesome', name: 'Anthologiste',   desc: '100 citations archivées',    check: s => s.citations >= 100 },
+  { id: '1-note',      icon: 'note_add', name: 'Première fiche',  desc: 'Créer ta première fiche',    check: s => s.notes >= 1 },
+  { id: '10-notes',    icon: 'psychology', name: 'Bâtisseur de second cerveau', desc: '10 fiches créées', check: s => s.notes >= 10 },
+  { id: 'level-5',     icon: 'workspace_premium', name: 'Niveau 5',        desc: 'Atteindre le niveau 5',     check: s => levelFromXp(s.xp) >= 5 },
+  { id: 'level-10',    icon: 'stars', name: 'Niveau 10',       desc: 'Atteindre le niveau 10',    check: s => levelFromXp(s.xp) >= 10 },
+  { id: 'level-20',    icon: 'crown', name: 'Niveau 20',       desc: 'Atteindre le niveau 20',    check: s => levelFromXp(s.xp) >= 20 },
 ];
 
 function _checkBadges(s) {
@@ -90,7 +90,7 @@ function _checkBadges(s) {
 }
 
 function _notifyBadge(badge) {
-  if (window.showToast) window.showToast(`🎉 Badge débloqué : ${badge.icon} ${badge.name}`);
+  if (window.showToast) window.showToast(`Badge débloqué : ${badge.name}`);
 }
 
 // =============================================================
@@ -232,11 +232,11 @@ function openDashboard() {
   const badgesHtml = `
     <div class="dash-badges">
       ${unlocked.map(b => `<div class="dash-badge unlocked" title="${_esc(b.desc)}">
-        <div class="badge-icon">${b.icon}</div>
+        <div class="badge-icon">${icon(b.icon, 20)}</div>
         <div class="badge-name">${_esc(b.name)}</div>
       </div>`).join('')}
       ${locked.slice(0, 6).map(b => `<div class="dash-badge locked" title="${_esc(b.desc)}">
-        <div class="badge-icon">🔒</div>
+        <div class="badge-icon">${icon('lock', 14)}</div>
         <div class="badge-name">${_esc(b.name)}</div>
       </div>`).join('')}
     </div>
@@ -248,7 +248,7 @@ function openDashboard() {
     <div class="dash-overlay"></div>
     <div class="dash-content">
       <div class="dash-header">
-        <h2>📊 Mon tableau de bord</h2>
+        <h2>${icon('monitoring', 18)} Mon tableau de bord</h2>
         <button class="dash-close">✕</button>
       </div>
       <div class="dash-body">
@@ -268,49 +268,49 @@ function openDashboard() {
 
         <div class="dash-stats-grid">
           <div class="dash-stat">
-            <div class="dash-stat-icon">📄</div>
+            <div class="dash-stat-icon">${icon('article', 18)}</div>
             <div class="dash-stat-val">${totalPages}</div>
             <div class="dash-stat-label">pages lues</div>
           </div>
           <div class="dash-stat">
-            <div class="dash-stat-icon">📚</div>
+            <div class="dash-stat-icon">${icon('library_books', 18)}</div>
             <div class="dash-stat-val">${totalBooks}</div>
             <div class="dash-stat-label">livres ouverts</div>
           </div>
           <div class="dash-stat">
-            <div class="dash-stat-icon">⏱</div>
+            <div class="dash-stat-icon">${icon('schedule', 18)}</div>
             <div class="dash-stat-val">${_fmtTime(s.readingTimeMs)}</div>
             <div class="dash-stat-label">temps total</div>
           </div>
           <div class="dash-stat">
-            <div class="dash-stat-icon">🔥</div>
+            <div class="dash-stat-icon">${icon('local_fire_department', 18)}</div>
             <div class="dash-stat-val">${s.streakDays}</div>
             <div class="dash-stat-label">jours consécutifs</div>
           </div>
           <div class="dash-stat">
-            <div class="dash-stat-icon">📜</div>
+            <div class="dash-stat-icon">${icon('format_quote', 18)}</div>
             <div class="dash-stat-val">${s.citations}</div>
             <div class="dash-stat-label">citations</div>
           </div>
           <div class="dash-stat">
-            <div class="dash-stat-icon">📝</div>
+            <div class="dash-stat-icon">${icon('note_add', 18)}</div>
             <div class="dash-stat-val">${s.notes}</div>
             <div class="dash-stat-label">fiches créées</div>
           </div>
         </div>
 
         <div class="dash-section">
-          <h3>📈 7 derniers jours — temps de lecture</h3>
+          <h3>${icon('trending_up', 15)} 7 derniers jours — temps de lecture</h3>
           <div class="dash-bars">${bars}</div>
         </div>
 
         <div class="dash-section">
-          <h3>🏆 Badges <span class="dash-badge-count">${unlocked.length}/${BADGES.length}</span></h3>
+          <h3>${icon('trophy', 15)} Badges <span class="dash-badge-count">${unlocked.length}/${BADGES.length}</span></h3>
           ${badgesHtml}
         </div>
 
         <div class="dash-section dash-streak">
-          <h3>🔥 Plus longue série : <strong>${s.longestStreak} jours</strong></h3>
+          <h3>${icon('local_fire_department', 15)} Plus longue série : <strong>${s.longestStreak} jours</strong></h3>
         </div>
       </div>
     </div>
@@ -332,8 +332,8 @@ function _injectDashboardButton() {
       bar.dataset.dashBtn = '1';
       const btn = document.createElement('button');
       btn.className = 'btn-pdf-toggle';
-      btn.title = 'Mon tableau de bord';
-      btn.textContent = '📊';
+      btn.title = 'Tableau de bord';
+      btn.innerHTML = icon('monitoring');
       btn.style.marginRight = '6px';
       btn.onclick = openDashboard;
       const pdfBtn = bar.querySelector('#btn-pdf-toggle');
@@ -352,7 +352,7 @@ const _dashStyle = document.createElement('style');
 _dashStyle.textContent = `
 #dash-modal { position: fixed; inset: 0; z-index: 550; }
 .dash-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-.dash-content { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); width: 92vw; max-width: 820px; max-height: 92vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
+.dash-content { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); width: 92vw; max-width: 820px; max-height: 92vh; max-height: 92dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
 .dash-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); }
 .dash-header h2 { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
 .dash-close { background: transparent; border: none; font-size: 16px; cursor: pointer; color: var(--text2); padding: 4px 8px; border-radius: var(--radius); height: 28px; min-width: 28px; transition: background .1s; }
@@ -392,7 +392,7 @@ _dashStyle.textContent = `
 .dash-streak { padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
 .dash-streak h3 { font-size: 13px; color: var(--text2); font-weight: 500; margin: 0; }
 .dash-streak strong { color: var(--text); font-size: 16px; font-weight: 700; }
-@media (max-width: 600px) { .dash-content { width: 100vw; height: 100vh; top: 0; border-radius: 0; max-height: 100vh; } }
+@media (max-width: 600px) { .dash-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; max-height: 100vh; max-height: 100dvh; } }
 `;
 document.head.appendChild(_dashStyle);
 
