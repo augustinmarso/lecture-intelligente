@@ -427,6 +427,7 @@ function sujetPersist() {
   const i = list.findIndex(x => x.id === su.id);
   if (i >= 0) list[i] = su; else list.push(su);
   sujetsWrite(list);
+  document.dispatchEvent(new CustomEvent('li:changed')); // synchro cloud différée
 }
 function sujetAnsweredCount(su) { return (su.questions || []).filter(q => (q.avis || []).length > 0).length; }
 
@@ -1948,7 +1949,15 @@ function bindEvents() {
   document.querySelectorAll('.suj-home-del').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!confirm('Supprimer ce sujet, ses questions et tous tes avis ?')) return;
-      sujetsWrite(sujetsAll().filter(x => x.id !== parseInt(btn.dataset.id)));
+      const id = parseInt(btn.dataset.id);
+      sujetsWrite(sujetsAll().filter(x => x.id !== id));
+      // Pierre tombale pour que la synchro cloud ne le ressuscite pas
+      try {
+        const t = Object.assign({ sujets: [], notes: [] }, JSON.parse(localStorage.getItem('li-tomb') || '{}'));
+        t.sujets.push(id);
+        localStorage.setItem('li-tomb', JSON.stringify(t));
+      } catch (_) {}
+      document.dispatchEvent(new CustomEvent('li:changed'));
       re();
     });
   });
@@ -2097,5 +2106,6 @@ render();
 <script src="shelf.js"></script>
 <script src="ai.js"></script>
 <script src="anki.js"></script>
+<script src="cloud.js"></script>
 </body>
 </html>
