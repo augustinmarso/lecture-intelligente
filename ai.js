@@ -6,40 +6,48 @@
 // =============================================================
 
 const AI_STORE_KEY = 'li-ai';
-const AI_DEFAULTS = { key: '', model: 'claude-opus-4-8' };
+const AI_DEFAULTS = { keys: { anthropic: '', openai: '' }, model: 'claude-haiku-4-5' };
+
+// Catalogue des modèles proposés (le fournisseur est déduit du modèle choisi)
+const AI_MODELS = {
+  'claude-haiku-4-5':  { provider: 'anthropic', label: 'Claude Haiku 4.5 (éco)' },
+  'claude-opus-4-8':   { provider: 'anthropic', label: 'Claude Opus 4.8 (qualité)' },
+  'gpt-5.4-mini':      { provider: 'openai',    label: 'GPT-5.4 mini (éco)' },
+  'gpt-5.4':           { provider: 'openai',    label: 'GPT-5.4 (qualité)' },
+  'gpt-5.5':           { provider: 'openai',    label: 'GPT-5.5 (max)' }
+};
+const AI_PROVIDER_LABELS = { anthropic: 'Claude', openai: 'OpenAI' };
 
 function _aiSettings() {
-  try { return Object.assign({}, AI_DEFAULTS, JSON.parse(localStorage.getItem(AI_STORE_KEY) || '{}')); }
-  catch (_) { return Object.assign({}, AI_DEFAULTS); }
+  let s;
+  try { s = JSON.parse(localStorage.getItem(AI_STORE_KEY) || '{}'); } catch (_) { s = {}; }
+  // Migration de l'ancien format { key, model } (clé unique Claude)
+  if (s.key && !s.keys) s.keys = { anthropic: s.key, openai: '' };
+  s.keys = Object.assign({}, AI_DEFAULTS.keys, s.keys || {});
+  if (!s.model || !AI_MODELS[s.model]) s.model = AI_DEFAULTS.model;
+  return s;
 }
 function _aiSave(patch) {
-  localStorage.setItem(AI_STORE_KEY, JSON.stringify(Object.assign(_aiSettings(), patch)));
+  const s = _aiSettings();
+  if (patch.keys) patch.keys = Object.assign({}, s.keys, patch.keys);
+  localStorage.setItem(AI_STORE_KEY, JSON.stringify(Object.assign(s, patch)));
 }
-function aiIsConfigured() { return !!_aiSettings().key; }
+function _aiProvider(model) { return (AI_MODELS[model] || {}).provider || (String(model).startsWith('gpt') ? 'openai' : 'anthropic'); }
+function aiIsConfigured() {
+  const s = _aiSettings();
+  return !!s.keys[_aiProvider(s.model)];
+}
 
 function _escAi(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// --- Appel API Claude (fetch direct navigateur : app statique sans build,
-// le SDK npm n'est pas disponible ; header dédié à l'accès navigateur) ---
-async function aiCall({ system, user, schema, maxTokens }) {
-  const s = _aiSettings();
-  if (!s.key) throw new Error('Clé API manquante — configure-la dans la bibliothèque (barre « Assistant IA »)');
-  const body = {
-    model: s.model || AI_DEFAULTS.model,
-    max_tokens: maxTokens || 2000,
-    system: system || 'Tu es un assistant de lecture active en français. Réponds de façon concrète et concise.',
-    messages: [{ role: 'user', content: user }]
-  };
-  if (schema) body.output_config = { format: { type: 'json_schema', schema } };
+// --- Appel API (fetch direct navigateur : app statique sans build,
+// pas de SDK npm). Route vers Claude ou OpenAI selon le modèle choisi. ---
+const AI_DEFAULT_SYSTEM = 'Tu es un assistant de lecture active en français. Réponds de façon concrète et concise.';
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+async function _aiHttp(url, headers, body) {
+  const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': s.key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: Object.assign({ 'content-type': 'application/json' }, headers),
     body: JSON.stringify(body)
   });
   if (!resp.ok) {
@@ -49,14 +57,57 @@ async function aiCall({ system, user, schema, maxTokens }) {
     if (resp.status === 429) msg = 'Limite de requêtes atteinte — réessaie dans une minute';
     throw new Error(msg);
   }
-  const data = await resp.json();
+  return resp.json();
+}
+
+function _aiParse(text, schema) {
+  if (!schema) return text;
+  try { return JSON.parse(text); }
+  catch (e) { throw new Error('Réponse IA illisible — réessaie'); }
+}
+
+async function aiCall({ system, user, schema, maxTokens }) {
+  const s = _aiSettings();
+  const model = s.model;
+  const provider = _aiProvider(model);
+  const key = s.keys[provider];
+  if (!key) throw new Error(`Clé API ${AI_PROVIDER_LABELS[provider]} manquante — configure-la dans la bibliothèque (barre « Assistant IA »)`);
+
+  if (provider === 'openai') {
+    const body = {
+      model,
+      // Modèles à raisonnement : marge pour les tokens de réflexion
+      max_completion_tokens: (maxTokens || 2000) + 1500,
+      reasoning_effort: 'low',
+      messages: [
+        { role: 'system', content: system || AI_DEFAULT_SYSTEM },
+        { role: 'user', content: user }
+      ]
+    };
+    if (schema) body.response_format = { type: 'json_schema', json_schema: { name: 'reponse', strict: true, schema } };
+    const data = await _aiHttp('https://api.openai.com/v1/chat/completions', { authorization: 'Bearer ' + key }, body);
+    const msg = data.choices && data.choices[0] && data.choices[0].message;
+    if (!msg) throw new Error('Réponse API vide — réessaie');
+    if (msg.refusal) throw new Error('Requête refusée par l\'API');
+    return _aiParse(msg.content || '', schema);
+  }
+
+  // Anthropic (Claude)
+  const body = {
+    model,
+    max_tokens: maxTokens || 2000,
+    system: system || AI_DEFAULT_SYSTEM,
+    messages: [{ role: 'user', content: user }]
+  };
+  if (schema) body.output_config = { format: { type: 'json_schema', schema } };
+  const data = await _aiHttp('https://api.anthropic.com/v1/messages', {
+    'x-api-key': key,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true'
+  }, body);
   if (data.stop_reason === 'refusal') throw new Error('Requête refusée par l\'API');
   const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  if (schema) {
-    try { return JSON.parse(text); }
-    catch (e) { throw new Error('Réponse IA illisible — réessaie'); }
-  }
-  return text;
+  return _aiParse(text, schema);
 }
 window.aiCall = aiCall;
 window.aiIsConfigured = aiIsConfigured;
@@ -298,12 +349,19 @@ function _renderAiBar() {
   const status = document.getElementById('ai-status');
   if (!status) return;
   const s = _aiSettings();
-  if (s.key) {
-    status.textContent = 'Clé enregistrée · ' + (s.model === 'claude-haiku-4-5' ? 'Haiku (éco)' : 'Opus');
+  const provider = _aiProvider(s.model);
+  if (s.keys[provider]) {
+    status.textContent = (AI_MODELS[s.model] || { label: s.model }).label;
     status.classList.add('connected');
   } else {
-    status.textContent = 'Aucune clé API';
+    status.textContent = `Clé ${AI_PROVIDER_LABELS[provider]} manquante`;
     status.classList.remove('connected');
+  }
+  // Le champ clé affiche/enregistre la clé du fournisseur du modèle choisi
+  const keyInput = document.getElementById('ai-key');
+  if (keyInput) {
+    keyInput.value = s.keys[provider] || '';
+    keyInput.placeholder = provider === 'openai' ? 'Clé API OpenAI (sk-…)' : 'Clé API Claude (sk-ant-…)';
   }
 }
 
@@ -316,6 +374,10 @@ function _injectAiBar() {
     modalContent.dataset.aiWired = '1';
 
     const s = _aiSettings();
+    const groups = { anthropic: [], openai: [] };
+    Object.entries(AI_MODELS).forEach(([id, m]) => {
+      groups[m.provider].push(`<option value="${id}" ${s.model === id ? 'selected' : ''}>${m.label}</option>`);
+    });
     const bar = document.createElement('div');
     bar.className = 'vault-bar ai-bar';
     bar.innerHTML = `
@@ -324,17 +386,23 @@ function _injectAiBar() {
         <span id="ai-status" class="vault-status">Aucune clé API</span>
       </div>
       <div class="vault-actions">
-        <input id="ai-key" type="password" placeholder="Clé API Claude (sk-ant-…)" value="${_escAi(s.key)}"/>
         <select id="ai-model" title="Modèle utilisé">
-          <option value="claude-opus-4-8" ${s.model !== 'claude-haiku-4-5' ? 'selected' : ''}>Opus 4.8 (qualité)</option>
-          <option value="claude-haiku-4-5" ${s.model === 'claude-haiku-4-5' ? 'selected' : ''}>Haiku 4.5 (éco)</option>
+          <optgroup label="Claude">${groups.anthropic.join('')}</optgroup>
+          <optgroup label="OpenAI">${groups.openai.join('')}</optgroup>
         </select>
+        <input id="ai-key" type="password" placeholder="Clé API"/>
         <button id="ai-test" class="gd-btn" title="Enregistrer et tester la clé">${icon('check', 15)} Tester</button>
       </div>
     `;
     header.insertAdjacentElement('afterend', bar);
+    const _saveKey = () => {
+      const st = _aiSettings();
+      const provider = _aiProvider(st.model);
+      const keys = {}; keys[provider] = document.getElementById('ai-key').value.trim();
+      _aiSave({ keys });
+    };
     document.getElementById('ai-test').onclick = async () => {
-      _aiSave({ key: document.getElementById('ai-key').value.trim(), model: document.getElementById('ai-model').value });
+      _saveKey();
       _renderAiBar();
       if (!aiIsConfigured()) { if (window.showToast) window.showToast('Colle d\'abord ta clé API'); return; }
       if (window.showToast) window.showToast('Test de la clé…');
@@ -345,6 +413,7 @@ function _injectAiBar() {
         if (window.showToast) window.showToast(e.message);
       }
     };
+    document.getElementById('ai-key').addEventListener('change', () => { _saveKey(); _renderAiBar(); });
     document.getElementById('ai-model').onchange = (e) => { _aiSave({ model: e.target.value }); _renderAiBar(); };
     _renderAiBar();
   };
