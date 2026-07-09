@@ -265,6 +265,36 @@
     .suj-det-link:hover { background: var(--hover); color: var(--text); }
     .suj-det-livre { font-size: 13px; color: var(--text2); padding: 2px 6px; line-height: 1.5; }
     .suj-det-empty { font-size: 12px; color: var(--text3); font-style: italic; padding: 4px 6px; }
+    /* Mode cinéma — vidéo + notes sans sortir de l'app */
+    #yt-theater { position: fixed; inset: 0; z-index: 900; display: none; flex-direction: column; background: #14100C; color: rgba(245,238,228,0.9); }
+    #yt-theater.open { display: flex; }
+    .ytt-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: #1E1912; border-bottom: 1px solid rgba(245,238,228,0.1); flex-shrink: 0; }
+    .ytt-bar strong { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ytt-bar-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .ytt-btn { padding: 5px 12px; border: none; background: rgba(245,238,228,0.08); color: rgba(245,238,228,0.85); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; height: 30px; }
+    .ytt-btn:hover { background: rgba(245,238,228,0.16); }
+    .ytt-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 14px; }
+    #ytt-stage { width: 100%; max-width: 960px; }
+    .ytt-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+    .ytt-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+    .ytt-setup { background: rgba(245,238,228,0.05); border-radius: var(--radius-lg); padding: 20px 22px; font-size: 14px; line-height: 1.6; }
+    .ytt-setup p { margin-bottom: 12px; }
+    .ytt-or { text-align: center; color: rgba(245,238,228,0.4); font-size: 12px; }
+    .ytt-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .ytt-row input { flex: 1; padding: 8px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: rgba(245,238,228,0.1); color: rgba(245,238,228,0.9); }
+    .ytt-row input:focus { outline: 1px solid var(--accent); }
+    .ytt-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .ytt-result { cursor: pointer; border-radius: var(--radius); overflow: hidden; background: rgba(245,238,228,0.05); transition: background .1s, transform .1s; }
+    .ytt-result:hover { background: rgba(245,238,228,0.12); transform: translateY(-2px); }
+    .ytt-result img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+    .ytt-result-info { padding: 8px 10px; }
+    .ytt-result-info strong { display: block; font-size: 13px; font-weight: 500; line-height: 1.35; margin-bottom: 3px; }
+    .ytt-result-info span { font-size: 12px; color: rgba(245,238,228,0.5); }
+    .ytt-notes { width: 100%; max-width: 960px; }
+    .ytt-notes label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    .ytt-notes-hint { font-weight: 400; color: rgba(245,238,228,0.4); font-size: 12px; }
+    .ytt-notes textarea { width: 100%; padding: 12px 40px 12px 14px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; background: rgba(245,238,228,0.08); color: rgba(245,238,228,0.9); resize: vertical; line-height: 1.55; min-height: 110px; }
+    .ytt-notes textarea:focus { outline: 1px solid var(--accent); }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 100; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     @media (max-width: 720px) {
@@ -862,7 +892,10 @@ function generateMarkdownSujet() {
   if (su.cartoLien) md += `**Carte Miro** : ${su.cartoLien}\n\n`;
   if ((su.ytVideos || []).length) {
     md += `**Vidéos recommandées**\n\n`;
-    su.ytVideos.forEach(v => { md += `- ${v.titre} — [chercher sur YouTube](https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)})\n`; });
+    su.ytVideos.forEach(v => {
+      md += `- ${v.titre}${v.videoId ? ` — [regarder](https://www.youtube.com/watch?v=${v.videoId})` : ` — [chercher sur YouTube](https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)})`}\n`;
+      if (v.notes && v.notes.trim()) md += `  - Mes notes : ${v.notes.trim().replace(/\n+/g, ' ')}\n`;
+    });
     md += `\n`;
   }
   md += `## Phase 2 — Profondeur\n\n`;
@@ -1245,7 +1278,7 @@ function sujetDetailHtml(s) {
       ${n ? `<span class="suj-det-q-count">${n} avis</span>` : ''}
     </div>`;
   }).join('');
-  const vids = (s.ytVideos || []).map(v => `<a class="suj-det-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)}" target="_blank" rel="noopener"><span class="ms" style="font-size:14px">play_circle</span> ${escapeHtml(v.titre)}</a>`).join('');
+  const vids = (s.ytVideos || []).map((v, i) => `<button class="suj-det-link suj-det-video" data-id="${s.id}" data-vi="${i}"><span class="ms" style="font-size:14px">play_circle</span> ${escapeHtml(v.titre)}${v.notes ? ' <span class="suj-det-q-count">notes</span>' : ''}</button>`).join('');
   const livres = (s.livresSugg || []).map(l => `<div class="suj-det-livre">${escapeHtml(l.titre)} — ${escapeHtml(l.auteur)}</div>`).join('');
   return `<div class="suj-detail">
     <div class="suj-det-bar-wrap"><div class="suj-det-bar"><div class="suj-det-fill" style="width:${pct}%"></div></div><span class="suj-det-pct">${answered}/${qs.length || 0} traitées${qs.length ? ' · ' + pct + '%' : ''}</span></div>
@@ -1286,6 +1319,142 @@ function sujetsHomeHtml() {
   </div>`;
 }
 
+// ============= LECTEUR VIDÉO INTÉGRÉ (mode cinéma) =============
+// Regarder les vidéos sans sortir de l'app : recherche YouTube Data
+// API (clé gratuite optionnelle) ou lien collé, lecteur embarqué en
+// plein écran, notes datées sous la vidéo (sauvées dans le sujet).
+const YT_KEY_STORE = 'li-yt-key';
+function ytKey() { return (localStorage.getItem(YT_KEY_STORE) || '').trim(); }
+
+let _theater = null; // { su, vi, save }
+
+function ytExtractId(url) {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function ytTheaterEnsure() {
+  let el = document.getElementById('yt-theater');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'yt-theater';
+  el.innerHTML = `
+    <div class="ytt-bar">
+      <strong id="ytt-title"></strong>
+      <div class="ytt-bar-actions">
+        <button id="ytt-back" class="ytt-btn" style="display:none"><span class="ms" style="font-size:15px">arrow_back</span> Autres vidéos</button>
+        <button id="ytt-close" class="ytt-btn" title="Quitter le mode cinéma">✕</button>
+      </div>
+    </div>
+    <div class="ytt-scroll">
+      <div id="ytt-stage"></div>
+      <div class="ytt-notes">
+        <label><span class="ms" style="font-size:15px">edit_note</span> Mes notes sur cette vidéo <span class="ytt-notes-hint">(enregistrées automatiquement)</span></label>
+        <div class="input-wrap"><textarea id="ytt-notes" rows="5" placeholder="Ce que je retiens en regardant…"></textarea></div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#ytt-close').onclick = ytTheaterClose;
+  el.querySelector('#ytt-back').onclick = () => { const v = _theater && _theater.su.ytVideos[_theater.vi]; if (v) { ytTheaterStage(); } };
+  el.querySelector('#ytt-notes').addEventListener('input', (e) => {
+    if (!_theater) return;
+    _theater.su.ytVideos[_theater.vi].notes = e.target.value;
+    _theater.save();
+  });
+  wireVoiceOnAll(); // dictée vocale sur les notes du mode cinéma
+  return el;
+}
+
+function ytTheaterOpen(su, vi, save) {
+  _theater = { su, vi, save };
+  const el = ytTheaterEnsure();
+  const v = su.ytVideos[vi];
+  el.querySelector('#ytt-title').textContent = v.titre;
+  el.querySelector('#ytt-notes').value = v.notes || '';
+  el.classList.add('open');
+  if (el.requestFullscreen) { el.requestFullscreen().catch(() => {}); }
+  if (v.videoId) ytTheaterPlay(v.videoId, v.videoTitle || v.titre);
+  else ytTheaterStage();
+}
+
+function ytTheaterClose() {
+  const el = document.getElementById('yt-theater');
+  if (el) el.classList.remove('open');
+  if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); }
+  const stage = document.getElementById('ytt-stage');
+  if (stage) stage.innerHTML = ''; // stoppe la lecture
+  _theater = null;
+  re();
+}
+
+function ytTheaterPlay(videoId, titre) {
+  const stage = document.getElementById('ytt-stage');
+  const back = document.getElementById('ytt-back');
+  if (back) back.style.display = '';
+  stage.innerHTML = `<div class="ytt-player-wrap"><iframe src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0" title="${escapeAttr(titre || '')}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`;
+}
+
+// Écran de choix : résultats de recherche in-app (clé YouTube) ou lien collé
+async function ytTheaterStage() {
+  const stage = document.getElementById('ytt-stage');
+  const back = document.getElementById('ytt-back');
+  if (back) back.style.display = 'none';
+  const v = _theater.su.ytVideos[_theater.vi];
+
+  if (!ytKey()) {
+    stage.innerHTML = `
+      <div class="ytt-setup">
+        <p>Pour chercher et regarder les vidéos <strong>sans sortir de l'app</strong>, colle une clé <em>YouTube Data API</em> (gratuite — console.cloud.google.com, activer « YouTube Data API v3 », créer une clé). Elle reste sur ton ordinateur.</p>
+        <div class="ytt-row"><input id="ytt-key" type="password" placeholder="Clé YouTube Data API (AIza…)"/><button id="ytt-key-save" class="ytt-btn">Activer</button></div>
+        <p class="ytt-or">— ou —</p>
+        <div class="ytt-row"><input id="ytt-paste" type="text" placeholder="Colle un lien YouTube (https://youtube.com/watch?v=…)"/><button id="ytt-paste-go" class="ytt-btn">Regarder</button></div>
+      </div>`;
+    stage.querySelector('#ytt-key-save').onclick = () => {
+      localStorage.setItem(YT_KEY_STORE, stage.querySelector('#ytt-key').value.trim());
+      if (ytKey()) ytTheaterStage(); else showToast('Colle d\'abord une clé');
+    };
+    const paste = () => {
+      const id = ytExtractId(stage.querySelector('#ytt-paste').value);
+      if (!id) { showToast('Lien YouTube non reconnu'); return; }
+      v.videoId = id; _theater.save();
+      ytTheaterPlay(id, v.titre);
+    };
+    stage.querySelector('#ytt-paste-go').onclick = paste;
+    stage.querySelector('#ytt-paste').addEventListener('keydown', (e) => { if (e.key === 'Enter') paste(); });
+    return;
+  }
+
+  stage.innerHTML = `<div class="ytt-setup"><p>Recherche des vidéos pour «&nbsp;${escapeHtml(v.requete)}&nbsp;»…</p></div>`;
+  try {
+    const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=9&q=${encodeURIComponent(v.requete)}&key=${encodeURIComponent(ytKey())}`);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || 'Erreur YouTube');
+    const items = (data.items || []).filter(x => x.id && x.id.videoId);
+    if (!items.length) { stage.innerHTML = '<div class="ytt-setup"><p>Aucune vidéo trouvée — modifie la requête ou colle un lien.</p></div>'; return; }
+    stage.innerHTML = `<div class="ytt-results">${items.map(x => `
+      <div class="ytt-result" data-vid="${x.id.videoId}" data-t="${escapeAttr(x.snippet.title)}">
+        <img src="${x.snippet.thumbnails && x.snippet.thumbnails.medium ? x.snippet.thumbnails.medium.url : ''}" alt=""/>
+        <div class="ytt-result-info"><strong>${escapeHtml(x.snippet.title)}</strong><span>${escapeHtml(x.snippet.channelTitle)}</span></div>
+      </div>`).join('')}</div>`;
+    stage.querySelectorAll('.ytt-result').forEach(r => {
+      r.onclick = () => {
+        v.videoId = r.dataset.vid;
+        v.videoTitle = r.dataset.t;
+        _theater.save();
+        ytTheaterPlay(v.videoId, v.videoTitle);
+      };
+    });
+  } catch (e) {
+    stage.innerHTML = `<div class="ytt-setup"><p>Recherche impossible&nbsp;: ${escapeHtml(e.message)}</p><div class="ytt-row"><input id="ytt-paste" type="text" placeholder="Colle un lien YouTube…"/><button id="ytt-paste-go" class="ytt-btn">Regarder</button></div></div>`;
+    stage.querySelector('#ytt-paste-go').onclick = () => {
+      const id = ytExtractId(stage.querySelector('#ytt-paste').value);
+      if (!id) { showToast('Lien YouTube non reconnu'); return; }
+      v.videoId = id; _theater.save();
+      ytTheaterPlay(id, v.titre);
+    };
+  }
+}
+
 function sujetChecklist(group, obj) {
   return Object.keys(obj).map(k => `
     <div class="checklist-item" data-sujet-group="${group}" data-key="${escapeAttr(k)}">
@@ -1298,10 +1467,10 @@ function renderSujetYt() {
   const su = state.sujet;
   const filled = su.videos.trim();
   const vids = su.ytVideos || [];
-  const vidCards = vids.map(v => `
+  const vidCards = vids.map((v, i) => `
     <div class="suj-sugg-card">
-      <div class="suj-sugg-main"><strong>${escapeHtml(v.titre)}</strong><span>${escapeHtml(v.raison)}</span></div>
-      <a class="lib-action" href="https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)}" target="_blank" rel="noopener"><span class="ms" style="font-size:15px">play_circle</span> Voir sur YouTube</a>
+      <div class="suj-sugg-main"><strong>${escapeHtml(v.titre)}</strong><span>${escapeHtml(v.raison)}${v.notes ? ' · <em>notes prises</em>' : ''}</span></div>
+      <button class="lib-action suj-video-watch" data-i="${i}"><span class="ms" style="font-size:15px">play_circle</span> Regarder ici</button>
     </div>`).join('');
   return `
   <div class="step-why">Objectif&nbsp;: une première couche globale de savoir et le vocabulaire de base. YouTube ne donne pas la profondeur — il montre ce qui a été le plus vulgarisé et apprécié par le grand public sur «&nbsp;${escapeHtml(su.sujet)}&nbsp;».</div>
@@ -1667,6 +1836,20 @@ function bindEvents() {
       state.noteType = 'sujet';
       state.step = STEPS_SUJET.findIndex(s => s.id === 'suj-50q');
       re();
+    });
+  });
+
+  // Mode cinéma : depuis l'étape YouTube (état courant, persist standard)
+  document.querySelectorAll('.suj-video-watch').forEach(btn => {
+    btn.addEventListener('click', () => ytTheaterOpen(state.sujet, parseInt(btn.dataset.i), sujetPersist));
+  });
+  // Mode cinéma : depuis l'onglet Avancement de l'accueil (record persisté)
+  document.querySelectorAll('.suj-det-video').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const list = sujetsAll();
+      const rec = list.find(x => x.id === parseInt(btn.dataset.id));
+      if (!rec) return;
+      ytTheaterOpen(rec, parseInt(btn.dataset.vi), () => { rec.updatedAt = Date.now(); sujetsWrite(list); });
     });
   });
 
