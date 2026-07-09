@@ -222,7 +222,16 @@
     .suj-q-progress .suj-ok { color: var(--success); font-weight: 600; }
     .suj-q-card { background: var(--bg2); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 1.25rem; box-shadow: inset 0 0 0 1px var(--border); border-left: 3px solid var(--border3); }
     .suj-q-card.answered { border-left-color: var(--success); }
-    .suj-q-num { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+    .suj-q-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .suj-q-card-head .lib-action { padding: 3px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; height: 26px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .suj-q-card-head .lib-action:hover { background: var(--hover); color: var(--text); }
+    .suj-q-num { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); }
+    .suj-q-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .suj-q-add { display: flex; gap: 6px; flex: 1; min-width: 240px; }
+    .suj-q-add input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 32px; }
+    .suj-q-add input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
+    .suj-q-add .lib-action { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 32px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .suj-q-add .lib-action:hover { background: var(--hover); color: var(--text); }
     .suj-q-text { font-family: 'Newsreader', Georgia, serif; font-size: 19px; line-height: 1.4; color: var(--text); }
     .suj-avis-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
     .suj-avis { background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--border); }
@@ -1515,12 +1524,15 @@ function renderSujet50q() {
   const answered = sujetAnsweredCount(su);
   const gateOk = answered >= 30;
 
+  const addRow = `<div class="suj-q-add"><input id="suj-q-new" type="text" placeholder="Ou ajoute ta propre question…"/><button class="lib-action" id="suj-q-add-btn"><span class="ms" style="font-size:15px">add</span> Ajouter</button></div>`;
+
   if (qs.length === 0) {
     return `
-  <div class="step-why">Le crash-test&nbsp;: l'IA joue le recruteur exigeant et te pose des questions ultra-pointues sur «&nbsp;${escapeHtml(su.sujet)}&nbsp;», générées <strong>5 par 5</strong> (jusqu'à 50). Tu y réponds une par une, avec ton avis ou ce que tu sais — chaque avis est daté et conservé. Objectif&nbsp;: <strong>30 questions traitées</strong>.</div>
-  <div style="margin-bottom:1.5rem"><button class="btn-download" id="suj-gen-50q" style="margin-top:0"><span class="ms" style="font-size:16px">lightbulb</span> Générer mes 5 premières questions</button></div>
-  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">L'IA se configure dans la bibliothèque (barre «&nbsp;Assistant IA&nbsp;»). Tes questions et tes avis sont enregistrés automatiquement — tu les retrouveras sur l'accueil, dans l'avancement de ton sujet.</div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" disabled>Génère d'abord tes questions</button></div>`;
+  <div class="step-why">Le crash-test&nbsp;: l'IA joue le recruteur exigeant et te pose des questions ultra-pointues sur «&nbsp;${escapeHtml(su.sujet)}&nbsp;», générées <strong>5 par 5</strong> (jusqu'à 50). Tu y réponds une par une, avec ton avis ou ce que tu sais — chaque avis est daté, conservé, et la question part dans Anki dès qu'elle est répondue. Objectif conseillé&nbsp;: 30 questions traitées.</div>
+  <div style="margin-bottom:1rem"><button class="btn-download" id="suj-gen-50q" style="margin-top:0"><span class="ms" style="font-size:16px">lightbulb</span> Générer mes 5 premières questions</button></div>
+  ${addRow}
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin:1rem 0 1.2rem">L'IA se configure dans la bibliothèque (barre «&nbsp;Assistant IA&nbsp;»). Tes questions et tes avis sont enregistrés automatiquement — tu les retrouveras sur l'accueil, dans l'avancement de ton sujet.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Passer cette étape →</button></div>`;
   }
 
   su.qIndex = Math.max(0, Math.min(su.qIndex || 0, qs.length - 1));
@@ -1538,9 +1550,15 @@ function renderSujet50q() {
     <div class="suj-q-progress">Question <strong>${su.qIndex + 1}</strong> / ${qs.length} · <span class="${gateOk ? 'suj-ok' : ''}">${answered} traitée${answered > 1 ? 's' : ''}</span></div>
     <button class="lib-action" id="suj-q-next" ${su.qIndex >= qs.length - 1 ? 'disabled' : ''}>›</button>
   </div>
-  ${qs.length < 50 ? `<button class="btn-secondary" id="suj-gen-50q" style="margin:0 0 1rem"><span class="ms" style="font-size:15px">lightbulb</span> Générer 5 questions de plus (${qs.length}/50)</button>` : ''}
+  <div class="suj-q-tools">
+    ${qs.length < 50 ? `<button class="btn-secondary" id="suj-gen-50q" style="margin:0"><span class="ms" style="font-size:15px">lightbulb</span> Générer 5 questions de plus (${qs.length}/50)</button>` : ''}
+    ${addRow}
+  </div>
   <div class="suj-q-card ${(q.avis || []).length ? 'answered' : ''}">
-    <div class="suj-q-num">Question ${su.qIndex + 1}${(q.avis || []).length ? ' · traitée' : ''}</div>
+    <div class="suj-q-card-head">
+      <div class="suj-q-num">Question ${su.qIndex + 1}${(q.avis || []).length ? ' · traitée' : ''}</div>
+      <button class="lib-action" id="suj-q-anki" title="Envoyer cette question et mes avis dans Anki"><span class="ms" style="font-size:14px">style</span> Anki</button>
+    </div>
     <div class="suj-q-text">${escapeHtml(q.q)}</div>
   </div>
   <div class="field">
@@ -1549,7 +1567,7 @@ function renderSujet50q() {
   </div>
   <button class="btn-secondary" id="suj-avis-add" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">add_comment</span> Ajouter mon avis (daté)</button>
   ${avisList ? `<div class="suj-avis-list">${avisList}</div>` : ''}
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!gateOk ? 'disabled' : ''}>${!gateOk ? `Traite 30 questions pour continuer (${answered}/30)` : 'Cap des 30 questions franchi →'}</button></div>`;
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">${gateOk ? 'Cap des 30 questions franchi →' : `Continuer (${answered} traitée${answered > 1 ? 's' : ''}) →`}</button></div>`;
 }
 
 function renderSujetTeach() {
@@ -1739,6 +1757,10 @@ function bindEvents() {
     }
   });
 
+  const _ankiVersoFromQ = (q) => (q.avis || []).map(a =>
+    new Date(a.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' — ' + a.text
+  ).join('\n\n');
+
   const btnAvisAdd = document.getElementById('suj-avis-add');
   if (btnAvisAdd) btnAvisAdd.addEventListener('click', () => {
     const ta = document.getElementById('suj-avis-input');
@@ -1747,8 +1769,37 @@ function bindEvents() {
     const q = state.sujet.questions[state.sujet.qIndex];
     (q.avis = q.avis || []).push({ text: v, ts: Date.now() });
     sujetPersist();
+    // Question répondue → part automatiquement dans Anki (1re réponse)
+    if (q.avis.length === 1 && window.ankiQuickAdd) {
+      window.ankiQuickAdd(q.q, v, state.sujet.sujet);
+    }
     re();
   });
+
+  const btnQAnki = document.getElementById('suj-q-anki');
+  if (btnQAnki) btnQAnki.addEventListener('click', () => {
+    const q = state.sujet.questions[state.sujet.qIndex];
+    if (!q) return;
+    if (!(q.avis || []).length) { showToast('Réponds d\'abord à la question'); return; }
+    if (window.ankiQuickAdd) window.ankiQuickAdd(q.q, _ankiVersoFromQ(q), state.sujet.sujet);
+  });
+
+  const btnQAdd = document.getElementById('suj-q-add-btn');
+  if (btnQAdd) {
+    const addOwn = () => {
+      const inp = document.getElementById('suj-q-new');
+      const v = (inp.value || '').trim();
+      if (!v) { showToast('Écris d\'abord ta question'); return; }
+      state.sujet.questions = state.sujet.questions || [];
+      state.sujet.questions.push({ q: v, avis: [], perso: true });
+      state.sujet.qIndex = state.sujet.questions.length - 1;
+      sujetPersist();
+      re();
+      showToast('Question ajoutée');
+    };
+    btnQAdd.addEventListener('click', addOwn);
+    document.getElementById('suj-q-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn(); } });
+  }
   const qPrev = document.getElementById('suj-q-prev');
   if (qPrev) qPrev.addEventListener('click', () => { state.sujet.qIndex--; sujetPersist(); re(); });
   const qNext = document.getElementById('suj-q-next');
@@ -1911,7 +1962,6 @@ function updateNextBtn(btn, s) {
   else if (s.id==='suj-yt') btn.disabled = !state.sujet.videos.trim();
   else if (s.id==='suj-carto') btn.disabled = !state.sujet.carto.trim();
   else if (s.id==='suj-livres') btn.disabled = !state.sujet.livres.trim();
-  else if (s.id==='suj-50q') btn.disabled = sujetAnsweredCount(state.sujet) < 30;
   else if (s.id==='suj-teach') btn.disabled = !state.sujet.enseigner;
 }
 
