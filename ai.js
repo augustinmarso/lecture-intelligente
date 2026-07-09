@@ -12,9 +12,12 @@ const AI_DEFAULTS = { keys: { anthropic: '', openai: '' }, model: 'claude-haiku-
 const AI_MODELS = {
   'claude-haiku-4-5':  { provider: 'anthropic', label: 'Claude Haiku 4.5 (éco)' },
   'claude-opus-4-8':   { provider: 'anthropic', label: 'Claude Opus 4.8 (qualité)' },
-  'gpt-5.4-nano':      { provider: 'openai',    label: 'GPT-5.4 nano (ultra éco)' },
-  'gpt-5.4-mini':      { provider: 'openai',    label: 'GPT-5.4 mini (éco)' },
-  'gpt-5.4':           { provider: 'openai',    label: 'GPT-5.4 (qualité)' },
+  'gpt-4.1-nano':      { provider: 'openai',    label: 'GPT-4.1 nano (ultra éco)' },
+  'gpt-4.1-mini':      { provider: 'openai',    label: 'GPT-4.1 mini (éco)' },
+  'gpt-4.1':           { provider: 'openai',    label: 'GPT-4.1 (qualité)' },
+  'gpt-5.4-nano':      { provider: 'openai',    label: 'GPT-5.4 nano (raisonne, éco)' },
+  'gpt-5.4-mini':      { provider: 'openai',    label: 'GPT-5.4 mini (raisonne)' },
+  'gpt-5.4':           { provider: 'openai',    label: 'GPT-5.4 (raisonne, qualité)' },
   'gpt-5.5':           { provider: 'openai',    label: 'GPT-5.5 (max)' }
 };
 const AI_PROVIDER_LABELS = { anthropic: 'Claude', openai: 'OpenAI' };
@@ -75,16 +78,18 @@ async function aiCall({ system, user, schema, maxTokens }) {
   if (!key) throw new Error(`Clé API ${AI_PROVIDER_LABELS[provider]} manquante — configure-la dans la bibliothèque (barre « Assistant IA »)`);
 
   if (provider === 'openai') {
+    // Les GPT-5.x raisonnent (paramètre reasoning_effort + marge de tokens) ;
+    // les GPT-4.1 non — leur envoyer reasoning_effort déclencherait une erreur.
+    const isReasoning = /^gpt-5/.test(model);
     const body = {
       model,
-      // Modèles à raisonnement : marge pour les tokens de réflexion
-      max_completion_tokens: (maxTokens || 2000) + 1500,
-      reasoning_effort: 'low',
+      max_completion_tokens: (maxTokens || 2000) + (isReasoning ? 1500 : 0),
       messages: [
         { role: 'system', content: system || AI_DEFAULT_SYSTEM },
         { role: 'user', content: user }
       ]
     };
+    if (isReasoning) body.reasoning_effort = 'low';
     if (schema) body.response_format = { type: 'json_schema', json_schema: { name: 'reponse', strict: true, schema } };
     const data = await _aiHttp('https://api.openai.com/v1/chat/completions', { authorization: 'Bearer ' + key }, body);
     const msg = data.choices && data.choices[0] && data.choices[0].message;
