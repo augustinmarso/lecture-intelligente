@@ -98,20 +98,15 @@ async function ankiQuickAdd(recto, verso, sourceLabel) {
 window.ankiQuickAdd = ankiQuickAdd;
 
 // --- Cartes "modèle" construites depuis une fiche (sans IA) ---
+// Format : une carte par idée, recto « Que pense [l'auteur] … ? »
 function _templateCards(note) {
   const book = note.bookTitle || note.title || 'ma lecture';
   const chap = note.chapterTitle ? ' (' + note.chapterTitle + ')' : '';
+  const auteur = note.bookAuthor || `l'auteur de « ${book} »`;
   const cards = [];
-  if (note.objectif) {
-    cards.push({ recto: `${book}${chap} — quelle question précise voulais-je résoudre en lisant ?`, verso: note.objectif });
-  }
   (note.synthese || []).forEach((idee, i) => {
-    if (idee && idee.trim()) cards.push({ recto: `${book}${chap} — idée clé n°${i + 1} de ma synthèse ?`, verso: idee });
+    if (idee && idee.trim()) cards.push({ recto: `Que pense ${auteur}${chap} ? — idée n°${i + 1} de ma synthèse`, verso: idee });
   });
-  if (note.action && note.action.conseil) {
-    const detail = [note.action.conseil, note.action.quand ? 'Début : ' + note.action.quand : '', note.action.deadline ? 'Bilan : ' + note.action.deadline : ''].filter(Boolean).join('\n');
-    cards.push({ recto: `${book}${chap} — quelle action ai-je décidé de tester ?`, verso: detail });
-  }
   return cards;
 }
 

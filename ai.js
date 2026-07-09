@@ -251,9 +251,10 @@ async function aiGenerateCards(note) {
   const cites = (note.highlights || []).slice(0, 10).map(h => `- (p.${h.page}) « ${h.text.slice(0, 300)} »`);
   if (cites.length) parts.push('Citations surlignées :\n' + cites.join('\n'));
 
+  const auteur = note.bookAuthor || `l'auteur de « ${note.bookTitle || note.title || 'ce livre'} »`;
   const result = await aiCall({
-    system: 'Tu crées des flashcards Anki en français pour la répétition espacée. Règles : une seule idée par carte ; question précise et autosuffisante (mentionne le livre si utile) ; réponse courte ; privilégie les questions "pourquoi/comment/qu\'est-ce que" plutôt que "cite la liste" ; pas de carte triviale.',
-    user: parts.join('\n\n') + '\n\nGénère entre 5 et 10 flashcards question/réponse qui permettront de retenir durablement l\'essentiel de cette fiche de lecture.',
+    system: `Tu crées des flashcards Anki en français pour la répétition espacée. Règle de format STRICTE : chaque recto est une question de la forme « Que pense ${auteur} de [sujet précis] ? » (ou « … sur [sujet précis] ? ») — le sujet est déduit de l'idée, sans dévoiler la réponse. Une seule idée par carte. Verso : la position de l'auteur, reformulée en 1 à 3 phrases à partir des mots du lecteur.`,
+    user: parts.join('\n\n') + '\n\nCrée exactement une carte par idée de la synthèse (dans le même ordre), plus une carte par citation vraiment marquante. Chaque recto doit suivre le format « Que pense ' + auteur + ' de [sujet] ? ».',
     schema: {
       type: 'object',
       properties: { cards: { type: 'array', items: {

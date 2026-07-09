@@ -1,7 +1,7 @@
 // =============================================================
 // shelf.js — Bibliothèque de l'ordinateur : connecte un dossier
 // local (File System Access API), scanne récursivement les PDF
-// et EPUB, et permet de les ouvrir directement dans l'app sans
+// et permet de les ouvrir directement dans l'app sans
 // import manuel. Le handle est persisté dans IndexedDB.
 // =============================================================
 
@@ -100,9 +100,8 @@ async function _scanDir(dirHandle, relPath, out, depth) {
         if (name.startsWith('.') || SHELF_SKIP_DIRS.has(name.toLowerCase())) continue;
         await _scanDir(h, relPath ? relPath + '/' + name : name, out, depth + 1);
       } else {
-        const lower = name.toLowerCase();
-        if (lower.endsWith('.pdf') || lower.endsWith('.epub')) {
-          out.push({ name, dir: relPath, handle: h, type: lower.endsWith('.pdf') ? 'pdf' : 'epub' });
+        if (name.toLowerCase().endsWith('.pdf')) {
+          out.push({ name, dir: relPath, handle: h, type: 'pdf' });
         }
       }
     }
@@ -131,11 +130,7 @@ async function shelfOpen(idx) {
     const file = await entry.handle.getFile();
     const modal = document.getElementById('lib-modal');
     if (modal) modal.classList.remove('open');
-    if (entry.type === 'pdf') {
-      if (window.loadPdfFile) await window.loadPdfFile(file);
-    } else if (window.showEpubReader) {
-      await window.showEpubReader(file, entry.name.replace(/\.epub$/i, ''));
-    }
+    if (window.loadPdfFile) await window.loadPdfFile(file);
   } catch (e) {
     console.error('shelf open', e);
     if (window.showToast) window.showToast('Impossible d\'ouvrir le fichier : ' + e.message);
@@ -178,7 +173,7 @@ function _renderShelfList(files) {
         const idx = _shelfFiles.indexOf(f);
         return `
         <div class="shelf-file">
-          <span class="shelf-file-icon">${icon(f.type === 'pdf' ? 'picture_as_pdf' : 'auto_stories', 16)}</span>
+          <span class="shelf-file-icon">${icon('picture_as_pdf', 16)}</span>
           <span class="shelf-file-name">${_escShelf(f.name)}</span>
           <button class="lib-action shelf-open" data-idx="${idx}">${icon('menu_book', 15)} Ouvrir</button>
         </div>`;
@@ -192,7 +187,7 @@ function _renderShelfList(files) {
       <input id="shelf-search" type="search" placeholder="Rechercher un livre…" value="${_escShelf(_shelfFilter)}"/>
       <button class="lib-action" id="shelf-rescan" title="Relancer l'analyse du dossier">${icon('refresh', 15)}</button>
     </div>
-    ${filtered.length === 0 ? '<div class="lib-empty">Aucun PDF ou EPUB trouvé dans ce dossier.</div>' : rows}
+    ${filtered.length === 0 ? '<div class="lib-empty">Aucun PDF trouvé dans ce dossier.</div>' : rows}
   `;
 
   const search = document.getElementById('shelf-search');
