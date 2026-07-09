@@ -12,6 +12,7 @@ const AI_DEFAULTS = { keys: { anthropic: '', openai: '' }, model: 'claude-haiku-
 const AI_MODELS = {
   'claude-haiku-4-5':  { provider: 'anthropic', label: 'Claude Haiku 4.5 (éco)' },
   'claude-opus-4-8':   { provider: 'anthropic', label: 'Claude Opus 4.8 (qualité)' },
+  'gpt-5.4-nano':      { provider: 'openai',    label: 'GPT-5.4 nano (ultra éco)' },
   'gpt-5.4-mini':      { provider: 'openai',    label: 'GPT-5.4 mini (éco)' },
   'gpt-5.4':           { provider: 'openai',    label: 'GPT-5.4 (qualité)' },
   'gpt-5.5':           { provider: 'openai',    label: 'GPT-5.5 (max)' }
