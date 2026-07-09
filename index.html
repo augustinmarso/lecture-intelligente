@@ -214,6 +214,37 @@
     .gcal-section { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem 1.25rem; text-align: left; margin-top: 1rem; }
     .gcal-section h4 { font-size: 13px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
     .gcal-section p { font-size: 12px; color: var(--text2); line-height: 1.5; margin-bottom: 10px; }
+    /* Méthode « Maîtriser un sujet » — crash-test, suggestions, accueil */
+    .suj-q-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .suj-q-header .lib-action { padding: 4px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; cursor: pointer; height: 28px; box-shadow: inset 0 0 0 1px var(--border); }
+    .suj-q-header .lib-action:disabled { opacity: .35; cursor: default; }
+    .suj-q-progress { font-size: 13px; color: var(--text2); }
+    .suj-q-progress .suj-ok { color: var(--success); font-weight: 600; }
+    .suj-q-card { background: var(--bg2); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 1.25rem; box-shadow: inset 0 0 0 1px var(--border); border-left: 3px solid var(--border3); }
+    .suj-q-card.answered { border-left-color: var(--success); }
+    .suj-q-num { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+    .suj-q-text { font-family: 'Newsreader', Georgia, serif; font-size: 19px; line-height: 1.4; color: var(--text); }
+    .suj-avis-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
+    .suj-avis { background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--border); }
+    .suj-avis-date { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+    .suj-avis-text { font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
+    .suj-sugg-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
+    .suj-sugg-card { display: flex; align-items: center; gap: 12px; background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--border); }
+    .suj-sugg-main { flex: 1; font-size: 14px; color: var(--text); line-height: 1.4; }
+    .suj-sugg-main span { display: block; font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .suj-sugg-card .lib-action { flex-shrink: 0; padding: 4px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; box-shadow: inset 0 0 0 1px var(--border); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .suj-sugg-card .lib-action:hover { background: var(--hover); color: var(--text); }
+    .suj-home { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1.25rem; }
+    .suj-home-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .suj-home-card { background: var(--bg2); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; box-shadow: inset 0 0 0 1px var(--border); }
+    .suj-home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+    .suj-home-head strong { font-size: 15px; color: var(--text); }
+    .suj-home-head small { font-size: 12px; color: var(--text2); }
+    .suj-home-livres { font-size: 12px; color: var(--text2); margin: 4px 0 8px; line-height: 1.5; display: flex; align-items: flex-start; gap: 5px; }
+    .suj-home-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .suj-home-actions .lib-action { padding: 4px 10px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 4px; }
+    .suj-home-actions .lib-action:hover { background: var(--hover); color: var(--text); }
+    .suj-home-actions .lib-del:hover { background: rgba(224,62,62,0.12); color: var(--danger); }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 100; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     @media (max-width: 720px) {
@@ -306,12 +337,32 @@ const PHASES_SUJET = ['Cadrage','Profondeur','Validation','Transmission','Veille
 
 function sujetInitial() {
   return {
-    sujet:'', videos:'', carto:'', cartoLien:'', livres:'', questions:'', score:'',
+    id: null, sujet:'', videos:'', carto:'', cartoLien:'', livres:'',
+    questions: [],        // [{ q, avis: [{ text, ts }] }]
+    qIndex: 0,
+    ytVideos: [],         // suggestions IA [{ titre, requete, raison }]
+    livresSugg: [],       // suggestions IA [{ titre, auteur, raison }]
     experts:'', budget:'', enseigner:'', enseignerQuand:'',
     ytChecks:{'Sujet recherché sur YouTube':false,'Une dizaine de vidéos les plus vues sélectionnées':false,'Visionnées en accéléré, notes prises':false},
     veilleChecks:{'Compte X (Twitter) anonyme créé, zéro follower':false,'Niveau 1 — célébrités du domaine suivies':false,'Niveau 2 — leurs abonnements suivis':false,'Niveau 3 — abonnements du niveau 2 suivis':false}
   };
 }
+
+// --- Persistance des sujets (localStorage) : chaque sujet est un
+// dossier qu'on retrouve sur l'accueil sans repasser le parcours ---
+function sujetsAll() { try { return JSON.parse(localStorage.getItem('li-sujets') || '[]'); } catch (_) { return []; } }
+function sujetsWrite(list) { localStorage.setItem('li-sujets', JSON.stringify(list)); }
+function sujetPersist() {
+  const su = state.sujet;
+  if (!su || !su.sujet || !su.sujet.trim()) return;
+  if (!su.id) su.id = Date.now();
+  su.updatedAt = Date.now();
+  const list = sujetsAll();
+  const i = list.findIndex(x => x.id === su.id);
+  if (i >= 0) list[i] = su; else list.push(su);
+  sujetsWrite(list);
+}
+function sujetAnsweredCount(su) { return (su.questions || []).filter(q => (q.avis || []).length > 0).length; }
 
 const state = {
   step: 0,
@@ -791,11 +842,31 @@ function generateMarkdownSujet() {
   md += `## Phase 1 — Cadrage (YouTube + cartographie)\n\n`;
   md += `**Notes de visionnage**\n\n${su.videos || '—'}\n\n`;
   md += `**Concepts à creuser**\n\n${su.carto ? su.carto.split('\n').map(x => x.trim()).filter(Boolean).map(c => `- ${wikilink(c)}`).join('\n') : '—'}\n\n`;
-  if (su.cartoLien) md += `**Carte** : ${su.cartoLien}\n\n`;
+  if (su.cartoLien) md += `**Carte Miro** : ${su.cartoLien}\n\n`;
+  if ((su.ytVideos || []).length) {
+    md += `**Vidéos recommandées**\n\n`;
+    su.ytVideos.forEach(v => { md += `- ${v.titre} — [chercher sur YouTube](https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)})\n`; });
+    md += `\n`;
+  }
   md += `## Phase 2 — Profondeur\n\n`;
   md += `**Livres de référence (à demi lire, en diagonale)**\n\n${su.livres || '—'}\n\n`;
-  md += `**Crash-test** : ${su.score || '—'} / 50 questions réussies en autonomie\n\n`;
-  if (su.questions) md += `<details><summary>Les 50 questions du recruteur exigeant</summary>\n\n${su.questions}\n\n</details>\n\n`;
+  if ((su.livresSugg || []).length) {
+    md += `**Dossier livres du domaine (suggestions)**\n\n`;
+    su.livresSugg.forEach(l => { md += `- ${l.titre} — ${l.auteur} (${l.raison})\n`; });
+    md += `\n`;
+  }
+  const qs = su.questions || [];
+  md += `**Crash-test** : ${sujetAnsweredCount(su)} / ${qs.length || 50} questions traitées\n\n`;
+  if (qs.length) {
+    md += `### Questions du recruteur exigeant et mes avis\n\n`;
+    qs.forEach((q, i) => {
+      md += `**${i + 1}. ${q.q}**\n\n`;
+      (q.avis || []).forEach(a => {
+        md += `- *${new Date(a.ts).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}* — ${a.text.replace(/\n+/g, ' ')}\n`;
+      });
+      md += `\n`;
+    });
+  }
   md += `## Phase 3 — Validation (heure d'expert)\n\n`;
   md += `**Experts** : ${su.experts || '—'}\n\n`;
   md += `**Offre** : ${su.budget || '—'} pour 1h — poser les questions restantes du crash-test\n\n`;
@@ -1012,7 +1083,8 @@ function renderType() {
     <label>Titre ou numéro du chapitre</label>
     <div class="input-wrap"><input id="chapter-title" type="text" placeholder="Ex: Chapitre 3 — Le sommeil paradoxal" value="${escapeAttr(state.chapterTitle)}"/></div>
   </div>` : ''}
-  <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType||(isSujet&&!state.sujet.sujet)?'disabled':''}>Commencer →</button></div>`;
+  <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType||(isSujet&&!state.sujet.sujet)?'disabled':''}>Commencer →</button></div>
+  ${sujetsHomeHtml()}`;
 }
 
 function renderPPU() {
@@ -1147,6 +1219,33 @@ function renderRevision() {
 }
 
 // ============= MÉTHODE « MAÎTRISER UN SUJET » =============
+// Accueil : mes sujets en cours (questions, vidéos, dossier livres)
+function sujetsHomeHtml() {
+  const list = sujetsAll().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  if (!list.length) return '';
+  return `<div class="suj-home">
+    <h4 class="suj-home-title"><span class="ms" style="font-size:16px">school</span> Mes sujets en cours</h4>
+    ${list.map(s => {
+      const total = (s.questions || []).length;
+      const answered = (s.questions || []).filter(q => (q.avis || []).length > 0).length;
+      const livres = s.livresSugg || [];
+      return `<div class="suj-home-card">
+        <div class="suj-home-head">
+          <strong>${escapeHtml(s.sujet)}</strong>
+          <small>${total ? `${answered}/${total} questions traitées` : 'questions à générer'}${s.ytVideos && s.ytVideos.length ? ` · ${s.ytVideos.length} vidéos` : ''}</small>
+        </div>
+        ${livres.length ? `<div class="suj-home-livres"><span class="ms" style="font-size:14px">folder</span> Livres du domaine&nbsp;: ${livres.slice(0, 4).map(l => escapeHtml(l.titre)).join(' · ')}${livres.length > 4 ? '…' : ''}</div>` : ''}
+        <div class="suj-home-actions">
+          <button class="lib-action suj-home-open" data-id="${s.id}" data-goto="suj-50q"><span class="ms" style="font-size:14px">quiz</span> Reprendre les questions</button>
+          <button class="lib-action suj-home-open" data-id="${s.id}" data-goto="suj-yt"><span class="ms" style="font-size:14px">play_circle</span> Vidéos</button>
+          <button class="lib-action suj-home-open" data-id="${s.id}" data-goto="suj-livres"><span class="ms" style="font-size:14px">auto_stories</span> Livres</button>
+          <button class="lib-action lib-del suj-home-del" data-id="${s.id}"><span class="ms" style="font-size:14px">delete</span></button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function sujetChecklist(group, obj) {
   return Object.keys(obj).map(k => `
     <div class="checklist-item" data-sujet-group="${group}" data-key="${escapeAttr(k)}">
@@ -1156,11 +1255,20 @@ function sujetChecklist(group, obj) {
 }
 
 function renderSujetYt() {
-  const filled = state.sujet.videos.trim();
+  const su = state.sujet;
+  const filled = su.videos.trim();
+  const vids = su.ytVideos || [];
+  const vidCards = vids.map(v => `
+    <div class="suj-sugg-card">
+      <div class="suj-sugg-main"><strong>${escapeHtml(v.titre)}</strong><span>${escapeHtml(v.raison)}</span></div>
+      <a class="lib-action" href="https://www.youtube.com/results?search_query=${encodeURIComponent(v.requete)}" target="_blank" rel="noopener"><span class="ms" style="font-size:15px">play_circle</span> Voir sur YouTube</a>
+    </div>`).join('');
   return `
-  <div class="step-why">Objectif&nbsp;: une première couche globale de savoir et le vocabulaire de base. YouTube ne donne pas la profondeur — il montre ce qui a été le plus vulgarisé et apprécié par le grand public sur «&nbsp;${escapeHtml(state.sujet.sujet)}&nbsp;».</div>
-  ${sujetChecklist('ytChecks', state.sujet.ytChecks)}
-  <div style="margin-top:1rem">${textareaField('Tes notes de visionnage — idées fortes, vocabulaire repéré', 'suj-videos', state.sujet.videos, 'Ce que je retiens des vidéos les plus vues…', 4)}</div>
+  <div class="step-why">Objectif&nbsp;: une première couche globale de savoir et le vocabulaire de base. YouTube ne donne pas la profondeur — il montre ce qui a été le plus vulgarisé et apprécié par le grand public sur «&nbsp;${escapeHtml(su.sujet)}&nbsp;».</div>
+  <button class="btn-secondary" id="suj-gen-videos" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">lightbulb</span> ${vids.length ? 'Proposer d\'autres vidéos avec l\'IA' : 'Me proposer des vidéos avec l\'IA'}</button>
+  ${vidCards ? `<div class="suj-sugg-list">${vidCards}</div>` : ''}
+  ${sujetChecklist('ytChecks', su.ytChecks)}
+  <div style="margin-top:1rem">${textareaField('Tes notes de visionnage — idées fortes, vocabulaire repéré', 'suj-videos', su.videos, 'Ce que je retiens des vidéos les plus vues…', 4)}</div>
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!filled?'disabled':''}>Mes notes sont prises →</button></div>`;
 }
 
@@ -1168,26 +1276,70 @@ function renderSujetCarto() {
   return `
   <div class="step-why">Liste tous les mots, idées et concepts inconnus issus des vidéos, puis relance des recherches YouTube sur chaque sous-concept (de l'entrepreneuriat au scaling, du scaling au growth hacking…). Dessine l'arbre du domaine sur Miro ou sur papier.</div>
   ${textareaField('Concepts inconnus à creuser (un par ligne)', 'suj-carto', state.sujet.carto, 'scaling\ngrowth hacking\nrétention…', 5)}
-  ${inputField('Lien vers ta carte (Miro, photo, fichier…) — facultatif', 'suj-carto-lien', state.sujet.cartoLien, 'https://miro.com/…')}
+  <div class="gcal-row" style="margin-bottom:1.25rem">
+    <a class="gcal-btn" href="https://miro.com/app/board/new" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">account_tree</span> Créer ma carte sur Miro</a>
+  </div>
+  ${inputField('Colle ici le lien de ta carte Miro — enregistré automatiquement', 'suj-carto-lien', state.sujet.cartoLien, 'https://miro.com/app/board/…')}
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.carto.trim()?'disabled':''}>Ma carte est dessinée →</button></div>`;
 }
 
 function renderSujetLivres() {
+  const su = state.sujet;
+  const sugg = su.livresSugg || [];
+  const suggCards = sugg.map((l, i) => `
+    <div class="suj-sugg-card">
+      <div class="suj-sugg-main"><strong>${escapeHtml(l.titre)}</strong> — ${escapeHtml(l.auteur)}<span>${escapeHtml(l.raison)}</span></div>
+      <button class="lib-action suj-livre-add" data-i="${i}"><span class="ms" style="font-size:15px">add</span> Ajouter</button>
+    </div>`).join('');
   return `
   <div class="step-why">Gagne en épaisseur avec des livres de référence. Ne t'oblige pas à les finir&nbsp;: un bon livre d'apprentissage est un livre <em>à demi lu</em>. Lis en diagonale, saute de chapitre en chapitre au hasard, laisse ton instinct piocher l'information manquante.</div>
-  ${textareaField('Les livres de référence choisis', 'suj-livres', state.sujet.livres, 'Titre — auteur (un par ligne)…', 4)}
-  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Astuce&nbsp;: ouvre-les dans le panneau PDF (bouton <span class="ms" style="font-size:15px">picture_as_pdf</span>) ou connecte ton dossier de livres dans la bibliothèque.</div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.livres.trim()?'disabled':''}>Mes références sont choisies →</button></div>`;
+  <button class="btn-secondary" id="suj-gen-livres" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">lightbulb</span> ${sugg.length ? 'Suggérer d\'autres livres avec l\'IA' : 'Suggérer les livres du domaine avec l\'IA'}</button>
+  ${suggCards ? `<div class="suj-sugg-list">${suggCards}</div>` : ''}
+  ${textareaField('Les livres de référence choisis', 'suj-livres', su.livres, 'Titre — auteur (un par ligne)…', 4)}
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Ce dossier de livres reste visible sur l'accueil, dans la carte de ton sujet. Astuce&nbsp;: ouvre-les dans le panneau PDF ou connecte ton dossier de livres dans la bibliothèque.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!su.livres.trim()?'disabled':''}>Mes références sont choisies →</button></div>`;
 }
 
 function renderSujet50q() {
-  const score = parseInt(state.sujet.score) || 0;
+  const su = state.sujet;
+  const qs = su.questions || [];
+  const answered = sujetAnsweredCount(su);
+  const gateOk = answered >= 30;
+
+  if (qs.length === 0) {
+    return `
+  <div class="step-why">Le crash-test&nbsp;: l'IA joue le recruteur exigeant et génère 50 questions ultra-pointues sur «&nbsp;${escapeHtml(su.sujet)}&nbsp;». Tu y répondras <strong>une par une</strong>, avec ton avis ou ce que tu sais — chaque avis est daté et conservé. Objectif&nbsp;: <strong>30 questions traitées sur 50</strong>.</div>
+  <div style="margin-bottom:1.5rem"><button class="btn-download" id="suj-gen-50q" style="margin-top:0"><span class="ms" style="font-size:16px">lightbulb</span> Générer mes 50 questions avec l'IA</button></div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">L'IA se configure dans la bibliothèque (barre «&nbsp;Assistant IA&nbsp;»). Tes questions et tes avis seront enregistrés automatiquement — tu pourras y revenir depuis l'accueil.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" disabled>Génère d'abord tes questions</button></div>`;
+  }
+
+  su.qIndex = Math.max(0, Math.min(su.qIndex || 0, qs.length - 1));
+  const q = qs[su.qIndex];
+  const avisList = (q.avis || []).slice().reverse().map(a => `
+    <div class="suj-avis">
+      <div class="suj-avis-date">${new Date(a.ts).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="suj-avis-text">${escapeHtml(a.text)}</div>
+    </div>`).join('');
+
   return `
-  <div class="step-why">Le crash-test&nbsp;: demande à une IA de jouer le recruteur exigeant et de générer 50 questions ultra-pointues sur le domaine. Réponds par écrit avec tes notes et tes livres. Objectif&nbsp;: <strong>30 réponses autonomes sur 50</strong> avant de passer à la suite.</div>
-  <div style="margin-bottom:1rem"><button class="btn-secondary" id="suj-gen-50q" style="margin-top:0">${window.icon ? icon('lightbulb', 15) : ''} Générer mes 50 questions avec l'IA</button></div>
-  ${textareaField('Les 50 questions du recruteur exigeant', 'suj-questions', state.sujet.questions, 'Clique sur le bouton ci-dessus (IA configurée dans la bibliothèque) ou colle ici les questions générées par ChatGPT…', 8)}
-  ${inputField('Combien de questions as-tu réussies en autonomie ? (sur 50)', 'suj-score', state.sujet.score, 'Ex: 32')}
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${score<30?'disabled':''}>${score<30?'Atteins 30/50 pour continuer':'Cap des 30/50 franchi →'}</button></div>`;
+  <div class="step-why">Réponds avec tes notes et tes livres, dans tes propres mots. Tu peux ajouter plusieurs avis à la même question au fil du temps — chacun est daté, et tout est conservé&nbsp;: tu retrouveras ces questions sur l'accueil sans repasser le test.</div>
+  <div class="suj-q-header">
+    <button class="lib-action" id="suj-q-prev" ${su.qIndex === 0 ? 'disabled' : ''}>‹</button>
+    <div class="suj-q-progress">Question <strong>${su.qIndex + 1}</strong> / ${qs.length} · <span class="${gateOk ? 'suj-ok' : ''}">${answered} traitée${answered > 1 ? 's' : ''}</span></div>
+    <button class="lib-action" id="suj-q-next" ${su.qIndex >= qs.length - 1 ? 'disabled' : ''}>›</button>
+  </div>
+  <div class="suj-q-card ${(q.avis || []).length ? 'answered' : ''}">
+    <div class="suj-q-num">Question ${su.qIndex + 1}${(q.avis || []).length ? ' · traitée' : ''}</div>
+    <div class="suj-q-text">${escapeHtml(q.q)}</div>
+  </div>
+  <div class="field">
+    <label>Ton avis / ce que tu sais</label>
+    <div class="input-wrap"><textarea id="suj-avis-input" rows="3" placeholder="Ce que je sais, ce que j'en pense, mes doutes…"></textarea></div>
+  </div>
+  <button class="btn-secondary" id="suj-avis-add" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">add_comment</span> Ajouter mon avis (daté)</button>
+  ${avisList ? `<div class="suj-avis-list">${avisList}</div>` : ''}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!gateOk ? 'disabled' : ''}>${!gateOk ? `Traite 30 questions pour continuer (${answered}/30)` : 'Cap des 30 questions franchi →'}</button></div>`;
 }
 
 function renderSujetExpert() {
@@ -1249,7 +1401,7 @@ function renderDoneSujet(topBar) {
       <div class="recap-block"><strong>Sujet</strong><span class="recap-val">${escapeHtml(su.sujet)}</span></div>
       <div class="recap-block"><strong>Concepts cartographiés</strong><span class="recap-val">${concepts.length ? concepts.slice(0, 8).join(', ') + (concepts.length > 8 ? '…' : '') : '—'}</span></div>
       <div class="recap-block"><strong>Références</strong><span class="recap-val">${escapeHtml(su.livres) || '—'}</span></div>
-      <div class="recap-block"><strong>Crash-test</strong><span class="recap-val">${su.score ? escapeHtml(su.score) + ' / 50 questions en autonomie' : '—'}</span></div>
+      <div class="recap-block"><strong>Crash-test</strong><span class="recap-val">${(su.questions || []).length ? sujetAnsweredCount(su) + ' / ' + su.questions.length + ' questions traitées' : '—'}</span></div>
       <div class="recap-block"><strong>Expert</strong><span class="recap-val">${escapeHtml(su.experts) || '—'}${su.budget ? ' · ' + escapeHtml(su.budget) : ''}</span></div>
       <div class="recap-block"><strong>Transmission</strong><span class="recap-val">${escapeHtml(su.enseigner) || '—'}${su.enseignerQuand ? ' — ' + escapeHtml(su.enseignerQuand) : ''}</span></div>
     </div>
@@ -1329,12 +1481,11 @@ function bindEvents() {
       else if (id==='suj-carto') state.sujet.carto = el.value;
       else if (id==='suj-carto-lien') state.sujet.cartoLien = el.value;
       else if (id==='suj-livres') state.sujet.livres = el.value;
-      else if (id==='suj-questions') state.sujet.questions = el.value;
-      else if (id==='suj-score') state.sujet.score = el.value;
       else if (id==='suj-experts') state.sujet.experts = el.value;
       else if (id==='suj-budget') state.sujet.budget = el.value;
       else if (id==='suj-enseigner') state.sujet.enseigner = el.value;
       else if (id==='suj-enseigner-quand') state.sujet.enseignerQuand = el.value;
+      if (id && id.startsWith('suj-') && id !== 'suj-avis-input') sujetPersist();
       const btn = document.getElementById('btn-next');
       if (btn && s) updateNextBtn(btn, s);
     });
@@ -1351,35 +1502,122 @@ function bindEvents() {
   document.querySelectorAll('.checklist-item').forEach(el => {
     el.addEventListener('click', () => {
       const group = el.dataset.sujetGroup;
-      if (group) state.sujet[group][el.dataset.key] = !state.sujet[group][el.dataset.key];
+      if (group) { state.sujet[group][el.dataset.key] = !state.sujet[group][el.dataset.key]; sujetPersist(); }
       else state.env[el.dataset.key] = !state.env[el.dataset.key];
       re();
     });
   });
 
-  // Génération des 50 questions du crash-test via l'assistant IA
+  // --- Méthode sujet : générations IA + questions/avis + accueil ---
+  const _aiReady = () => {
+    if (window.aiCall && window.aiIsConfigured && window.aiIsConfigured()) return true;
+    showToast('Configure une clé IA dans la bibliothèque (barre « Assistant IA »)');
+    return false;
+  };
+  const _busy = (btn, label) => { btn.disabled = true; btn.textContent = label; };
+
   const btnGen50 = document.getElementById('suj-gen-50q');
   if (btnGen50) btnGen50.addEventListener('click', async () => {
-    if (!window.aiCall || !window.aiIsConfigured || !window.aiIsConfigured()) {
-      showToast('Configure une clé IA dans la bibliothèque (barre « Assistant IA »)');
-      return;
-    }
-    btnGen50.disabled = true;
-    btnGen50.textContent = 'Génération en cours…';
+    if (!_aiReady()) return;
+    _busy(btnGen50, 'Génération des 50 questions…');
     try {
-      const text = await window.aiCall({
+      const res = await window.aiCall({
         system: 'Tu es un recruteur ultra exigeant chargé d\'évaluer l\'expertise réelle d\'un candidat. Tu poses des questions pointues, techniques et concrètes, jamais génériques.',
-        user: `Sujet : ${state.sujet.sujet}.\n\nGénère exactement 50 questions ultra-pointues, numérotées de 1 à 50, permettant d'évaluer l'expertise réelle de quelqu'un dans ce domaine. Une question par ligne, sans réponse.`,
+        user: `Sujet : ${state.sujet.sujet}.\n\nGénère exactement 50 questions ultra-pointues permettant d'évaluer l'expertise réelle de quelqu'un dans ce domaine. Chaque question doit être autosuffisante et sans réponse fournie.`,
+        schema: { type: 'object', properties: { questions: { type: 'array', items: { type: 'string' } } }, required: ['questions'], additionalProperties: false },
         maxTokens: 4000
       });
-      state.sujet.questions = text;
+      state.sujet.questions = (res.questions || []).slice(0, 50).map(q => ({ q, avis: [] }));
+      state.sujet.qIndex = 0;
+      sujetPersist();
       re();
-      showToast('50 questions générées — à toi de jouer');
+      showToast('Questions générées — réponds-y une par une');
     } catch (e) {
       showToast(e.message);
-      btnGen50.disabled = false;
-      btnGen50.textContent = 'Générer mes 50 questions avec l\'IA';
+      re();
     }
+  });
+
+  const btnAvisAdd = document.getElementById('suj-avis-add');
+  if (btnAvisAdd) btnAvisAdd.addEventListener('click', () => {
+    const ta = document.getElementById('suj-avis-input');
+    const v = (ta.value || '').trim();
+    if (!v) { showToast('Écris d\'abord ton avis'); return; }
+    const q = state.sujet.questions[state.sujet.qIndex];
+    (q.avis = q.avis || []).push({ text: v, ts: Date.now() });
+    sujetPersist();
+    re();
+  });
+  const qPrev = document.getElementById('suj-q-prev');
+  if (qPrev) qPrev.addEventListener('click', () => { state.sujet.qIndex--; sujetPersist(); re(); });
+  const qNext = document.getElementById('suj-q-next');
+  if (qNext) qNext.addEventListener('click', () => { state.sujet.qIndex++; sujetPersist(); re(); });
+
+  const btnGenVid = document.getElementById('suj-gen-videos');
+  if (btnGenVid) btnGenVid.addEventListener('click', async () => {
+    if (!_aiReady()) return;
+    _busy(btnGenVid, 'Recherche de vidéos…');
+    try {
+      const deja = (state.sujet.ytVideos || []).map(v => v.titre).join(' ; ');
+      const res = await window.aiCall({
+        system: 'Tu recommandes des vidéos YouTube pour découvrir un domaine. Tu proposes des thèmes de vidéos réellement populaires et vulgarisés, avec pour chacun une requête de recherche YouTube efficace en français ou en anglais selon le domaine.',
+        user: `Sujet : ${state.sujet.sujet}.\n\nPropose 6 vidéos ou thèmes de vidéos YouTube adaptés et intéressants pour dégrossir ce domaine (les contenus les plus vulgarisés et appréciés). Pour chaque proposition : "titre" court, "requete" de recherche YouTube précise, "raison" en une phrase.${deja ? '\nDéjà proposé (ne pas répéter) : ' + deja : ''}`,
+        schema: { type: 'object', properties: { videos: { type: 'array', items: { type: 'object', properties: { titre: { type: 'string' }, requete: { type: 'string' }, raison: { type: 'string' } }, required: ['titre', 'requete', 'raison'], additionalProperties: false } } }, required: ['videos'], additionalProperties: false },
+        maxTokens: 2000
+      });
+      state.sujet.ytVideos = (state.sujet.ytVideos || []).concat(res.videos || []);
+      sujetPersist();
+      re();
+    } catch (e) { showToast(e.message); re(); }
+  });
+
+  const btnGenLiv = document.getElementById('suj-gen-livres');
+  if (btnGenLiv) btnGenLiv.addEventListener('click', async () => {
+    if (!_aiReady()) return;
+    _busy(btnGenLiv, 'Recherche de livres…');
+    try {
+      const deja = (state.sujet.livresSugg || []).map(l => l.titre).join(' ; ');
+      const res = await window.aiCall({
+        system: 'Tu recommandes des livres de référence réels et reconnus pour maîtriser un domaine. Jamais de titre inventé.',
+        user: `Sujet : ${state.sujet.sujet}.\n\nPropose 6 livres de référence adaptés à ce domaine d'expertise, du plus accessible au plus pointu. Pour chacun : "titre" exact, "auteur", "raison" en une phrase.${deja ? '\nDéjà proposé (ne pas répéter) : ' + deja : ''}`,
+        schema: { type: 'object', properties: { livres: { type: 'array', items: { type: 'object', properties: { titre: { type: 'string' }, auteur: { type: 'string' }, raison: { type: 'string' } }, required: ['titre', 'auteur', 'raison'], additionalProperties: false } } }, required: ['livres'], additionalProperties: false },
+        maxTokens: 2000
+      });
+      state.sujet.livresSugg = (state.sujet.livresSugg || []).concat(res.livres || []);
+      sujetPersist();
+      re();
+    } catch (e) { showToast(e.message); re(); }
+  });
+
+  document.querySelectorAll('.suj-livre-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const l = state.sujet.livresSugg[parseInt(btn.dataset.i)];
+      if (!l) return;
+      const ligne = `${l.titre} — ${l.auteur}`;
+      if (state.sujet.livres.includes(ligne)) { showToast('Déjà dans ta liste'); return; }
+      state.sujet.livres = state.sujet.livres.trim() ? state.sujet.livres.replace(/\s*$/, '') + '\n' + ligne : ligne;
+      sujetPersist();
+      re();
+    });
+  });
+
+  // Accueil : reprendre un sujet sans repasser le parcours
+  document.querySelectorAll('.suj-home-open').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rec = sujetsAll().find(x => x.id === parseInt(btn.dataset.id));
+      if (!rec) return;
+      state.sujet = Object.assign(sujetInitial(), rec);
+      state.noteType = 'sujet';
+      state.step = Math.max(1, STEPS_SUJET.findIndex(s => s.id === btn.dataset.goto));
+      re();
+    });
+  });
+  document.querySelectorAll('.suj-home-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('Supprimer ce sujet, ses questions et tous tes avis ?')) return;
+      sujetsWrite(sujetsAll().filter(x => x.id !== parseInt(btn.dataset.id)));
+      re();
+    });
   });
 
   document.querySelectorAll('.type-card').forEach(el => {
@@ -1440,11 +1678,7 @@ function updateNextBtn(btn, s) {
   else if (s.id==='suj-yt') btn.disabled = !state.sujet.videos.trim();
   else if (s.id==='suj-carto') btn.disabled = !state.sujet.carto.trim();
   else if (s.id==='suj-livres') btn.disabled = !state.sujet.livres.trim();
-  else if (s.id==='suj-50q') {
-    const sc = parseInt(state.sujet.score) || 0;
-    btn.disabled = sc < 30;
-    btn.textContent = sc < 30 ? 'Atteins 30/50 pour continuer' : 'Cap des 30/50 franchi →';
-  }
+  else if (s.id==='suj-50q') btn.disabled = sujetAnsweredCount(state.sujet) < 30;
   else if (s.id==='suj-expert') btn.disabled = !state.sujet.experts.trim();
   else if (s.id==='suj-teach') btn.disabled = !state.sujet.enseigner;
 }
