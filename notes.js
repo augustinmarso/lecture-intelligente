@@ -65,7 +65,7 @@ async function autoSaveCurrentNote() {
   if (!s) return null;
   const md = window.generateMarkdown ? window.generateMarkdown() : '';
   const note = {
-    title: s.bookTitle || s.chapterTitle || 'Fiche sans titre',
+    title: s.bookTitle || s.chapterTitle || (s.sujet && s.sujet.sujet) || 'Fiche sans titre',
     type: s.noteType || 'libre',
     bookTitle: s.bookTitle || '',
     bookAuthor: s.bookAuthor || '',

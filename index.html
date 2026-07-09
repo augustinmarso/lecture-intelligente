@@ -289,6 +289,30 @@ const STEPS_CHAPITRE = [
 ];
 const PHASES = ['Pré-lecture','Lecture','Post-lecture'];
 
+// Méthode « Maîtriser un sujet » (d'après Oussama Ammar) — routine
+// d'apprentissage en 5 phases, à planifier comme une routine sportive.
+const STEPS_SUJET = [
+  {phase:0,id:'type',title:'Type de note',num:'Démarrage'},
+  {phase:0,id:'suj-yt',title:'Dégrossis sur YouTube',num:'Cadrage · 1/2'},
+  {phase:0,id:'suj-carto',title:'Cartographie les concepts',num:'Cadrage · 2/2'},
+  {phase:1,id:'suj-livres',title:'Lis en diagonale les références',num:'Profondeur · 1/2'},
+  {phase:1,id:'suj-50q',title:'Le crash-test des 50 questions',num:'Profondeur · 2/2'},
+  {phase:2,id:'suj-expert',title:'Achète une heure d\'expert',num:'Validation'},
+  {phase:3,id:'suj-teach',title:'Enseigne pour ancrer',num:'Transmission'},
+  {phase:4,id:'suj-veille',title:'Hacke l\'algorithme de X',num:'Veille · 1/2'},
+  {phase:4,id:'suj-agenda',title:'Planifie ta routine',num:'Veille · 2/2'},
+];
+const PHASES_SUJET = ['Cadrage','Profondeur','Validation','Transmission','Veille'];
+
+function sujetInitial() {
+  return {
+    sujet:'', videos:'', carto:'', cartoLien:'', livres:'', questions:'', score:'',
+    experts:'', budget:'', enseigner:'', enseignerQuand:'',
+    ytChecks:{'Sujet recherché sur YouTube':false,'Une dizaine de vidéos les plus vues sélectionnées':false,'Visionnées en accéléré, notes prises':false},
+    veilleChecks:{'Compte X (Twitter) anonyme créé, zéro follower':false,'Niveau 1 — célébrités du domaine suivies':false,'Niveau 2 — leurs abonnements suivis':false,'Niveau 3 — abonnements du niveau 2 suivis':false}
+  };
+}
+
 const state = {
   step: 0,
   noteType: null,
@@ -303,13 +327,19 @@ const state = {
   synthese: ['','','','',''],
   action: {conseil:'',quand:'',deadline:''},
   highlights: [],
+  sujet: sujetInitial(),
   pdfPanelOpen: false,
   done: false
 };
 
 const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null };
 
-function getSteps() { return state.noteType === 'chapitre' ? STEPS_CHAPITRE : STEPS_LIVRE; }
+function getSteps() {
+  if (state.noteType === 'chapitre') return STEPS_CHAPITRE;
+  if (state.noteType === 'sujet') return STEPS_SUJET;
+  return STEPS_LIVRE;
+}
+function getPhases() { return state.noteType === 'sujet' ? PHASES_SUJET : PHASES; }
 function re() { render(); }
 // Icône Material Symbols (fonts.google.com/icons) — helper global pour tous les modules
 window.icon = function(name, size) { return `<span class="ms"${size ? ` style="font-size:${size}px"` : ''}>${name}</span>`; };
@@ -719,7 +749,7 @@ function gcalDateFormat(d) {
   return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function gcalUrl(title, startDate, durationMin, details) {
+function gcalUrl(title, startDate, durationMin, details, recur) {
   const end = new Date(startDate.getTime() + durationMin * 60000);
   const params = new URLSearchParams({
     action: 'TEMPLATE',
@@ -727,6 +757,7 @@ function gcalUrl(title, startDate, durationMin, details) {
     dates: `${gcalDateFormat(startDate)}/${gcalDateFormat(end)}`,
     details: details || ''
   });
+  if (recur) params.set('recur', 'RRULE:' + recur);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
@@ -752,7 +783,32 @@ function wikilink(s) {
   return `[[${String(s).replace(/[\[\]]/g, '').trim()}]]`;
 }
 
+function generateMarkdownSujet() {
+  const date = new Date().toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric' });
+  const su = state.sujet;
+  let md = `# Maîtriser un sujet — ${wikilink(su.sujet)}\n\n`;
+  md += `> Routine d'apprentissage (méthode Oussama Ammar) — session du ${date}\n\n---\n\n`;
+  md += `## Phase 1 — Cadrage (YouTube + cartographie)\n\n`;
+  md += `**Notes de visionnage**\n\n${su.videos || '—'}\n\n`;
+  md += `**Concepts à creuser**\n\n${su.carto ? su.carto.split('\n').map(x => x.trim()).filter(Boolean).map(c => `- ${wikilink(c)}`).join('\n') : '—'}\n\n`;
+  if (su.cartoLien) md += `**Carte** : ${su.cartoLien}\n\n`;
+  md += `## Phase 2 — Profondeur\n\n`;
+  md += `**Livres de référence (à demi lire, en diagonale)**\n\n${su.livres || '—'}\n\n`;
+  md += `**Crash-test** : ${su.score || '—'} / 50 questions réussies en autonomie\n\n`;
+  if (su.questions) md += `<details><summary>Les 50 questions du recruteur exigeant</summary>\n\n${su.questions}\n\n</details>\n\n`;
+  md += `## Phase 3 — Validation (heure d'expert)\n\n`;
+  md += `**Experts** : ${su.experts || '—'}\n\n`;
+  md += `**Offre** : ${su.budget || '—'} pour 1h — poser les questions restantes du crash-test\n\n`;
+  md += `## Phase 4 — Transmission\n\n`;
+  md += `**Format** : ${su.enseigner || '—'}${su.enseignerQuand ? ` — ${su.enseignerQuand}` : ''}\n\n`;
+  md += `## Phase 5 — Veille (algorithme X)\n\n`;
+  md += Object.entries(su.veilleChecks).map(([k, v]) => `- [${v ? 'x' : ' '}] ${k}`).join('\n') + '\n\n';
+  md += `**Bonus** : IA en tuteur permanent sur chaque signal faible détecté.\n`;
+  return md;
+}
+
 function generateMarkdown() {
+  if (state.noteType === 'sujet') return generateMarkdownSujet();
   const date = new Date().toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric' });
   const synItems = state.synthese.filter(s => s.trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
   const isChapter = state.noteType === 'chapitre';
@@ -809,8 +865,9 @@ function generateMarkdown() {
 
 function defaultFilename() {
   const date = new Date().toISOString().slice(0, 10);
-  const kind = state.noteType === 'chapitre' ? 'chapitre' : 'livre';
-  const slug = (state.bookTitle || 'lecture').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'lecture';
+  const kind = state.noteType === 'chapitre' ? 'chapitre' : (state.noteType === 'sujet' ? 'sujet' : 'livre');
+  const base = state.noteType === 'sujet' ? state.sujet.sujet : state.bookTitle;
+  const slug = (base || 'lecture').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'lecture';
   return `${kind}-${slug}-${date}.md`;
 }
 
@@ -864,7 +921,7 @@ function render() {
   </div>`;
 
   let phases = '<div class="phase-bar">';
-  PHASES.forEach((p,i) => {
+  getPhases().forEach((p,i) => {
     let cls = 'phase-tab';
     if (i === s.phase) cls += ' active';
     else if (i < s.phase) cls += ' done';
@@ -891,6 +948,14 @@ function render() {
   else if (s.id==='synthese') body = renderSynthese();
   else if (s.id==='action') body = renderAction();
   else if (s.id==='revision') body = renderRevision();
+  else if (s.id==='suj-yt') body = renderSujetYt();
+  else if (s.id==='suj-carto') body = renderSujetCarto();
+  else if (s.id==='suj-livres') body = renderSujetLivres();
+  else if (s.id==='suj-50q') body = renderSujet50q();
+  else if (s.id==='suj-expert') body = renderSujetExpert();
+  else if (s.id==='suj-teach') body = renderSujetTeach();
+  else if (s.id==='suj-veille') body = renderSujetVeille();
+  else if (s.id==='suj-agenda') body = renderSujetAgenda();
 
   app.innerHTML = topBar + phases + dots +
     `<div class="step-number">${s.num}</div><div class="step-title">${s.title}</div>` + body;
@@ -917,8 +982,9 @@ function textareaField(label, id, value, placeholder, rows) {
 function renderType() {
   const isLivre = state.noteType === 'livre';
   const isChap = state.noteType === 'chapitre';
+  const isSujet = state.noteType === 'sujet';
   return `
-  <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section.</div>
+  <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section&nbsp;; <em>maîtriser un sujet</em> est une routine d'apprentissage complète en 5 phases.</div>
   <div class="type-card ${isLivre?'selected':''}" data-type="livre">
     <div class="type-icon"><span class="ms" style="font-size:24px">auto_stories</span></div>
     <div><h4>Note de livre</h4><p>Flux complet&nbsp;: objectif PPU, repérage des chapitres, lecture, synthèse, action, révision.</p></div>
@@ -927,19 +993,26 @@ function renderType() {
     <div class="type-icon"><span class="ms" style="font-size:24px">article</span></div>
     <div><h4>Note de chapitre</h4><p>Flux allégé centré sur un seul chapitre, sans étape de table des matières.</p></div>
   </div>
-  <div class="field" style="margin-top:1.2rem">
+  <div class="type-card ${isSujet?'selected':''}" data-type="sujet">
+    <div class="type-icon"><span class="ms" style="font-size:24px">school</span></div>
+    <div><h4>Maîtriser un sujet</h4><p>Méthode Oussama Ammar&nbsp;: cadrage YouTube, 50 questions, heure d'expert, transmission, veille — comme une routine sportive.</p></div>
+  </div>
+  ${isSujet ? `<div class="field" style="margin-top:1.2rem">
+    <label>Le sujet que tu veux maîtriser</label>
+    <div class="input-wrap"><input id="suj-sujet" type="text" placeholder="Ex: le growth hacking, l'investissement immobilier…" value="${escapeAttr(state.sujet.sujet)}"/></div>
+  </div>` : `<div class="field" style="margin-top:1.2rem">
     <label>Titre du livre <span style="color:var(--text3);font-weight:400">(rempli auto si tu ouvres un PDF)</span></label>
     <div class="input-wrap"><input id="book-title" type="text" placeholder="Ex: Why We Sleep" value="${escapeAttr(state.bookTitle)}"/></div>
   </div>
   <div class="field">
     <label>Auteur(s)</label>
     <div class="input-wrap"><input id="book-author" type="text" placeholder="Ex: Matthew Walker" value="${escapeAttr(state.bookAuthor)}"/></div>
-  </div>
+  </div>`}
   ${isChap ? `<div class="field">
     <label>Titre ou numéro du chapitre</label>
     <div class="input-wrap"><input id="chapter-title" type="text" placeholder="Ex: Chapitre 3 — Le sommeil paradoxal" value="${escapeAttr(state.chapterTitle)}"/></div>
   </div>` : ''}
-  <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType?'disabled':''}>Commencer →</button></div>`;
+  <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType||(isSujet&&!state.sujet.sujet)?'disabled':''}>Commencer →</button></div>`;
 }
 
 function renderPPU() {
@@ -1073,6 +1146,120 @@ function renderRevision() {
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
 }
 
+// ============= MÉTHODE « MAÎTRISER UN SUJET » =============
+function sujetChecklist(group, obj) {
+  return Object.keys(obj).map(k => `
+    <div class="checklist-item" data-sujet-group="${group}" data-key="${escapeAttr(k)}">
+      <div class="check-box ${obj[k]?'checked':''}"><div class="check-tick"></div></div>
+      <span>${k}</span>
+    </div>`).join('');
+}
+
+function renderSujetYt() {
+  const filled = state.sujet.videos.trim();
+  return `
+  <div class="step-why">Objectif&nbsp;: une première couche globale de savoir et le vocabulaire de base. YouTube ne donne pas la profondeur — il montre ce qui a été le plus vulgarisé et apprécié par le grand public sur «&nbsp;${escapeHtml(state.sujet.sujet)}&nbsp;».</div>
+  ${sujetChecklist('ytChecks', state.sujet.ytChecks)}
+  <div style="margin-top:1rem">${textareaField('Tes notes de visionnage — idées fortes, vocabulaire repéré', 'suj-videos', state.sujet.videos, 'Ce que je retiens des vidéos les plus vues…', 4)}</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!filled?'disabled':''}>Mes notes sont prises →</button></div>`;
+}
+
+function renderSujetCarto() {
+  return `
+  <div class="step-why">Liste tous les mots, idées et concepts inconnus issus des vidéos, puis relance des recherches YouTube sur chaque sous-concept (de l'entrepreneuriat au scaling, du scaling au growth hacking…). Dessine l'arbre du domaine sur Miro ou sur papier.</div>
+  ${textareaField('Concepts inconnus à creuser (un par ligne)', 'suj-carto', state.sujet.carto, 'scaling\ngrowth hacking\nrétention…', 5)}
+  ${inputField('Lien vers ta carte (Miro, photo, fichier…) — facultatif', 'suj-carto-lien', state.sujet.cartoLien, 'https://miro.com/…')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.carto.trim()?'disabled':''}>Ma carte est dessinée →</button></div>`;
+}
+
+function renderSujetLivres() {
+  return `
+  <div class="step-why">Gagne en épaisseur avec des livres de référence. Ne t'oblige pas à les finir&nbsp;: un bon livre d'apprentissage est un livre <em>à demi lu</em>. Lis en diagonale, saute de chapitre en chapitre au hasard, laisse ton instinct piocher l'information manquante.</div>
+  ${textareaField('Les livres de référence choisis', 'suj-livres', state.sujet.livres, 'Titre — auteur (un par ligne)…', 4)}
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Astuce&nbsp;: ouvre-les dans le panneau PDF (bouton <span class="ms" style="font-size:15px">picture_as_pdf</span>) ou connecte ton dossier de livres dans la bibliothèque.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.livres.trim()?'disabled':''}>Mes références sont choisies →</button></div>`;
+}
+
+function renderSujet50q() {
+  const score = parseInt(state.sujet.score) || 0;
+  return `
+  <div class="step-why">Le crash-test&nbsp;: demande à une IA de jouer le recruteur exigeant et de générer 50 questions ultra-pointues sur le domaine. Réponds par écrit avec tes notes et tes livres. Objectif&nbsp;: <strong>30 réponses autonomes sur 50</strong> avant de passer à la suite.</div>
+  <div style="margin-bottom:1rem"><button class="btn-secondary" id="suj-gen-50q" style="margin-top:0">${window.icon ? icon('lightbulb', 15) : ''} Générer mes 50 questions avec l'IA</button></div>
+  ${textareaField('Les 50 questions du recruteur exigeant', 'suj-questions', state.sujet.questions, 'Clique sur le bouton ci-dessus (IA configurée dans la bibliothèque) ou colle ici les questions générées par ChatGPT…', 8)}
+  ${inputField('Combien de questions as-tu réussies en autonomie ? (sur 50)', 'suj-score', state.sujet.score, 'Ex: 32')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${score<30?'disabled':''}>${score<30?'Atteins 30/50 pour continuer':'Cap des 30/50 franchi →'}</button></div>`;
+}
+
+function renderSujetExpert() {
+  return `
+  <div class="step-why">Débloque les zones d'ombre et capte la réalité du terrain. Identifie des professionnels reconnus (qui ne vendent pas de coaching de prime abord) et propose-leur d'acheter <strong>1 heure de leur temps</strong> au téléphone — 200, 300 ou 400&nbsp;€. Profites-en pour poser les ~20 questions restantes du crash-test.</div>
+  ${textareaField('Experts identifiés et contactés', 'suj-experts', state.sujet.experts, 'Nom — pourquoi lui/elle — canal de contact…', 4)}
+  ${inputField('Ton offre (budget pour 1h)', 'suj-budget', state.sujet.budget, 'Ex: 300 €')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.experts.trim()?'disabled':''}>Le questionnaire est complété à 100 % →</button></div>`;
+}
+
+function renderSujetTeach() {
+  return `
+  <div class="step-why">Valide ta structure mentale en transmettant. Enseigner oblige à synthétiser et met en lumière les derniers points faibles de ta compréhension. Vidéo, cours structuré, workshop informel ou simple présentation à tes amis — peu importe le format.</div>
+  ${inputField('Ton format de transmission', 'suj-enseigner', state.sujet.enseigner, 'Ex: workshop d\'1h pour 4 amis, vidéo YouTube…')}
+  ${inputField('Quand ?', 'suj-enseigner-quand', state.sujet.enseignerQuand, 'Ex: samedi prochain')}
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.sujet.enseigner?'disabled':''}>Ma transmission est planifiée →</button></div>`;
+}
+
+function renderSujetVeille() {
+  const allDone = Object.values(state.sujet.veilleChecks).every(Boolean);
+  return `
+  <div class="step-why">Ne te fais pas dépasser&nbsp;: capte les signaux faibles avant les autres. En suivant trois générations de comptes (les stars, ceux qu'elles écoutent, et ceux que ces derniers écoutent), l'algorithme comprend ton obsession et te recommande les comptes méconnus aux analyses les plus pointues.</div>
+  ${sujetChecklist('veilleChecks', state.sujet.veilleChecks)}
+  <div style="margin-top:1rem;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--text2);line-height:1.5">
+    Bonus&nbsp;: utilise l'IA de l'app comme tuteur permanent — pose-lui une question d'approfondissement sur chaque signal faible détecté pendant ta veille.
+  </div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!allDone?'disabled':''}>${!allDone?'Coche les 4 étapes pour continuer':'Mon écosystème de veille est en place →'}</button></div>`;
+}
+
+function renderSujetAgenda() {
+  const seance = new Date(); seance.setDate(seance.getDate() + 2); seance.setHours(18, 0, 0, 0);
+  const veille = new Date(); veille.setDate(veille.getDate() + 1); veille.setHours(8, 30, 0, 0);
+  const t = state.sujet.sujet || 'mon sujet';
+  const urlSeance = gcalUrl(`📚 Apprentissage — ${t}`, seance, 60, `Routine d'apprentissage (méthode Ammar) sur : ${t}\n\nAvancer sur la phase en cours : questions, lectures en diagonale, préparation d'interview d'expert ou de transmission.`, 'FREQ=WEEKLY');
+  const urlVeille = gcalUrl(`📚 Veille — ${t}`, veille, 15, `15 min de veille sur X (compte anonyme dédié) : repérer les signaux faibles sur ${t} et creuser avec l'IA.`, 'FREQ=DAILY');
+  return `
+  <div class="step-why">Cette méthode fonctionne comme une routine sportive&nbsp;: elle se planifie régulièrement dans l'agenda, sinon elle n'existe pas. Bloque une séance hebdomadaire et un créneau de veille quotidien.</div>
+  <div class="revision-card">
+    <h4>Séance d'apprentissage — 1h par semaine</h4>
+    <p>Avancer sur la phase en cours de la méthode.</p>
+    <div class="gcal-row"><a class="gcal-btn" href="${urlSeance}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event_repeat</span> Ajouter (hebdomadaire)</a></div>
+  </div>
+  <div class="revision-card">
+    <h4>Veille — 15 min par jour</h4>
+    <p>Fil X ciblé + questions d'approfondissement à l'IA.</p>
+    <div class="gcal-row"><a class="gcal-btn" href="${urlVeille}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event_repeat</span> Ajouter (quotidien)</a></div>
+  </div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
+}
+
+function renderDoneSujet(topBar) {
+  const su = state.sujet;
+  const concepts = su.carto.split('\n').map(x => x.trim()).filter(Boolean);
+  return topBar + `<div class="success-screen">
+    <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
+    <h2>Routine lancée</h2>
+    <p>Les 5 phases de ta routine d'apprentissage sont en place. Continue à la faire vivre — c'est un sport, pas un sprint.</p>
+    <div class="recap">
+      <div class="recap-block"><strong>Sujet</strong><span class="recap-val">${escapeHtml(su.sujet)}</span></div>
+      <div class="recap-block"><strong>Concepts cartographiés</strong><span class="recap-val">${concepts.length ? concepts.slice(0, 8).join(', ') + (concepts.length > 8 ? '…' : '') : '—'}</span></div>
+      <div class="recap-block"><strong>Références</strong><span class="recap-val">${escapeHtml(su.livres) || '—'}</span></div>
+      <div class="recap-block"><strong>Crash-test</strong><span class="recap-val">${su.score ? escapeHtml(su.score) + ' / 50 questions en autonomie' : '—'}</span></div>
+      <div class="recap-block"><strong>Expert</strong><span class="recap-val">${escapeHtml(su.experts) || '—'}${su.budget ? ' · ' + escapeHtml(su.budget) : ''}</span></div>
+      <div class="recap-block"><strong>Transmission</strong><span class="recap-val">${escapeHtml(su.enseigner) || '—'}${su.enseignerQuand ? ' — ' + escapeHtml(su.enseignerQuand) : ''}</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
+      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
+      <button class="btn-secondary" id="btn-restart">Recommencer pour une nouvelle session</button>
+    </div>
+  </div>`;
+}
+
 function renderDone() {
   const syn = state.synthese.filter(s => s.trim()).map(s => `<li>· ${escapeHtml(s)}</li>`).join('');
   const cal = getCalendarEvents();
@@ -1087,6 +1274,7 @@ function renderDone() {
     </div>
     <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
   </div>`;
+  if (state.noteType === 'sujet') return renderDoneSujet(topBar);
   return topBar + `<div class="success-screen">
     <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
     <h2>${state.noteType === 'chapitre' ? 'Chapitre terminé' : 'Lecture accomplie'}</h2>
@@ -1136,6 +1324,17 @@ function bindEvents() {
       else if (id==='book-title') state.bookTitle = el.value;
       else if (id==='book-author') state.bookAuthor = el.value;
       else if (id==='chapter-title') state.chapterTitle = el.value;
+      else if (id==='suj-sujet') state.sujet.sujet = el.value;
+      else if (id==='suj-videos') state.sujet.videos = el.value;
+      else if (id==='suj-carto') state.sujet.carto = el.value;
+      else if (id==='suj-carto-lien') state.sujet.cartoLien = el.value;
+      else if (id==='suj-livres') state.sujet.livres = el.value;
+      else if (id==='suj-questions') state.sujet.questions = el.value;
+      else if (id==='suj-score') state.sujet.score = el.value;
+      else if (id==='suj-experts') state.sujet.experts = el.value;
+      else if (id==='suj-budget') state.sujet.budget = el.value;
+      else if (id==='suj-enseigner') state.sujet.enseigner = el.value;
+      else if (id==='suj-enseigner-quand') state.sujet.enseignerQuand = el.value;
       const btn = document.getElementById('btn-next');
       if (btn && s) updateNextBtn(btn, s);
     });
@@ -1150,7 +1349,37 @@ function bindEvents() {
   });
 
   document.querySelectorAll('.checklist-item').forEach(el => {
-    el.addEventListener('click', () => { state.env[el.dataset.key] = !state.env[el.dataset.key]; re(); });
+    el.addEventListener('click', () => {
+      const group = el.dataset.sujetGroup;
+      if (group) state.sujet[group][el.dataset.key] = !state.sujet[group][el.dataset.key];
+      else state.env[el.dataset.key] = !state.env[el.dataset.key];
+      re();
+    });
+  });
+
+  // Génération des 50 questions du crash-test via l'assistant IA
+  const btnGen50 = document.getElementById('suj-gen-50q');
+  if (btnGen50) btnGen50.addEventListener('click', async () => {
+    if (!window.aiCall || !window.aiIsConfigured || !window.aiIsConfigured()) {
+      showToast('Configure une clé IA dans la bibliothèque (barre « Assistant IA »)');
+      return;
+    }
+    btnGen50.disabled = true;
+    btnGen50.textContent = 'Génération en cours…';
+    try {
+      const text = await window.aiCall({
+        system: 'Tu es un recruteur ultra exigeant chargé d\'évaluer l\'expertise réelle d\'un candidat. Tu poses des questions pointues, techniques et concrètes, jamais génériques.',
+        user: `Sujet : ${state.sujet.sujet}.\n\nGénère exactement 50 questions ultra-pointues, numérotées de 1 à 50, permettant d'évaluer l'expertise réelle de quelqu'un dans ce domaine. Une question par ligne, sans réponse.`,
+        maxTokens: 4000
+      });
+      state.sujet.questions = text;
+      re();
+      showToast('50 questions générées — à toi de jouer');
+    } catch (e) {
+      showToast(e.message);
+      btnGen50.disabled = false;
+      btnGen50.textContent = 'Générer mes 50 questions avec l\'IA';
+    }
   });
 
   document.querySelectorAll('.type-card').forEach(el => {
@@ -1182,7 +1411,7 @@ function bindEvents() {
       env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
       lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
       synthese:['','','','',''], action:{conseil:'',quand:'',deadline:''},
-      highlights: [], done:false
+      highlights: [], sujet: sujetInitial(), done:false
     });
     re();
   });
@@ -1203,11 +1432,21 @@ function bindEvents() {
 }
 
 function updateNextBtn(btn, s) {
-  if (s.id==='type') btn.disabled = !state.noteType;
+  if (s.id==='type') btn.disabled = !state.noteType || (state.noteType==='sujet' && !state.sujet.sujet.trim());
   else if (s.id==='ppu') btn.disabled = !state.ppu.perso || !state.ppu.precis || !state.ppu.utile;
   else if (s.id==='tdm') btn.disabled = !state.tdm.chapitres;
   else if (s.id==='lecture') btn.disabled = !state.lecture.question;
   else if (s.id==='action') btn.disabled = !state.action.conseil || !state.action.quand;
+  else if (s.id==='suj-yt') btn.disabled = !state.sujet.videos.trim();
+  else if (s.id==='suj-carto') btn.disabled = !state.sujet.carto.trim();
+  else if (s.id==='suj-livres') btn.disabled = !state.sujet.livres.trim();
+  else if (s.id==='suj-50q') {
+    const sc = parseInt(state.sujet.score) || 0;
+    btn.disabled = sc < 30;
+    btn.textContent = sc < 30 ? 'Atteins 30/50 pour continuer' : 'Cap des 30/50 franchi →';
+  }
+  else if (s.id==='suj-expert') btn.disabled = !state.sujet.experts.trim();
+  else if (s.id==='suj-teach') btn.disabled = !state.sujet.enseigner;
 }
 
 function toggleTimer() {
