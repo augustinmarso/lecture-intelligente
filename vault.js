@@ -199,6 +199,130 @@ async function vaultListNotes() {
   return out.sort((a, b) => b.name.localeCompare(a.name));
 }
 
+async function vaultReadNote(handle) {
+  const file = await handle.getFile();
+  return await file.text();
+}
+
+// Retire le frontmatter YAML et la ligne source, garde le corps lisible
+function _stripFrontmatter(md) {
+  return String(md || '').replace(/^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
+}
+
+function _escVault(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// =============================================================
+// Suivi du dernier champ éditable de l'app (hors modal) :
+// permet de « remplacer mes mots par mes notes » en réinjectant
+// une note du Second Cerveau dans le champ où j'écrivais.
+// =============================================================
+let _lastEditable = null;
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') &&
+      el.closest('#app') && !el.closest('#lib-modal')) {
+    _lastEditable = el;
+  }
+});
+
+function _setFieldValue(el, value) {
+  el.value = value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// Insère le texte d'une note : remplace le contenu du dernier champ actif
+function vaultInsertIntoField(text, mode) {
+  const el = _lastEditable && document.body.contains(_lastEditable) ? _lastEditable : null;
+  if (!el) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    if (window.showToast) window.showToast('Note copiée — colle-la dans le champ voulu (aucun champ actif)');
+    return false;
+  }
+  const base = el.value && mode === 'append' ? (el.value.replace(/\s*$/, '') + '\n\n') : '';
+  _setFieldValue(el, base + text);
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.remove('open');
+  el.focus();
+  if (window.showToast) window.showToast(mode === 'append' ? 'Note ajoutée à ton champ' : 'Champ remplacé par ta note');
+  return true;
+}
+
+// --- Vue : liste des notes du Second Cerveau ---
+async function vaultBrowse() {
+  const body = document.getElementById('lib-body');
+  if (!body) return;
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.add('open');
+  if (!await vaultIsConnected()) {
+    body.innerHTML = `<div class="lib-empty">Second Cerveau non connecté.<br><br>Clique sur <strong>Choisir dossier</strong> dans la barre « Second Cerveau » pour lire tes notes ici.</div>`;
+    return;
+  }
+  if (!await _ensurePermission(_vaultHandle, 'read')) {
+    body.innerHTML = `<div class="lib-empty">Permission de lecture refusée pour le dossier.</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="lib-empty">Lecture du dossier « ${_escVault(_vaultHandle.name)} »…</div>`;
+  const notes = await vaultListNotes();
+  if (notes.length === 0) {
+    body.innerHTML = `<div class="lib-empty">Aucune note (.md) dans ce dossier.</div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="vault-view-toolbar">
+      <strong>${icon('psychology', 15)} Second Cerveau — ${notes.length} note${notes.length > 1 ? 's' : ''}</strong>
+      <input id="vault-search" type="search" placeholder="Rechercher une note…"/>
+    </div>
+    <div class="vault-note-list" id="vault-note-list">
+      ${notes.map((n, i) => `
+        <div class="vault-note-row" data-i="${i}">
+          <span class="vault-note-icon">${icon('description', 16)}</span>
+          <span class="vault-note-name">${_escVault(n.name.replace(/\.md$/i, ''))}</span>
+          <button class="lib-action vault-open" data-i="${i}">${icon('visibility', 15)} Lire</button>
+        </div>`).join('')}
+    </div>
+  `;
+  const search = document.getElementById('vault-search');
+  if (search) search.oninput = () => {
+    const q = search.value.toLowerCase();
+    document.querySelectorAll('.vault-note-row').forEach(row => {
+      const name = row.querySelector('.vault-note-name').textContent.toLowerCase();
+      row.style.display = name.includes(q) ? '' : 'none';
+    });
+  };
+  body.querySelectorAll('.vault-open').forEach(btn => {
+    btn.onclick = () => _vaultOpenNote(notes[parseInt(btn.dataset.i)]);
+  });
+}
+
+async function _vaultOpenNote(entry) {
+  const body = document.getElementById('lib-body');
+  if (!body) return;
+  body.innerHTML = `<div class="lib-empty">Ouverture…</div>`;
+  let raw = '';
+  try { raw = await vaultReadNote(entry.handle); }
+  catch (e) { body.innerHTML = `<div class="lib-empty">Impossible de lire cette note : ${_escVault(e.message)}</div>`; return; }
+  const clean = _stripFrontmatter(raw);
+  const hasField = _lastEditable && document.body.contains(_lastEditable);
+  body.innerHTML = `
+    <div class="vault-reader">
+      <div class="lib-reader-bar">
+        <button id="vault-back">← Retour</button>
+        <strong>${_escVault(entry.name.replace(/\.md$/i, ''))}</strong>
+        <div style="display:flex;gap:6px">
+          <button id="vault-insert-append" class="lib-action" title="Ajouter cette note à la fin du champ où j'écrivais">${icon('playlist_add', 15)} Ajouter au champ</button>
+          <button id="vault-insert-replace" class="lib-action vault-insert-primary" title="Remplacer le champ où j'écrivais par cette note">${icon('swap_horiz', 15)} Remplacer mes mots</button>
+        </div>
+      </div>
+      ${hasField ? '' : `<div class="vault-insert-hint">${icon('info', 14)} Astuce : ouvre la bibliothèque depuis un champ de saisie (objectif, synthèse…) pour pouvoir y insérer cette note.</div>`}
+      <div class="vault-reader-content"><pre class="md-render">${_escVault(clean)}</pre></div>
+    </div>
+  `;
+  document.getElementById('vault-back').onclick = vaultBrowse;
+  document.getElementById('vault-insert-append').onclick = () => vaultInsertIntoField(clean, 'append');
+  document.getElementById('vault-insert-replace').onclick = () => vaultInsertIntoField(clean, 'replace');
+}
+
 // --- UI ---
 function _renderVaultBar() {
   const el = document.getElementById('vault-status');
@@ -206,18 +330,21 @@ function _renderVaultBar() {
   const btnDisconnect = document.getElementById('vault-disconnect');
   const btnSyncAll = document.getElementById('vault-sync-all');
   if (!el) return;
+  const btnBrowse = document.getElementById('vault-browse');
   if (_vaultHandle) {
     el.textContent = '✓ ' + _vaultHandle.name;
     el.classList.add('connected');
     if (btnConnect) btnConnect.style.display = 'none';
     if (btnDisconnect) btnDisconnect.disabled = false;
     if (btnSyncAll) btnSyncAll.disabled = false;
+    if (btnBrowse) btnBrowse.disabled = false;
   } else {
     el.textContent = 'Aucun dossier connecté';
     el.classList.remove('connected');
     if (btnConnect) btnConnect.style.display = '';
     if (btnDisconnect) btnDisconnect.disabled = true;
     if (btnSyncAll) btnSyncAll.disabled = true;
+    if (btnBrowse) btnBrowse.disabled = true;
   }
 }
 
@@ -239,6 +366,7 @@ function _injectVaultBar() {
       </div>
       <div class="vault-actions">
         <button id="vault-connect" class="gd-btn vault-primary">${icon('folder_open', 15)} Choisir dossier</button>
+        <button id="vault-browse" class="gd-btn" disabled title="Voir les notes du dossier">${icon('menu_book', 15)} Parcourir</button>
         <button id="vault-sync-all" class="gd-btn" disabled title="Exporter toutes mes fiches dans le dossier">↑ Tout sync</button>
         <button id="vault-disconnect" class="gd-btn" disabled title="Déconnexion">✕</button>
       </div>
@@ -247,6 +375,7 @@ function _injectVaultBar() {
     document.getElementById('vault-connect').onclick = vaultConnect;
     document.getElementById('vault-disconnect').onclick = vaultDisconnect;
     document.getElementById('vault-sync-all').onclick = vaultSyncAllNotes;
+    document.getElementById('vault-browse').onclick = vaultBrowse;
     _renderVaultBar();
   };
   new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
@@ -312,6 +441,20 @@ _vaultStyle.textContent = `
 @media (prefers-color-scheme: dark) {
   .vault-status.connected { color: #5BC9B5; background: rgba(91,201,181,0.15); }
 }
+.vault-view-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.vault-view-toolbar strong { font-size: 14px; font-weight: 600; color: var(--text); }
+#vault-search { flex: 1; min-width: 160px; padding: 4px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); height: 28px; box-shadow: inset 0 0 0 1px var(--border); }
+#vault-search:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
+.vault-note-list { display: flex; flex-direction: column; gap: 2px; }
+.vault-note-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius); transition: background .1s; }
+.vault-note-row:hover { background: var(--hover); }
+.vault-note-icon { color: var(--text3); display: inline-flex; }
+.vault-note-name { flex: 1; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-reader { display: flex; flex-direction: column; height: 100%; }
+.vault-reader-content { flex: 1; overflow-y: auto; padding-right: 6px; }
+.vault-insert-primary { background: var(--accent) !important; color: #fff !important; box-shadow: none !important; font-weight: 500; }
+.vault-insert-primary:hover { background: var(--accent-hover) !important; }
+.vault-insert-hint { font-size: 12px; color: var(--text2); background: var(--bg2); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; line-height: 1.4; }
 `;
 document.head.appendChild(_vaultStyle);
 
@@ -335,4 +478,8 @@ window.vaultConnect = vaultConnect;
 window.vaultIsConnected = vaultIsConnected;
 window.vaultSaveNote = vaultSaveNote;
 window.vaultSyncAllNotes = vaultSyncAllNotes;
+window.vaultBrowse = vaultBrowse;
+window.vaultListNotes = vaultListNotes;
+window.vaultReadNote = vaultReadNote;
+window.vaultInsertIntoField = vaultInsertIntoField;
 window._getVaultHandle = () => _vaultHandle;
