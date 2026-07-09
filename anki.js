@@ -107,6 +107,9 @@ function _templateCards(note) {
   (note.synthese || []).forEach((idee, i) => {
     if (idee && idee.trim()) cards.push({ recto: `Que pense ${auteur}${chap} ? — idée n°${i + 1} de ma synthèse`, verso: idee });
   });
+  (note.highlights || []).forEach(h => {
+    if (h && h.text) cards.push({ recto: `Que pense ${auteur}${chap} ? — passage surligné p.${h.page}`, verso: h.text });
+  });
   return cards;
 }
 

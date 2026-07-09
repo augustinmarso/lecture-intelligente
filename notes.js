@@ -1,5 +1,5 @@
 // =============================================================
-// notes.js — Fiches de lecture permanentes (IndexedDB) + tags
+// notes.js — Fiches de lecture permanentes (IndexedDB)
 // =============================================================
 
 function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -55,28 +55,6 @@ async function notesDelete(id) {
 }
 
 // =============================================================
-// Auto-suggestions de tags depuis le contenu de l'état
-// =============================================================
-function suggestTags(state) {
-  const tags = new Set();
-  // Type
-  if (state.noteType === 'livre') tags.add('livre');
-  else if (state.noteType === 'chapitre') tags.add('chapitre');
-  // Année / mois
-  const d = new Date();
-  tags.add(String(d.getFullYear()));
-  tags.add(d.toLocaleDateString('fr-FR', { month: 'long' }));
-  // Mots-clés depuis l'objectif précis (top mots significatifs)
-  const stop = new Set(('le la les de des du un une et ou à au aux avec pour par sur dans en sans est sont ce cette ces mon ma mes ton ta tes son sa ses notre votre leur leurs comment quoi quel quelle que qui où quand pourquoi je tu il elle nous vous ils elles me te se moi toi mais donc car ne pas plus moins très bien mal aussi alors ainsi puis si oui non aux du au la les un une de des'.split(' ')));
-  const text = [state.ppu?.precis, state.ppu?.utile, state.lecture?.question, state.action?.conseil].filter(Boolean).join(' ').toLowerCase();
-  const words = text.replace(/[^\p{L}\s]/gu, ' ').split(/\s+/).filter(w => w.length >= 5 && !stop.has(w));
-  const counts = {};
-  words.forEach(w => counts[w] = (counts[w] || 0) + 1);
-  Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 5).forEach(([w]) => tags.add(w));
-  return Array.from(tags);
-}
-
-// =============================================================
 // Auto-save : observe l'apparition de .success-screen (écran done)
 // =============================================================
 let _currentNoteId = null;
@@ -96,7 +74,7 @@ async function autoSaveCurrentNote() {
     synthese: (s.synthese || []).filter(x => x && x.trim()),
     action: { ...(s.action || {}) },
     highlights: (s.highlights || []).slice(),
-    tags: suggestTags(s),
+    tags: [],
     markdown: md,
     createdAt: Date.now()
   };
@@ -106,7 +84,7 @@ async function autoSaveCurrentNote() {
 }
 
 // =============================================================
-// Injection UI : section Tags + section "Mes fiches" sur l'écran done
+// Injection UI : accès "Mes fiches" sur l'écran done
 // =============================================================
 function _injectNoteUI() {
   const obs = new MutationObserver(async () => {
@@ -120,13 +98,6 @@ function _injectNoteUI() {
       const section = document.createElement('div');
       section.className = 'tags-section';
       section.innerHTML = `
-        <h4>${icon('sell', 14)} Tags pour retrouver cette fiche</h4>
-        <p class="tags-hint">Suggestions automatiques (cliquables pour activer/désactiver) ou ajoute les tiens.</p>
-        <div class="tags-list" id="tags-list"></div>
-        <div class="tags-input-row">
-          <input id="tag-new" type="text" placeholder="Nouveau tag (Entrée pour ajouter)…"/>
-          <button id="tag-add">+ Ajouter</button>
-        </div>
         <div class="notes-actions">
           <button id="open-notes" class="lib-action">${icon('folder_open', 15)} Voir toutes mes fiches</button>
         </div>
@@ -138,43 +109,6 @@ function _injectNoteUI() {
       else if (recap) recap.insertAdjacentElement('afterend', section);
       else success.appendChild(section);
 
-      // Render tags as toggle chips
-      const renderTags = () => {
-        const list = document.getElementById('tags-list');
-        const all = new Set([...(note.tags || []), ...suggestTags(window.state)]);
-        list.innerHTML = Array.from(all).map(t => `<span class="tag-chip ${(note.tags||[]).includes(t)?'active':''}" data-tag="${_esc(t)}">${_esc(t)}<small class="tag-x">✕</small></span>`).join('');
-        list.querySelectorAll('.tag-chip').forEach(chip => {
-          chip.onclick = async (e) => {
-            const tag = chip.dataset.tag;
-            const tags = new Set(note.tags || []);
-            if (e.target.classList.contains('tag-x')) {
-              tags.delete(tag);
-            } else {
-              if (tags.has(tag)) tags.delete(tag); else tags.add(tag);
-            }
-            note.tags = Array.from(tags);
-            await notesUpdate(note.id, { tags: note.tags });
-            renderTags();
-          };
-        });
-      };
-      renderTags();
-
-      const addTag = async () => {
-        const inp = document.getElementById('tag-new');
-        const v = (inp.value || '').trim().toLowerCase();
-        if (!v) return;
-        const tags = new Set(note.tags || []);
-        v.split(',').map(t => t.trim()).filter(Boolean).forEach(t => tags.add(t));
-        note.tags = Array.from(tags);
-        await notesUpdate(note.id, { tags: note.tags });
-        inp.value = '';
-        renderTags();
-      };
-      document.getElementById('tag-add').onclick = addTag;
-      document.getElementById('tag-new').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); addTag(); }
-      });
       document.getElementById('open-notes').onclick = openNotes;
     }
 
@@ -187,9 +121,9 @@ function _injectNoteUI() {
 }
 
 // =============================================================
-// Modal "Mes fiches" + recherche/filtre par tag
+// Modal "Mes fiches" + recherche
 // =============================================================
-let _notesFilter = { text: '', tag: null };
+let _notesFilter = { text: '' };
 
 async function openNotes() {
   const modal = document.getElementById('lib-modal');
@@ -203,23 +137,14 @@ async function renderNotesView() {
   const body = document.getElementById('lib-body');
   if (!body) return;
   const all = await notesGetAll();
-  // Récupérer tous tags
-  const allTags = {};
-  all.forEach(n => (n.tags || []).forEach(t => allTags[t] = (allTags[t]||0)+1));
-  const tagChips = Object.entries(allTags).sort((a,b) => b[1]-a[1]).map(([t,c]) =>
-    `<span class="tag-chip ${_notesFilter.tag===t?'active':''}" data-filter-tag="${_esc(t)}">${_esc(t)} <small>${c}</small></span>`
-  ).join('');
-
   // Filtrer
   let filtered = all;
-  if (_notesFilter.tag) filtered = filtered.filter(n => (n.tags||[]).includes(_notesFilter.tag));
   if (_notesFilter.text) {
     const q = _notesFilter.text.toLowerCase();
     filtered = filtered.filter(n =>
       (n.title||'').toLowerCase().includes(q) ||
       (n.objectif||'').toLowerCase().includes(q) ||
-      (n.synthese||[]).join(' ').toLowerCase().includes(q) ||
-      (n.tags||[]).some(t => t.toLowerCase().includes(q))
+      (n.synthese||[]).join(' ').toLowerCase().includes(q)
     );
   }
   filtered.sort((a,b) => b.createdAt - a.createdAt);
@@ -232,7 +157,6 @@ async function renderNotesView() {
       </div>
       <input id="notes-search" type="search" placeholder="Rechercher…" value="${_esc(_notesFilter.text)}"/>
     </div>
-    ${tagChips ? `<div class="notes-tags-bar"><span class="tag-chip ${!_notesFilter.tag?'active':''}" data-filter-tag="">Tous</span>${tagChips}</div>` : ''}
     <div class="notes-list">
       ${filtered.length === 0 ? '<div class="lib-empty">Aucune fiche ne correspond.</div>' : filtered.map(n => `
         <div class="note-card" data-id="${n.id}">
@@ -242,7 +166,6 @@ async function renderNotesView() {
           </div>
           ${n.objectif ? `<p class="note-objective">${icon('target', 14)} ${_esc(n.objectif)}</p>` : ''}
           ${n.synthese && n.synthese.length ? `<ul class="note-synth">${n.synthese.slice(0,3).map(s => `<li>${_esc(s)}</li>`).join('')}${n.synthese.length>3?'<li>…</li>':''}</ul>` : ''}
-          <div class="note-tags">${(n.tags||[]).map(t => `<span class="tag-chip small">${_esc(t)}</span>`).join('')}</div>
           <div class="note-actions">
             <button class="lib-action" data-act="view">${icon('visibility', 15)} Voir</button>
             <button class="lib-action" data-act="md">↓ .md</button>
@@ -261,9 +184,6 @@ async function renderNotesView() {
   if (search) {
     search.oninput = () => { _notesFilter.text = search.value; renderNotesView(); };
   }
-  body.querySelectorAll('[data-filter-tag]').forEach(el => {
-    el.onclick = () => { _notesFilter.tag = el.dataset.filterTag || null; renderNotesView(); };
-  });
   body.querySelectorAll('.note-card .lib-action').forEach(btn => {
     btn.onclick = async () => {
       const id = parseInt(btn.closest('.note-card').dataset.id);
@@ -298,7 +218,6 @@ async function viewNote(id) {
         <button id="note-dl">↓ .md</button>
       </div>
       <div class="note-view-content">
-        <div class="note-tags">${(n.tags||[]).map(t => `<span class="tag-chip small">${_esc(t)}</span>`).join('')}</div>
         <pre class="md-render">${_esc(n.markdown || '')}</pre>
       </div>
     </div>
@@ -349,23 +268,7 @@ function _hookLibraryTabs() {
 const _notesStyle = document.createElement('style');
 _notesStyle.textContent = `
 .tags-section { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; text-align: left; margin-top: 1rem; box-shadow: inset 0 0 0 1px var(--border); }
-.tags-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
-.tags-hint { font-size: 13px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
-.tags-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
-.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 3px; background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; transition: background .1s; user-select: none; font-weight: 500; }
-.tag-chip:hover { background: var(--hover-strong); }
-.tag-chip.active { background: var(--accent); color: #fff; }
-.tag-chip.small { padding: 1px 8px; font-size: 12px; cursor: default; }
-.tag-chip small { font-size: 11px; opacity: .7; margin-left: 2px; }
-.tag-x { padding-left: 4px; opacity: .55; }
-.tag-chip.active .tag-x { opacity: 1; }
-.tag-chip:hover .tag-x { opacity: 1; }
-.tags-input-row { display: flex; gap: 6px; margin-bottom: 10px; }
-.tags-input-row input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; }
-.tags-input-row input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
-.tags-input-row button { padding: 4px 12px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; }
-.tags-input-row button:hover { background: var(--accent-hover); }
-.notes-actions { display: flex; gap: 6px; }
+.notes-actions { display: flex; gap: 6px; justify-content: center; }
 .notes-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .notes-tabs { display: flex; gap: 2px; }
 .notes-tab { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; }
@@ -373,7 +276,6 @@ _notesStyle.textContent = `
 .notes-tab.active { background: var(--hover-strong); color: var(--text); font-weight: 500; }
 #notes-search { padding: 4px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); min-width: 200px; height: 28px; box-shadow: inset 0 0 0 1px var(--border); }
 #notes-search:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
-.notes-tags-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .notes-list { display: flex; flex-direction: column; gap: 2px; }
 .note-card { padding: 12px 14px; border-radius: var(--radius); transition: background .1s; cursor: default; }
 .note-card:hover { background: var(--hover); }
@@ -384,7 +286,6 @@ _notesStyle.textContent = `
 .note-synth { list-style: none; padding: 0; margin: 6px 0; }
 .note-synth li { font-size: 13px; color: var(--text2); padding-left: 14px; position: relative; line-height: 1.5; margin-bottom: 2px; }
 .note-synth li::before { content: '·'; position: absolute; left: 4px; color: var(--text3); }
-.note-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
 .note-actions { display: flex; gap: 2px; margin-top: 8px; }
 .note-view-content { padding: 12px 0; }
 .md-render { font-size: 14px; line-height: 1.65; white-space: pre-wrap; color: var(--text); padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); margin-top: 12px; box-shadow: inset 0 0 0 1px var(--border); }

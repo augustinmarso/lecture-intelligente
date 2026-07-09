@@ -305,7 +305,7 @@ async function aiGenerateCards(note) {
   const auteur = note.bookAuthor || `l'auteur de « ${note.bookTitle || note.title || 'ce livre'} »`;
   const result = await aiCall({
     system: `Tu crées des flashcards Anki en français pour la répétition espacée. Règle de format STRICTE : chaque recto est une question de la forme « Que pense ${auteur} de [sujet précis] ? » (ou « … sur [sujet précis] ? ») — le sujet est déduit de l'idée, sans dévoiler la réponse. Une seule idée par carte. Verso : la position de l'auteur, reformulée en 1 à 3 phrases à partir des mots du lecteur.`,
-    user: parts.join('\n\n') + '\n\nCrée exactement une carte par idée de la synthèse (dans le même ordre), plus une carte par citation vraiment marquante. Chaque recto doit suivre le format « Que pense ' + auteur + ' de [sujet] ? ».',
+    user: parts.join('\n\n') + '\n\nCrée exactement UNE carte par idée de la synthèse (dans le même ordre) et UNE carte par citation surlignée — ne fusionne jamais deux idées ou deux citations dans la même carte. Chaque recto doit suivre le format « Que pense ' + auteur + ' de [sujet] ? ».',
     schema: {
       type: 'object',
       properties: { cards: { type: 'array', items: {
@@ -315,7 +315,7 @@ async function aiGenerateCards(note) {
       } } },
       required: ['cards'], additionalProperties: false
     },
-    maxTokens: 3000
+    maxTokens: 4000
   });
   return result.cards || [];
 }
