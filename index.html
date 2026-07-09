@@ -232,6 +232,16 @@
     .suj-q-add input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
     .suj-q-add .lib-action { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 32px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .suj-q-add .lib-action:hover { background: var(--hover); color: var(--text); }
+    .suj-shelf { background: var(--bg2); border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 1.25rem; box-shadow: inset 0 0 0 1px var(--border); }
+    .suj-shelf-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .suj-shelf-head input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 30px; }
+    .suj-shelf-head input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+    .suj-shelf-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .suj-shelf-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--radius); transition: background .1s; }
+    .suj-shelf-row:hover { background: var(--hover); }
+    .suj-shelf-name { flex: 1; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .suj-shelf-row .lib-action { padding: 3px 9px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; height: 26px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    .suj-shelf-row .lib-action:hover { background: var(--hover); color: var(--text); }
     .suj-q-text { font-family: 'Newsreader', Georgia, serif; font-size: 19px; line-height: 1.4; color: var(--text); }
     .suj-avis-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
     .suj-avis { background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--border); }
@@ -1274,6 +1284,27 @@ function renderRevision() {
 // ============= MÉTHODE « MAÎTRISER UN SUJET » =============
 // Accueil : mes sujets en cours (questions, vidéos, dossier livres)
 const _sujHomeOpen = new Set();   // sujets dont l'onglet Avancement est déplié
+// Recherche dans les PDF de l'ordinateur (étape références)
+let _sujShelfOpen = false;
+let _sujShelfQuery = '';
+let _sujShelfFiles = null;
+
+function _sujShelfRows() {
+  const files = _sujShelfFiles || [];
+  const q = _sujShelfQuery.toLowerCase();
+  const filtered = q ? files.filter(f => (f.dir + '/' + f.name).toLowerCase().includes(q)) : files;
+  const rows = filtered.slice(0, 30).map(f => {
+    const si = files.indexOf(f);
+    return `<div class="suj-shelf-row">
+      <span class="ms" style="font-size:15px;color:var(--text3)">picture_as_pdf</span>
+      <span class="suj-shelf-name" title="${escapeAttr(f.dir ? f.dir + '/' + f.name : f.name)}">${escapeHtml(f.name)}</span>
+      <button class="lib-action" data-shelf-act="add" data-si="${si}"><span class="ms" style="font-size:14px">add</span> Ajouter</button>
+      <button class="lib-action" data-shelf-act="open" data-si="${si}"><span class="ms" style="font-size:14px">menu_book</span> Ouvrir</button>
+    </div>`;
+  }).join('');
+  return (rows || '<div class="suj-det-empty">Aucun PDF ne correspond.</div>') +
+    (filtered.length > 30 ? `<div class="suj-det-empty">${filtered.length - 30} autres — affine la recherche…</div>` : '');
+}
 
 function sujetDetailHtml(s) {
   const qs = s.questions || [];
@@ -1511,7 +1542,17 @@ function renderSujetLivres() {
     </div>`).join('');
   return `
   <div class="step-why">Gagne en épaisseur avec des livres de référence. Ne t'oblige pas à les finir&nbsp;: un bon livre d'apprentissage est un livre <em>à demi lu</em>. Lis en diagonale, saute de chapitre en chapitre au hasard, laisse ton instinct piocher l'information manquante.</div>
-  <button class="btn-secondary" id="suj-gen-livres" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">lightbulb</span> ${sugg.length ? 'Suggérer d\'autres livres avec l\'IA' : 'Suggérer les livres du domaine avec l\'IA'}</button>
+  <div class="suj-q-tools" style="margin-bottom:1rem">
+    <button class="btn-secondary" id="suj-gen-livres" style="margin:0"><span class="ms" style="font-size:15px">lightbulb</span> ${sugg.length ? 'Suggérer d\'autres livres avec l\'IA' : 'Suggérer les livres du domaine avec l\'IA'}</button>
+    <button class="btn-secondary" id="suj-shelf-toggle" style="margin:0"><span class="ms" style="font-size:15px">computer</span> ${_sujShelfOpen ? 'Masquer mes PDF' : 'Chercher dans les PDF de mon ordinateur'}</button>
+  </div>
+  ${_sujShelfOpen ? `<div class="suj-shelf">
+    <div class="suj-shelf-head">
+      <input id="suj-shelf-q" type="search" placeholder="Rechercher dans mes PDF…" value="${escapeAttr(_sujShelfQuery)}"/>
+      <span class="shelf-count">${(_sujShelfFiles || []).length} PDF</span>
+    </div>
+    <div class="suj-shelf-list" id="suj-shelf-list">${_sujShelfRows()}</div>
+  </div>` : ''}
   ${suggCards ? `<div class="suj-sugg-list">${suggCards}</div>` : ''}
   ${textareaField('Les livres de référence choisis', 'suj-livres', su.livres, 'Titre — auteur (un par ligne)…', 4)}
   <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:1.2rem">Ce dossier de livres reste visible sur l'accueil, dans la carte de ton sujet. Astuce&nbsp;: ouvre-les dans le panneau PDF ou connecte ton dossier de livres dans la bibliothèque.</div>
@@ -1839,6 +1880,46 @@ function bindEvents() {
       sujetPersist();
       re();
     } catch (e) { showToast(e.message); re(); }
+  });
+
+  // Chercher dans les PDF de l'ordinateur (dossier connecté via shelf.js)
+  const btnShelfT = document.getElementById('suj-shelf-toggle');
+  if (btnShelfT) btnShelfT.addEventListener('click', async () => {
+    if (_sujShelfOpen) { _sujShelfOpen = false; re(); return; }
+    if (!window.shelfIsConnected || !window.shelfScan) { showToast('Bibliothèque de l\'ordinateur indisponible'); return; }
+    if (!window.shelfIsConnected()) {
+      const ok = await window.shelfConnect();
+      const modal = document.getElementById('lib-modal');
+      if (modal) modal.classList.remove('open');
+      if (!ok) return;
+    }
+    _busy(btnShelfT, 'Analyse du dossier…');
+    _sujShelfFiles = await window.shelfScan();
+    _sujShelfOpen = true;
+    re();
+  });
+  const shelfQ = document.getElementById('suj-shelf-q');
+  if (shelfQ) shelfQ.addEventListener('input', () => {
+    _sujShelfQuery = shelfQ.value;
+    const list = document.getElementById('suj-shelf-list');
+    if (list) list.innerHTML = _sujShelfRows();
+  });
+  const shelfList = document.getElementById('suj-shelf-list');
+  if (shelfList) shelfList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-shelf-act]');
+    if (!btn) return;
+    const entry = (_sujShelfFiles || [])[parseInt(btn.dataset.si)];
+    if (!entry) return;
+    if (btn.dataset.shelfAct === 'add') {
+      const ligne = entry.name.replace(/\.pdf$/i, '');
+      if (state.sujet.livres.includes(ligne)) { showToast('Déjà dans ta liste'); return; }
+      state.sujet.livres = state.sujet.livres.trim() ? state.sujet.livres.replace(/\s*$/, '') + '\n' + ligne : ligne;
+      sujetPersist();
+      re();
+      showToast('Ajouté à tes références');
+    } else if (btn.dataset.shelfAct === 'open') {
+      await window.shelfOpenEntry(entry);
+    }
   });
 
   document.querySelectorAll('.suj-livre-add').forEach(btn => {

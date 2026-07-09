@@ -290,3 +290,14 @@ window.addEventListener('load', async () => {
 // Expose
 window.shelfConnect = shelfConnect;
 window.shelfBrowse = shelfBrowse;
+window.shelfIsConnected = () => !!_shelfHandle;
+window.shelfScan = shelfScan;
+window.shelfOpenEntry = async (entry) => {
+  try {
+    const file = await entry.handle.getFile();
+    if (window.loadPdfFile) await window.loadPdfFile(file);
+  } catch (e) {
+    console.error('shelf open entry', e);
+    if (window.showToast) window.showToast('Impossible d\'ouvrir le fichier : ' + e.message);
+  }
+};
