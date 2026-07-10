@@ -93,6 +93,13 @@
     .textLayer ::-moz-selection { background: var(--highlight); }
     .pdf-empty { padding: 2rem 1rem; text-align: center; color: var(--text2); font-size: 13px; line-height: 1.6; }
     .pdf-empty label { display: inline-block; margin-top: 1rem; padding: 10px 16px; background: var(--text); color: var(--bg); border-radius: var(--radius); cursor: pointer; font-weight: 500; }
+    .pdf-empty-books { margin: 1.6rem auto 0; text-align: left; max-width: 340px; }
+    .pdf-empty-books h5 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
+    .pdf-empty-book { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; margin-bottom: 6px; border: none; background: var(--bg2); border-radius: var(--radius); cursor: pointer; font-family: inherit; text-align: left; box-shadow: inset 0 0 0 1px var(--border); transition: background .1s; color: var(--text2); }
+    .pdf-empty-book:hover { background: var(--hover); }
+    .pdf-empty-book-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .pdf-empty-book-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pdf-empty-book-sub { font-size: 11.5px; color: var(--text3); }
     .highlights-bar { padding: 8px 12px; border-top: 0.5px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text2); max-height: 140px; overflow-y: auto; }
     .highlights-bar h5 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
     .hl-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 0.5px dashed var(--border); }
@@ -693,7 +700,46 @@ async function renderPage() { return renderAllPages(); }
 function renderPdfPanel() {
   const panel = document.getElementById('pdf-panel');
   panel.classList.toggle('active', state.pdfPanelOpen);
+  if (state.pdfPanelOpen && !pdf.doc) renderPdfEmptyLibrary();
 }
+
+// Panneau PDF vide : proposer les livres de la bibliothèque (les mêmes
+// que sur l'accueil et le tableau de bord), avec reprise à la dernière page
+async function renderPdfEmptyLibrary() {
+  const empty = document.querySelector('#pdf-viewer .pdf-empty');
+  if (!empty || pdf.doc || typeof libGetAll !== 'function') return;
+  let books = [];
+  try { books = await libGetAll(); } catch (_) { return; }
+  if (!books.length || pdf.doc) return;
+  books.sort((a, b) => (b.lastViewedAt || b.addedAt || 0) - (a.lastViewedAt || a.addedAt || 0));
+  let list = empty.querySelector('.pdf-empty-books');
+  if (!list) { list = document.createElement('div'); list.className = 'pdf-empty-books'; empty.appendChild(list); }
+  list.innerHTML = `<h5>Ma bibliothèque</h5>` + books.slice(0, 12).map(b => {
+    const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
+    return `<button class="pdf-empty-book" data-book="${b.id}">
+      <span class="ms" style="font-size:16px">picture_as_pdf</span>
+      <span class="pdf-empty-book-main">
+        <span class="pdf-empty-book-title">${escapeHtml(b.title || b.name)}</span>
+        <span class="pdf-empty-book-sub">${b.lastPage > 1 ? `page ${b.lastPage}${b.totalPages ? ' / ' + b.totalPages + ' · ' + pct + '%' : ''}` : 'pas encore commencé'}</span>
+      </span>
+      <span class="ms" style="font-size:16px;color:var(--accent)">play_arrow</span>
+    </button>`;
+  }).join('');
+  list.querySelectorAll('[data-book]').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const book = await libGet(parseInt(btn.dataset.book));
+        if (!book) return;
+        const file = new File([book.data], book.name, { type: 'application/pdf' });
+        if (book.lastPage) pdf.startPage = book.lastPage;
+        await window.loadPdfFile(file);
+        pdf.bookId = book.id;
+        if (book.lastPage > 1) showToast(`Reprise à la page ${book.lastPage}`);
+      } catch (e) { showToast('Impossible d\'ouvrir ce livre'); }
+    };
+  });
+}
+window.renderPdfEmptyLibrary = renderPdfEmptyLibrary;
 
 function syncPdfPanel() {
   const btn = document.getElementById('btn-pdf-toggle');

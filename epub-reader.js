@@ -59,6 +59,7 @@ function _closeEpubPanel() {
   const viewer = document.getElementById('pdf-viewer');
   if (viewer) {
     viewer.innerHTML = `<div class="pdf-empty">Aucun PDF ouvert.<br><label>Sélectionner un fichier<input type="file" accept="application/pdf" style="display:none" onchange="loadPdfFromInput(event)"/></label></div>`;
+    if (window.renderPdfEmptyLibrary) window.renderPdfEmptyLibrary();
   }
   _epubPanelMode = null;
 }
