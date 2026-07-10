@@ -766,7 +766,8 @@ function captureHighlight() {
   const sel = window.getSelection();
   const txt = sel ? sel.toString().trim() : '';
   if (!txt) { showToast('Sélectionne d\'abord du texte dans le PDF'); return; }
-  state.highlights.push({ page: pdf.page, text: txt, ts: Date.now() });
+  const page = pdf.page;
+  state.highlights.push({ page, text: txt, ts: Date.now() });
   if (sel.removeAllRanges) sel.removeAllRanges();
   showToast('Citation archivée ✓');
   if (window.dashboardTrackCitation) window.dashboardTrackCitation();
@@ -777,6 +778,18 @@ function captureHighlight() {
   }
   // Mettre à jour la sidebar permanente
   if (window.refreshCitationsSidebar) window.refreshCitationsSidebar();
+  // Export Anki de la citation (si Anki est ouvert) : « Que dit [source] sur [sujet] ? »
+  _citationToAnki(txt, page);
+}
+
+// Envoie une citation surlignée dans Anki (sous-paquet du livre)
+async function _citationToAnki(text, page) {
+  if (!window.ankiAddCitation) return;
+  const source = state.bookAuthor || state.bookTitle || 'ce texte';
+  const subject = (state.noteType === 'sujet' ? state.sujet.sujet : '') || state.ppu.precis || state.chapterTitle || '';
+  const deck = state.bookTitle || (state.noteType === 'sujet' ? state.sujet.sujet : '') || state.chapterTitle || 'Citations';
+  const ok = await window.ankiAddCitation({ text, page, source, subject, deck });
+  if (ok) showToast('Citation archivée + carte Anki ✓');
 }
 
 function refreshCitationsLive() {

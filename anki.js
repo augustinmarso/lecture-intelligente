@@ -103,6 +103,35 @@ async function ankiQuickAdd(recto, verso, sourceLabel) {
 }
 window.ankiQuickAdd = ankiQuickAdd;
 
+// Carte pour une citation surlignée : recto « Que dit [source] sur [sujet] ? »,
+// verso = la citation exacte (+ page). Silencieux si Anki est fermé.
+// allowDuplicate: true car chaque passage surligné est une carte à part entière.
+async function ankiAddCitation({ text, page, source, subject, deck }) {
+  if (!text) return false;
+  try {
+    if (!await ankiIsAvailable()) return false;
+    const src = (source || 'ce texte').trim();
+    const recto = subject && subject.trim() ? `Que dit ${src} sur ${subject.trim()} ?` : `Que dit ${src} ?`;
+    const verso = text.trim() + (page ? `\n\n(p. ${page})` : '');
+    const deckName = _ankiDeckFor(deck || source || 'Citations');
+    await _ankiEnsureDeckAndModel(deckName);
+    const note = {
+      deckName,
+      modelName: ANKI_MODEL,
+      fields: {
+        Recto: _ankiHtml(recto),
+        Verso: _ankiHtml(verso),
+        Source: _escAnki(src + (page ? ' · p.' + page : ''))
+      },
+      tags: ['lecture-intelligente', 'citation', _ankiSlug(deck || source)].filter(Boolean),
+      options: { allowDuplicate: true }
+    };
+    const res = await ankiInvoke('addNotes', { notes: [note] });
+    return Array.isArray(res) && res[0] != null;
+  } catch (_) { return false; }
+}
+window.ankiAddCitation = ankiAddCitation;
+
 // --- Cartes "modèle" construites depuis une fiche (sans IA) ---
 // Format : une carte par idée, recto « Que pense [l'auteur] … ? »
 function _templateCards(note) {
