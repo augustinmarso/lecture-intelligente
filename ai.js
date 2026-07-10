@@ -70,9 +70,12 @@ function _aiParse(text, schema) {
   catch (e) { throw new Error('Réponse IA illisible — réessaie'); }
 }
 
-async function aiCall({ system, user, schema, maxTokens }) {
+async function aiCall({ system, user, schema, maxTokens, model: modelOverride }) {
   const s = _aiSettings();
-  const model = s.model;
+  // Un appel peut imposer son modèle (ex : dictionnaire → modèle ultra éco),
+  // à condition d'avoir la clé du fournisseur correspondant.
+  let model = s.model;
+  if (modelOverride && AI_MODELS[modelOverride] && s.keys[_aiProvider(modelOverride)]) model = modelOverride;
   const provider = _aiProvider(model);
   const key = s.keys[provider];
   if (!key) throw new Error(`Clé API ${AI_PROVIDER_LABELS[provider]} manquante — configure-la dans la bibliothèque (barre « Assistant IA »)`);
@@ -117,6 +120,16 @@ async function aiCall({ system, user, schema, maxTokens }) {
 }
 window.aiCall = aiCall;
 window.aiIsConfigured = aiIsConfigured;
+
+// Modèle le moins cher parmi les fournisseurs dont une clé est configurée
+// (pour les micro-tâches : GPT-4.1 nano ~0,10 $/M, sinon Haiku ~1 $/M).
+function aiCheapestModel() {
+  const s = _aiSettings();
+  if (s.keys.openai) return 'gpt-4.1-nano';
+  if (s.keys.anthropic) return 'claude-haiku-4-5';
+  return s.model;
+}
+window.aiCheapestModel = aiCheapestModel;
 
 // --- Contexte du livre pour les prompts ---
 function _bookContext() {

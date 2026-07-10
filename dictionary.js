@@ -191,6 +191,8 @@ async function _aiSimplify(word, defsText, context) {
   if (cache[key]) return cache[key];
   try {
     const r = await window.aiCall({
+      // Micro-tâche → modèle le moins cher disponible (nano/haiku), pas le modèle principal
+      model: window.aiCheapestModel ? window.aiCheapestModel() : undefined,
       system: 'Tu es un dictionnaire pédagogique en français. Tu expliques un mot en langage courant, très clair, compréhensible par un collégien, sans jargon ni mot plus compliqué que celui expliqué.',
       user: `Mot : « ${word} »\n${context ? `Phrase où le lecteur l'a rencontré : « ${context.slice(0, 160)} »\n` : ''}Définitions du dictionnaire :\n${defsText}\n\nExplique ce mot simplement (dans le sens de la phrase si elle est fournie).`,
       schema: {
