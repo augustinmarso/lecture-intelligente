@@ -203,7 +203,79 @@ function _last7Days() {
   return days;
 }
 
-function openDashboard() {
+// Anneau de progression SVG
+function _donut(pct, size) {
+  size = size || 62;
+  const r = (size - 10) / 2;
+  const c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="dash-donut" aria-hidden="true">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--bg3)" stroke-width="6"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - Math.min(100, pct) / 100)).toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="50%" y="52%" text-anchor="middle" dominant-baseline="central" class="dash-donut-txt">${Math.round(pct)}%</text>
+  </svg>`;
+}
+
+// --- Section « Mes lectures » : livres de la bibliothèque avec progression ---
+async function _readingsSectionHtml() {
+  let books = [];
+  try { if (typeof libGetAll === 'function') books = await libGetAll(); } catch (_) {}
+  if (!books.length) return `<div class="dash-section"><h3>${icon('auto_stories', 15)} Mes lectures</h3><div class="dash-empty">Aucune lecture — ouvre un PDF, il apparaîtra ici avec sa progression.</div></div>`;
+  books.sort((a, b) => (b.lastViewedAt || b.addedAt) - (a.lastViewedAt || a.addedAt));
+  const rows = books.slice(0, 8).map(b => {
+    const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
+    const sub = b.totalPages ? `page ${b.lastPage || 1} / ${b.totalPages}` : (b.lastPage ? `page ${b.lastPage}` : 'pas encore ouvert');
+    const quand = b.lastViewedAt ? new Date(b.lastViewedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+    return `<div class="dash-book">
+      <div class="dash-book-icon">${icon('picture_as_pdf', 18)}</div>
+      <div class="dash-book-main">
+        <div class="dash-book-head"><strong>${_esc(b.title)}</strong><small>${quand}</small></div>
+        <div class="dash-book-bar"><div class="dash-book-fill" style="width:${pct}%"></div></div>
+        <div class="dash-book-sub">${sub}${pct ? ` · ${pct}%` : ''}</div>
+      </div>
+      <button class="dash-resume" data-book="${b.id}" title="Reprendre la lecture">${icon('play_arrow', 16)}</button>
+    </div>`;
+  }).join('');
+  return `<div class="dash-section"><h3>${icon('auto_stories', 15)} Mes lectures <span class="dash-badge-count">${books.length}</span></h3><div class="dash-books">${rows}</div></div>`;
+}
+
+// --- Section « Mes sujets en cours » : progression de chaque expertise ---
+function _sujetsSectionHtml() {
+  let sujets = [];
+  try { if (typeof sujetsAll === 'function') sujets = sujetsAll(); } catch (_) {}
+  if (!sujets.length) return `<div class="dash-section"><h3>${icon('school', 15)} Mes sujets en cours</h3><div class="dash-empty">Aucun sujet — lance « Maîtriser un sujet » depuis l'accueil.</div></div>`;
+  sujets.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const cards = sujets.map(su => {
+    const total = (su.questions || []).length;
+    const answered = (su.questions || []).filter(q => (q.avis || []).length > 0).length;
+    const pct = total ? (answered / total) * 100 : 0;
+    const cadrageOk = !!(su.videos && su.videos.trim() && su.carto && su.carto.trim());
+    const profondeurOk = answered >= 30;
+    const transmissionOk = !!(su.enseigner && su.enseigner.trim());
+    const chip = (label, done, started) => `<span class="dash-chip ${done ? 'done' : (started ? 'progress' : '')}">${done ? icon('check', 12) + ' ' : ''}${label}</span>`;
+    const counts = [
+      total ? `${answered}/${total} questions` : 'questions à générer',
+      (su.ytVideos || []).length ? `${su.ytVideos.length} vidéo${su.ytVideos.length > 1 ? 's' : ''}` : null,
+      (su.livresSugg || []).length ? `${su.livresSugg.length} livre${su.livresSugg.length > 1 ? 's' : ''}` : null
+    ].filter(Boolean).join(' · ');
+    return `<div class="dash-sujet">
+      ${_donut(pct)}
+      <div class="dash-sujet-main">
+        <div class="dash-sujet-head"><strong>${_esc(su.sujet)}</strong></div>
+        <div class="dash-sujet-sub">${counts}</div>
+        <div class="dash-chips">
+          ${chip('Cadrage', cadrageOk, !!(su.videos || su.carto))}
+          ${chip('Profondeur', profondeurOk, total > 0)}
+          ${chip('Transmission', transmissionOk, false)}
+        </div>
+      </div>
+      <button class="dash-resume" data-sujet="${su.id}" title="Reprendre ce sujet">${icon('play_arrow', 16)}</button>
+    </div>`;
+  }).join('');
+  return `<div class="dash-section"><h3>${icon('school', 15)} Mes sujets en cours <span class="dash-badge-count">${sujets.length}</span></h3><div class="dash-sujets">${cards}</div></div>`;
+}
+
+async function openDashboard() {
   const s = getStats();
   const level = levelFromXp(s.xp);
   const xpCurrent = s.xp - xpForLevel(level);
@@ -242,6 +314,9 @@ function openDashboard() {
     </div>
   `;
 
+  const readingsHtml = await _readingsSectionHtml();
+  const sujetsHtml = _sujetsSectionHtml();
+
   const modal = document.createElement('div');
   modal.id = 'dash-modal';
   modal.innerHTML = `
@@ -252,6 +327,8 @@ function openDashboard() {
         <button class="dash-close">✕</button>
       </div>
       <div class="dash-body">
+        ${readingsHtml}
+        ${sujetsHtml}
         <div class="dash-level-card">
           <div class="dash-level-top">
             <div>
@@ -318,6 +395,36 @@ function openDashboard() {
   document.body.appendChild(modal);
   modal.querySelector('.dash-close').onclick = () => modal.remove();
   modal.querySelector('.dash-overlay').onclick = () => modal.remove();
+
+  // Reprendre une lecture (ouvre le PDF à la dernière page)
+  modal.querySelectorAll('[data-book]').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const book = await libGet(parseInt(btn.dataset.book));
+        if (!book) return;
+        const file = new File([book.data], book.name, { type: 'application/pdf' });
+        if (book.lastPage && window.pdf) window.pdf.startPage = book.lastPage;
+        modal.remove();
+        await window.loadPdfFile(file);
+        if (window.pdf) window.pdf.bookId = book.id;
+      } catch (e) { console.warn('dash resume book', e); }
+    };
+  });
+  // Reprendre un sujet (retour au crash-test)
+  modal.querySelectorAll('[data-sujet]').forEach(btn => {
+    btn.onclick = () => {
+      try {
+        const rec = sujetsAll().find(x => x.id === parseInt(btn.dataset.sujet));
+        if (!rec) return;
+        window.state.sujet = Object.assign(sujetInitial(), rec);
+        window.state.noteType = 'sujet';
+        window.state.step = Math.max(1, STEPS_SUJET.findIndex(st => st.id === 'suj-50q'));
+        window.state.done = false;
+        modal.remove();
+        window.render();
+      } catch (e) { console.warn('dash resume sujet', e); }
+    };
+  });
 }
 
 window.openDashboard = openDashboard;
@@ -389,6 +496,26 @@ _dashStyle.textContent = `
 .badge-icon { font-size: 24px; margin-bottom: 6px; }
 .badge-name { font-size: 11px; font-weight: 600; line-height: 1.3; color: var(--text); }
 .dash-badge.locked .badge-name { color: var(--text2); }
+.dash-empty { font-size: 13px; color: var(--text2); font-style: italic; padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
+.dash-books, .dash-sujets { display: flex; flex-direction: column; gap: 8px; }
+.dash-book, .dash-sujet { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
+.dash-book-icon { color: var(--text3); flex-shrink: 0; }
+.dash-book-main, .dash-sujet-main { flex: 1; min-width: 0; }
+.dash-book-head, .dash-sujet-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.dash-book-head strong, .dash-sujet-head strong { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-book-head small { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.dash-book-bar { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+.dash-book-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .5s; min-width: 2px; }
+.dash-book-sub, .dash-sujet-sub { font-size: 12px; color: var(--text2); }
+.dash-sujet-sub { margin-bottom: 7px; }
+.dash-donut { flex-shrink: 0; }
+.dash-donut-txt { font-size: 13px; font-weight: 700; fill: var(--text); font-family: inherit; font-variant-numeric: tabular-nums; }
+.dash-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.dash-chip { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: var(--bg3); color: var(--text3); }
+.dash-chip.progress { color: var(--text2); box-shadow: inset 0 0 0 1px var(--border2); background: var(--bg); }
+.dash-chip.done { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.dash-resume { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .1s; }
+.dash-resume:hover { background: var(--accent-hover); }
 .dash-streak { padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
 .dash-streak h3 { font-size: 13px; color: var(--text2); font-weight: 500; margin: 0; }
 .dash-streak strong { color: var(--text); font-size: 16px; font-weight: 700; }
