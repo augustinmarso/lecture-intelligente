@@ -220,6 +220,7 @@ function _donut(pct, size) {
 async function _readingsSectionHtml() {
   let books = [];
   try { if (typeof libGetAll === 'function') books = await libGetAll(); } catch (_) {}
+  if (typeof libDedupe === 'function') books = libDedupe(books); // un livre = une seule ligne
   if (!books.length) return `<div class="dash-section"><h3>${icon('auto_stories', 15)} Mes lectures</h3><div class="dash-empty">Aucune lecture — ouvre un PDF, il apparaîtra ici avec sa progression.</div></div>`;
   books.sort((a, b) => (b.lastViewedAt || b.addedAt) - (a.lastViewedAt || a.addedAt));
   const rows = books.slice(0, 8).map(b => {

@@ -721,6 +721,7 @@ async function renderPdfEmptyLibrary() {
   if (!empty || pdf.doc || typeof libGetAll !== 'function') return;
   let books = [];
   try { books = await libGetAll(); } catch (_) { return; }
+  if (window.libDedupe) books = window.libDedupe(books); // un livre = une seule entrée
   if (!books.length || pdf.doc) return;
   books.sort((a, b) => (b.lastViewedAt || b.addedAt || 0) - (a.lastViewedAt || a.addedAt || 0));
   let list = empty.querySelector('.pdf-empty-books');

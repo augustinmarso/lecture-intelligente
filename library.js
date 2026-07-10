@@ -29,6 +29,25 @@ async function openDB() {
   });
 }
 
+// Titre normalisé pour comparer deux livres (minuscules, sans extension,
+// sans « (1) » de retéléchargement, espaces réduits)
+function _libNorm(t) {
+  return (t || '').toLowerCase().replace(/\.(pdf|epub)$/i, '')
+    .replace(/\s*\(\d+\)\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+
+// Un seul exemplaire par titre : garde le plus récemment consulté
+function libDedupe(books) {
+  const byTitle = new Map();
+  for (const b of books) {
+    const key = _libNorm(b.title || b.name);
+    const prev = byTitle.get(key);
+    if (!prev || (b.lastViewedAt || b.addedAt || 0) > (prev.lastViewedAt || prev.addedAt || 0)) byTitle.set(key, b);
+  }
+  return [...byTitle.values()];
+}
+window.libDedupe = libDedupe;
+
 async function libAdd(book) {
   const d = await openDB();
   return new Promise((resolve, reject) => {
@@ -98,7 +117,10 @@ if (_origLoadPdfFile) {
     try {
       const buf = await file.arrayBuffer();
       const existing = await libGetAll();
-      const dup = existing.find(b => b.name === file.name && b.size === file.size);
+      const titleGuess = (window.state && window.state.bookTitle) || file.name.replace(/\.pdf$/i, '');
+      // Déjà connu si même fichier OU même titre (ex : « livre (1).pdf » retéléchargé)
+      const dup = existing.find(b => (b.name === file.name && b.size === file.size)
+        || _libNorm(b.title || b.name) === _libNorm(titleGuess));
       if (dup) {
         // Livre déjà connu : enregistrer l'ID pour le tracking de position
         if (window.pdf) window.pdf.bookId = dup.id;
