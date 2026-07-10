@@ -863,6 +863,26 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// Plein écran de tout le site (API Fullscreen du navigateur : masque aussi
+// la barre du navigateur). Doit être déclenché par un vrai clic utilisateur.
+function toggleAppFullscreen() {
+  const el = document.documentElement;
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    const p = req && req.call(el);
+    if (p && p.catch) p.catch(() => { if (window.showToast) showToast('Plein écran refusé par le navigateur'); });
+  }
+}
+function _syncFsIcon() {
+  const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  document.querySelectorAll('#btn-fs .ms').forEach(s => { s.textContent = on ? 'fullscreen_exit' : 'fullscreen'; });
+  document.querySelectorAll('#btn-fs').forEach(b => { b.classList.toggle('active', on); b.title = on ? 'Quitter le plein écran' : 'Plein écran (tout le site)'; });
+}
+document.addEventListener('fullscreenchange', _syncFsIcon);
+document.addEventListener('webkitfullscreenchange', _syncFsIcon);
+
 // Raccourci Ctrl+H pour surligner
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h' && pdf.doc) {
@@ -1139,6 +1159,7 @@ function render() {
       </svg>
       <span>Lecture Intelligente</span>
     </div>
+    <button id="btn-fs" class="btn-pdf-toggle" title="Plein écran (tout le site)"><span class="ms">fullscreen</span></button>
     <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
   </div>`;
 
@@ -1732,6 +1753,7 @@ function renderDone() {
       </svg>
       <span>Lecture Intelligente</span>
     </div>
+    <button id="btn-fs" class="btn-pdf-toggle" title="Plein écran (tout le site)"><span class="ms">fullscreen</span></button>
     <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
   </div>`;
   if (state.noteType === 'sujet') return renderDoneSujet(topBar);
@@ -2044,6 +2066,9 @@ function bindEvents() {
   document.querySelectorAll('.type-card').forEach(el => {
     el.addEventListener('click', () => { state.noteType = el.dataset.type; re(); });
   });
+
+  const btnFs = document.getElementById('btn-fs');
+  if (btnFs) { btnFs.addEventListener('click', toggleAppFullscreen); _syncFsIcon(); }
 
   const btnPdf = document.getElementById('btn-pdf-toggle');
   if (btnPdf) btnPdf.addEventListener('click', () => {
