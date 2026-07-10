@@ -341,20 +341,18 @@ async function showDefinitionPopup(word, rect, context) {
   const data = await fetchDefinition(word);
   if (_dictPopup !== popup || popup.style.display === 'none') return;
 
-  // Enregistrement automatique : le mot part tout de suite dans « Mes mots »
-  // (liste locale de l'app + deck Anki « Mes mots »), sans étape manuelle.
+  // On ne place rien automatiquement : on propose d'ajouter le mot à
+  // « Mes mots » (liste locale + deck Anki) via un bouton, au choix.
   const defText = _definitionToText(word, data);
-  let statusHtml = '';
-  if (data && defText) {
-    const w = word.toLowerCase();
-    if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defText, context);
-    _sendWordToAnki(word, defText);
-    statusHtml = `<span class="dict-saved-note">${icon('style', 13)} Ajouté à « Mes mots »</span>`;
-  }
+  const w = word.toLowerCase();
+  const already = getSavedWords().some(x => x.word === w && x.lang === _dictLang());
+  const addBtn = (data && defText)
+    ? `<button class="dict-action ${already ? 'saved' : ''}" data-act="add"${already ? ' disabled' : ''}>${already ? icon('check', 14) + ' Dans Mes mots' : icon('style', 14) + ' Ajouter à Mes mots'}</button>`
+    : '';
   popup.innerHTML = `
     ${_renderDef(word, data)}
     <div class="dict-footer">
-      ${statusHtml}
+      ${addBtn}
       <select class="dict-lang" title="Langue du dictionnaire">
         <option value="fr"${_dictLang()==='fr'?' selected':''}>Français</option>
         <option value="en"${_dictLang()==='en'?' selected':''}>English</option>
@@ -367,6 +365,14 @@ async function showDefinitionPopup(word, rect, context) {
   `;
 
   popup.querySelector('[data-act="close"]').onclick = _hidePopup;
+  const addEl = popup.querySelector('[data-act="add"]');
+  if (addEl) addEl.onclick = () => {
+    if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defText, context);
+    addEl.disabled = true;
+    addEl.classList.add('saved');
+    addEl.innerHTML = icon('check', 14) + ' Ajouté à Mes mots';
+    _sendWordToAnki(word, defText); // envoi Anki seulement maintenant, sur demande
+  };
   popup.querySelector('.dict-lang').onchange = async (e) => {
     _dictSetLang(e.target.value);
     await showDefinitionPopup(word, rect, context);
@@ -487,7 +493,7 @@ function openSavedWords() {
       </div>
       <div class="dw-body">
         ${list.length === 0 ?
-          `<div class="dw-empty">Aucun mot enregistré.<br><br>Double-clique sur un mot dans un PDF ou EPUB&nbsp;: sa définition s'affiche et le mot part automatiquement dans « Mes mots » (ici et dans ton deck Anki).</div>` :
+          `<div class="dw-empty">Aucun mot enregistré.<br><br>Clique sur un mot dans un PDF ou EPUB&nbsp;: sa définition s'affiche, puis clique « Ajouter à Mes mots » si tu veux le garder (ici et dans ton deck Anki).</div>` :
           list.map(w => `
             <div class="dw-card" data-word="${_esc(w.word)}" data-lang="${_esc(w.lang)}">
               <div class="dw-head">
