@@ -280,11 +280,17 @@ function _wireNoteCardButtons() {
 function _renderAnkiBar() {
   const status = document.getElementById('anki-status');
   if (!status) return;
+  status.textContent = 'Vérification…';
+  status.classList.remove('connected');
+  status.style.cursor = 'pointer';
+  status.title = 'Cliquer pour retester la connexion à Anki';
+  status.onclick = _renderAnkiBar; // reconnexion à la demande
   ankiIsAvailable().then(ok => {
-    status.textContent = ok ? 'Anki connecté' : 'Anki injoignable';
+    status.textContent = ok ? 'Anki connecté' : 'Anki injoignable — cliquer pour réessayer';
     status.classList.toggle('connected', ok);
   });
 }
+window._renderAnkiBar = _renderAnkiBar;
 
 function _injectAnkiBar() {
   const _doInject = () => {

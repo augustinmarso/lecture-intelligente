@@ -197,6 +197,7 @@ function injectLibraryUI() {
 async function openLibrary() {
   document.getElementById('lib-modal').classList.add('open');
   await renderLibrary();
+  if (window._renderAnkiBar) window._renderAnkiBar(); // re-teste la connexion Anki à chaque ouverture
 }
 
 async function renderLibrary() {
