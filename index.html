@@ -913,13 +913,16 @@ function gcalDateFormat(d) {
   return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
+const APP_URL = 'https://augustinmarso.github.io/lecture-intelligente/';
+
 function gcalUrl(title, startDate, durationMin, details, recur) {
   const end = new Date(startDate.getTime() + durationMin * 60000);
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: title,
     dates: `${gcalDateFormat(startDate)}/${gcalDateFormat(end)}`,
-    details: details || ''
+    details: (details ? details + '\n\n' : '') + 'Ouvrir l\'app : ' + APP_URL,
+    location: APP_URL
   });
   if (recur) params.set('recur', 'RRULE:' + recur);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;

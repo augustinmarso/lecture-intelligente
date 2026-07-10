@@ -45,9 +45,15 @@ async function ankiIsAvailable() {
 window.ankiIsAvailable = ankiIsAvailable;
 
 // --- Deck + modèle de note ---
-async function _ankiEnsureDeckAndModel() {
+// Chaque livre/sujet a son propre sous-paquet : « Racine::Titre » (créé auto par Anki)
+function _ankiDeckFor(label) {
   const s = _ankiSettings();
-  await ankiInvoke('createDeck', { deck: s.deck }); // no-op si le deck existe
+  const clean = (label || '').replace(/::/g, ':').trim();
+  return clean ? `${s.deck}::${clean}` : s.deck;
+}
+
+async function _ankiEnsureDeckAndModel(deckName) {
+  await ankiInvoke('createDeck', { deck: deckName || _ankiSettings().deck }); // no-op si le deck existe
   const models = await ankiInvoke('modelNames');
   if (!models.includes(ANKI_MODEL)) {
     await ankiInvoke('createModel', {
@@ -67,11 +73,11 @@ hr#answer { border: none; border-top: 1px solid #ECE2D2; margin: 16px 0; }`,
 }
 
 // --- Envoi de cartes ---
-async function _ankiAddCards(cards, sourceLabel, tagSlug) {
-  const s = _ankiSettings();
-  await _ankiEnsureDeckAndModel();
+async function _ankiAddCards(cards, sourceLabel, tagSlug, deckLabel) {
+  const deckName = _ankiDeckFor(deckLabel);
+  await _ankiEnsureDeckAndModel(deckName);
   const notes = cards.map(c => ({
-    deckName: s.deck,
+    deckName,
     modelName: ANKI_MODEL,
     fields: { Recto: _ankiHtml(c.recto), Verso: _ankiHtml(c.verso), Source: _escAnki(sourceLabel || '') },
     tags: ['lecture-intelligente', tagSlug].filter(Boolean),
@@ -87,7 +93,7 @@ async function _ankiAddCards(cards, sourceLabel, tagSlug) {
 async function ankiQuickAdd(recto, verso, sourceLabel) {
   try {
     if (!await ankiIsAvailable()) { if (window.showToast) window.showToast('Anki injoignable — ouvre Anki avec AnkiConnect'); return false; }
-    const { added, dups } = await _ankiAddCards([{ recto, verso }], sourceLabel, _ankiSlug(sourceLabel));
+    const { added, dups } = await _ankiAddCards([{ recto, verso }], sourceLabel, _ankiSlug(sourceLabel), sourceLabel);
     if (window.showToast) window.showToast(added ? 'Carte ajoutée dans Anki' : (dups ? 'Carte déjà présente dans Anki' : 'Carte non ajoutée'));
     return added > 0;
   } catch (e) {
@@ -143,7 +149,7 @@ async function ankiExportNote(note, opts) {
   }
 
   try {
-    const res = await _ankiAddCards(cards, sourceLabel, tagSlug);
+    const res = await _ankiAddCards(cards, sourceLabel, tagSlug, book);
     if (window.showToast && !opts.silent) {
       window.showToast(res.added ? `${res.added} carte${res.added > 1 ? 's' : ''} dans Anki` + (res.dups ? ` (${res.dups} déjà présente${res.dups > 1 ? 's' : ''})` : '') : 'Cartes déjà présentes dans Anki');
     }
@@ -218,7 +224,7 @@ function _injectDoneUI() {
     section.className = 'gcal-section anki-section';
     section.innerHTML = `
       <h4>${icon('style', 16)} Réviser avec Anki</h4>
-      <p>Transforme cette fiche en cartes de révision espacée. Deck : <strong>${_escAnki(s.deck)}</strong>.</p>
+      <p>Transforme cette fiche en cartes de révision espacée. Chaque livre a son propre paquet dans <strong>${_escAnki(s.deck)}</strong>.</p>
       <div class="gcal-row">
         <button id="anki-send" class="gcal-btn">${icon('send', 15)} Envoyer vers Anki</button>
         <button id="anki-txt" class="gcal-btn">${icon('download', 15)} Export .txt</button>
