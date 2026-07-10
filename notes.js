@@ -233,6 +233,36 @@ async function viewNote(id) {
 }
 
 // =============================================================
+// Ouvrir directement la fiche d'un livre (depuis l'accueil, etc.)
+// =============================================================
+// Titre normalisé pour rapprocher un livre de sa fiche
+function noteNorm(t) {
+  return (t || '').toLowerCase().replace(/\.(pdf|epub)$/i, '')
+    .replace(/\s*\(\d+\)\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+
+// Toutes les fiches écrites pour un titre de livre donné
+function notesForBook(title, all) {
+  const key = noteNorm(title);
+  if (!key) return [];
+  return (all || []).filter(n => noteNorm(n.bookTitle) === key || noteNorm(n.title) === key);
+}
+
+// Ouvre la fiche déjà écrite pour ce livre : une seule → lecture directe ;
+// plusieurs → liste filtrée sur ce titre ; aucune → message.
+async function openNoteForBook(title) {
+  let all = [];
+  try { all = await notesGetAll(); } catch (_) {}
+  const matches = notesForBook(title, all).sort((a, b) => b.createdAt - a.createdAt);
+  if (!matches.length) { if (window.showToast) window.showToast('Pas encore de fiche pour ce livre'); return; }
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.add('open');
+  if (matches.length === 1) { await viewNote(matches[0].id); return; }
+  _notesFilter.text = title;
+  await renderNotesView();
+}
+
+// =============================================================
 // Hook : ajouter onglet Fiches dans le rendu de la bibliothèque
 // =============================================================
 function _hookLibraryTabs() {
@@ -310,3 +340,7 @@ window.notesAdd = notesAdd;
 window.notesGetAll = notesGetAll;
 window.notesGet = notesGet;
 window.openNotes = openNotes;
+window.viewNote = viewNote;
+window.noteNorm = noteNorm;
+window.notesForBook = notesForBook;
+window.openNoteForBook = openNoteForBook;

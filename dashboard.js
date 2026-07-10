@@ -223,6 +223,10 @@ async function _readingsSectionHtml() {
   if (typeof libDedupe === 'function') books = libDedupe(books); // un livre = une seule ligne
   if (!books.length) return `<div class="dash-section"><h3>${icon('auto_stories', 15)} Mes lectures</h3><div class="dash-empty">Aucune lecture — ouvre un PDF, il apparaîtra ici avec sa progression.</div></div>`;
   books.sort((a, b) => (b.lastViewedAt || b.addedAt) - (a.lastViewedAt || a.addedAt));
+  // Fiches déjà écrites : un bouton « fiche » sur les livres qui en ont une
+  let notes = [];
+  try { if (typeof notesGetAll === 'function') notes = await notesGetAll(); } catch (_) {}
+  const hasNote = (t) => typeof notesForBook === 'function' && notesForBook(t, notes).length > 0;
   const rows = books.slice(0, 8).map(b => {
     const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
     const sub = b.totalPages ? `page ${b.lastPage || 1} / ${b.totalPages}` : (b.lastPage ? `page ${b.lastPage}` : 'pas encore ouvert');
@@ -234,6 +238,7 @@ async function _readingsSectionHtml() {
         <div class="dash-book-bar"><div class="dash-book-fill" style="width:${pct}%"></div></div>
         <div class="dash-book-sub">${sub}${pct ? ` · ${pct}%` : ''}</div>
       </div>
+      ${hasNote(b.title || b.name) ? `<button class="dash-note" data-note-book="${_esc(b.title || b.name)}" title="Ouvrir ma fiche de lecture">${icon('description', 16)}</button>` : ''}
       <button class="dash-resume" data-book="${b.id}" title="Reprendre la lecture">${icon('play_arrow', 16)}</button>
     </div>`;
   }).join('');
@@ -409,6 +414,13 @@ async function openDashboard() {
       } catch (e) { console.warn('dash resume book', e); }
     };
   });
+  // Ouvrir la fiche déjà écrite d'un livre
+  modal.querySelectorAll('[data-note-book]').forEach(btn => {
+    btn.onclick = () => {
+      modal.remove();
+      if (window.openNoteForBook) window.openNoteForBook(btn.dataset.noteBook);
+    };
+  });
   // Reprendre un sujet (retour au crash-test)
   modal.querySelectorAll('[data-sujet]').forEach(btn => {
     btn.onclick = () => {
@@ -515,6 +527,8 @@ _dashStyle.textContent = `
 .dash-chip.done { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
 .dash-resume { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .1s; }
 .dash-resume:hover { background: var(--accent-hover); }
+.dash-note { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--bg3); color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .1s; box-shadow: inset 0 0 0 1px var(--border); }
+.dash-note:hover { background: var(--hover-strong); color: var(--text); }
 .dash-streak { padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); box-shadow: inset 0 0 0 1px var(--border); }
 .dash-streak h3 { font-size: 13px; color: var(--text2); font-weight: 500; margin: 0; }
 .dash-streak strong { color: var(--text); font-size: 16px; font-weight: 700; }
