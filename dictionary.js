@@ -174,10 +174,38 @@ function _wiktMainDefs(extract) {
   let curPos = '', took = false;
   for (const e of entries) {
     if (e.pos) { curPos = e.pos; took = false; }
-    else if (e.def && !took) { out.push({ pos: curPos, def: e.def }); took = true; }
+    else if (e.def && !took) { out.push({ pos: curPos, def: e.def.split(/\s+Note\s*:/)[0].trim() }); took = true; }
   }
   if (!out.length) { const d = entries.find(e => e.def); if (d) out.push({ pos: '', def: d.def }); }
   return out;
+}
+
+// =============================================================
+// Explication simple par l'IA (si l'assistant IA est configuré) :
+// reformule la définition du dictionnaire en langage courant.
+// =============================================================
+async function _aiSimplify(word, defsText, context) {
+  if (!window.aiIsConfigured || !window.aiIsConfigured() || !window.aiCall) return null;
+  const cache = _loadCache();
+  const key = `simple::${_dictLang()}::${word.toLowerCase()}`;
+  if (cache[key]) return cache[key];
+  try {
+    const r = await window.aiCall({
+      system: 'Tu es un dictionnaire pédagogique en français. Tu expliques un mot en langage courant, très clair, compréhensible par un collégien, sans jargon ni mot plus compliqué que celui expliqué.',
+      user: `Mot : « ${word} »\n${context ? `Phrase où le lecteur l'a rencontré : « ${context.slice(0, 160)} »\n` : ''}Définitions du dictionnaire :\n${defsText}\n\nExplique ce mot simplement (dans le sens de la phrase si elle est fournie).`,
+      schema: {
+        type: 'object',
+        properties: {
+          simple: { type: 'string', description: 'Explication en 1 à 2 phrases courtes, langage courant' },
+          exemple: { type: 'string', description: 'Une phrase d\'exemple concrète du quotidien' }
+        },
+        required: ['simple', 'exemple'], additionalProperties: false
+      },
+      maxTokens: 300
+    });
+    if (r && r.simple) { cache[key] = r; _saveCache(); return r; }
+  } catch (_) {}
+  return null;
 }
 
 function _renderDef(word, data) {
@@ -306,6 +334,7 @@ async function _sendWordToAnki(word, defText) {
 // Popup style Kindle
 // =============================================================
 let _dictPopup = null;
+let _dictReq = 0; // jeton anti-course : seul le dernier mot cliqué remplit le popup
 
 function _ensurePopup() {
   if (_dictPopup) return _dictPopup;
@@ -338,12 +367,16 @@ async function showDefinitionPopup(word, rect, context) {
     popup.style.transform = 'none';
   }
 
+  // Jeton de requête : si un autre mot est cliqué entre-temps, on n'écrase pas son popup
+  const reqId = ++_dictReq;
   const data = await fetchDefinition(word);
-  if (_dictPopup !== popup || popup.style.display === 'none') return;
+  if (_dictPopup !== popup || popup.style.display === 'none' || reqId !== _dictReq) return;
 
   // On ne place rien automatiquement : on propose d'ajouter le mot à
   // « Mes mots » (liste locale + deck Anki) via un bouton, au choix.
   const defText = _definitionToText(word, data);
+  // Le verso Anki est mutable : l'explication simple de l'IA s'y ajoute quand elle arrive
+  const defHolder = { text: defText };
   const w = word.toLowerCase();
   const already = getSavedWords().some(x => x.word === w && x.lang === _dictLang());
   const addBtn = (data && defText)
@@ -367,16 +400,34 @@ async function showDefinitionPopup(word, rect, context) {
   popup.querySelector('[data-act="close"]').onclick = _hidePopup;
   const addEl = popup.querySelector('[data-act="add"]');
   if (addEl) addEl.onclick = () => {
-    if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defText, context);
+    if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defHolder.text, context);
     addEl.disabled = true;
     addEl.classList.add('saved');
     addEl.innerHTML = icon('check', 14) + ' Ajouté à Mes mots';
-    _sendWordToAnki(word, defText); // envoi Anki seulement maintenant, sur demande
+    _sendWordToAnki(word, defHolder.text); // envoi Anki seulement maintenant, sur demande
   };
   popup.querySelector('.dict-lang').onchange = async (e) => {
     _dictSetLang(e.target.value);
     await showDefinitionPopup(word, rect, context);
   };
+
+  // Explication simple (IA) en tête de popup, si l'assistant est configuré
+  if (data && defText && window.aiIsConfigured && window.aiIsConfigured()) {
+    const head = popup.querySelector('.dict-head');
+    if (head) {
+      const box = document.createElement('div');
+      box.className = 'dict-simple';
+      box.innerHTML = `<span class="dict-simple-tag">${icon('lightbulb', 13)} En clair</span> <em class="dict-simple-wait">réflexion…</em>`;
+      head.insertAdjacentElement('afterend', box);
+      _aiSimplify(word, defText, context).then(r => {
+        if (reqId !== _dictReq || !box.isConnected) return;
+        if (!r) { box.remove(); return; }
+        box.innerHTML = `<span class="dict-simple-tag">${icon('lightbulb', 13)} En clair</span> ${_esc(r.simple)}${r.exemple ? `<div class="dict-simple-ex">Ex. : ${_esc(r.exemple)}</div>` : ''}`;
+        // L'explication simple devient la première ligne du verso Anki
+        defHolder.text = `En clair : ${r.simple}${r.exemple ? `\nExemple : ${r.exemple}` : ''}\n\n${defText}`;
+      });
+    }
+  }
 }
 
 // =============================================================
@@ -579,6 +630,10 @@ _dictStyle.textContent = `
 .dict-link { color: var(--accent); text-decoration: none; font-size: 13px; }
 .dict-link:hover { text-decoration: underline; }
 .dict-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.dict-simple { margin: 2px 0 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: var(--radius); font-size: 14px; line-height: 1.55; color: var(--text); }
+.dict-simple-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); margin-right: 4px; }
+.dict-simple-wait { color: var(--text2); font-size: 13px; }
+.dict-simple-ex { margin-top: 4px; font-size: 12.5px; color: var(--text2); font-style: italic; }
 
 /* Modal mots enregistrés */
 #dict-words-modal { position: fixed; inset: 0; z-index: 555; }
