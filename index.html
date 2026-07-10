@@ -658,6 +658,10 @@ async function renderPageInSlot(pageNum, slot) {
     textLayer.className = 'textLayer';
     textLayer.style.width = viewport.width + 'px';
     textLayer.style.height = viewport.height + 'px';
+    // PDF.js positionne les mots via calc(var(--scale-factor) * …) : sans cette
+    // variable, le calque de texte (sélectionnable) est décalé de l'image et le
+    // double-clic sélectionne à côté. On la fixe à l'échelle du viewport.
+    textLayer.style.setProperty('--scale-factor', viewport.scale);
     slot.appendChild(textLayer);
 
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;

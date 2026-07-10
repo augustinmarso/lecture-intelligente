@@ -166,6 +166,20 @@ function _parseWiktExtract(extract) {
   return entries;
 }
 
+// Une définition principale par catégorie grammaticale (on ignore les
+// exemples/citations qui suivent chaque définition). → [{ pos, def }]
+function _wiktMainDefs(extract) {
+  const entries = _parseWiktExtract(extract);
+  const out = [];
+  let curPos = '', took = false;
+  for (const e of entries) {
+    if (e.pos) { curPos = e.pos; took = false; }
+    else if (e.def && !took) { out.push({ pos: curPos, def: e.def }); took = true; }
+  }
+  if (!out.length) { const d = entries.find(e => e.def); if (d) out.push({ pos: '', def: d.def }); }
+  return out;
+}
+
 function _renderDef(word, data) {
   if (!data) {
     return `<div class="dict-empty">Aucune définition trouvée pour <strong>${_esc(word)}</strong>.</div>
@@ -228,28 +242,15 @@ function _renderDef(word, data) {
   }
 
   if (data.source === 'mediawiki') {
-    // Extrait Wiktionnaire nettoyé : catégories grammaticales + définitions
-    const entries = _parseWiktExtract(data.extract);
+    // Extrait Wiktionnaire nettoyé : une définition claire par catégorie
+    const defs = _wiktMainDefs(data.extract);
     let html = `<div class="dict-head"><h3>${_esc(word)}</h3></div>`;
-    if (!entries.some(e => e.def)) {
-      return html + `<div class="dict-empty">Mot trouvé, mais sans définition claire.</div>
-        <div style="margin-top:8px"><a href="https://${_dictLang()}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir sur Wiktionnaire ${icon('open_in_new', 13)}</a></div>`;
-    }
-    let open = false, count = 0;
-    for (const e of entries) {
-      if (count >= 10) break;
-      if (e.pos) {
-        if (open) html += `</ol></div>`;
-        html += `<div class="dict-meaning"><div class="dict-pos">${_esc(e.pos.toLowerCase())}</div><ol class="dict-defs">`;
-        open = true;
-      } else if (e.def) {
-        if (!open) { html += `<div class="dict-meaning"><ol class="dict-defs">`; open = true; }
-        html += `<li>${_esc(e.def)}</li>`;
-        count++;
-      }
-    }
-    if (open) html += `</ol></div>`;
-    return html;
+    const lien = `<div class="dict-more"><a href="https://${_dictLang()}.wiktionary.org/wiki/${encodeURIComponent(word)}" target="_blank" rel="noopener" class="dict-link">Voir tout sur le Wiktionnaire ${icon('open_in_new', 13)}</a></div>`;
+    if (!defs.length) return html + `<div class="dict-empty">Mot trouvé, mais sans définition claire.</div>` + lien;
+    defs.slice(0, 6).forEach(d => {
+      html += `<div class="dict-meaning">${d.pos ? `<div class="dict-pos">${_esc(d.pos.toLowerCase())}</div>` : ''}<ol class="dict-defs"><li>${_esc(d.def)}</li></ol></div>`;
+    });
+    return html + lien;
   }
   return '';
 }
@@ -283,19 +284,7 @@ function _definitionToText(word, data) {
       if (defs.length) out.push((pos ? pos + ' — ' : '') + defs.join(' ; '));
     });
   } else if (data.source === 'mediawiki') {
-    // Une seule définition (la principale) par catégorie grammaticale, pour
-    // écarter les exemples/citations qui suivent chaque définition.
-    const entries = _parseWiktExtract(data.extract);
-    let curPos = '', tookForPos = false;
-    for (const e of entries) {
-      if (e.pos) { curPos = e.pos; tookForPos = false; continue; }
-      if (e.def && !tookForPos) {
-        out.push((curPos ? curPos + ' — ' : '') + e.def);
-        tookForPos = true;
-        if (out.length >= 3) break;
-      }
-    }
-    if (!out.length) { const d = entries.find(e => e.def); if (d) out.push(d.def); }
+    _wiktMainDefs(data.extract).slice(0, 3).forEach(d => out.push((d.pos ? d.pos + ' — ' : '') + d.def));
   }
   // Verso en texte pur : Anki échappe le HTML, on retire donc toute balise résiduelle
   let txt = out.join('\n').replace(/<[^>]+>/g, '').replace(/[ \t]+/g, ' ').trim();
@@ -402,6 +391,55 @@ function _getContext(node) {
   return (parent?.textContent || '').slice(0, 200);
 }
 
+// Trouve le mot situé sous un point (x, y) et renvoie un Range qui l'entoure.
+// Permet de définir un mot d'un simple clic, sans devoir le double-cliquer.
+function _wordRangeAtPoint(x, y) {
+  let node = null, offset = 0;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) { node = r.startContainer; offset = r.startOffset; }
+  } else if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p) { node = p.offsetNode; offset = p.offset; }
+  }
+  if (!node || node.nodeType !== 3) return null;
+  const text = node.textContent || '';
+  const isW = (c) => c && /[\p{L}\p{M}'-]/u.test(c);
+  let s = Math.max(0, Math.min(offset, text.length)), e = s;
+  while (s > 0 && isW(text[s - 1])) s--;
+  while (e < text.length && isW(text[e])) e++;
+  if (e <= s) return null;
+  const range = document.createRange();
+  range.setStart(node, s);
+  range.setEnd(node, e);
+  return range;
+}
+
+function _lookupFromRange(range) {
+  if (!range) return;
+  const word = range.toString().trim();
+  if (!_isWord(word)) return;
+  const node = range.startContainer;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  if (!el || (!el.closest('.textLayer') && !el.closest('.epub-content'))) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); } // surligne le mot défini
+  showDefinitionPopup(word, range.getBoundingClientRect(), _getContext(node));
+}
+
+// Simple clic sur un mot (dans un PDF ou un EPUB) → définition immédiate.
+document.addEventListener('click', (e) => {
+  if (e.detail !== 1) return; // le double-clic a son propre gestionnaire
+  const el = e.target.nodeType === 1 ? e.target : e.target.parentElement;
+  if (!el || (!el.closest('.textLayer') && !el.closest('.epub-content'))) return;
+  if (_dictPopup && _dictPopup.contains(e.target)) return;
+  const sel = window.getSelection();
+  // Sélection de plusieurs mots (surlignage) : on ne déclenche pas le dictionnaire
+  if (sel && !sel.isCollapsed && sel.toString().trim().split(/\s+/).length > 1) return;
+  _lookupFromRange(_wordRangeAtPoint(e.clientX, e.clientY));
+});
+
+// Double-clic : conservé (sélectionne le mot puis le définit).
 document.addEventListener('dblclick', (e) => {
   setTimeout(() => {
     const sel = window.getSelection();
@@ -534,6 +572,7 @@ _dictStyle.textContent = `
 .dict-lang { padding: 4px 8px; background: var(--bg2); color: var(--text); border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; height: 28px; box-shadow: inset 0 0 0 1px var(--border); cursor: pointer; }
 .dict-link { color: var(--accent); text-decoration: none; font-size: 13px; }
 .dict-link:hover { text-decoration: underline; }
+.dict-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 
 /* Modal mots enregistrés */
 #dict-words-modal { position: fixed; inset: 0; z-index: 555; }
