@@ -30,13 +30,14 @@ const MODES = {
   fire:   { label: 'Feu de camp', icon: 'local_fire_department', cat: 'real', files: ['sounds/campfire.mp3'], desc: 'Feu qui crépite — enregistrement réel' },
   night:  { label: 'Nuit',        icon: 'dark_mode',    cat: 'real', files: ['sounds/crickets.mp3'], desc: 'Grillons la nuit — enregistrement réel' },
   cafe:   { label: 'Café',        icon: 'local_cafe',   cat: 'real', files: ['sounds/cafe.mp3'], desc: 'Ambiance de café — enregistrement réel' },
-  // Musique classique générée localement (Web Audio synthèse)
-  pachelbel: { label: 'Pachelbel',    icon: 'queue_music', cat: 'music', score: 'pachelbel', desc: 'Canon en Ré majeur (généré)' },
-  bach:      { label: 'Bach',         icon: 'music_note',  cat: 'music', score: 'bach',      desc: 'Prélude en Do BWV 846 (généré)' },
-  elise:     { label: 'Pour Élise',   icon: 'piano',       cat: 'music', score: 'elise',     desc: 'Beethoven — thème principal (généré)' },
-  satie:     { label: 'Satie',        icon: 'audiotrack',  cat: 'music', score: 'satie',     desc: 'Gymnopédie n°1 (généré)' },
-  chopin:    { label: 'Chopin',       icon: 'music_note',  cat: 'music', score: 'chopin',    desc: 'Prélude op.28 n°7 (généré)' },
-  debussy:   { label: 'Debussy',      icon: 'nights_stay', cat: 'music', score: 'debussy',   desc: 'Clair de Lune (généré)' },
+  // Musique classique : vrais enregistrements (domaine public / CC — voir sounds/CREDITS.md)
+  playlist:  { label: 'Playlist',     icon: 'queue_music', cat: 'music', playlist: true, files: ['sounds/music/pachelbel-canon.mp3','sounds/music/bach-prelude-bwv846.mp3','sounds/music/fur-elise.mp3','sounds/music/gymnopedie-1.ogg','sounds/music/chopin-prelude-op28-7.mp3','sounds/music/clair-de-lune.ogg'], desc: 'Les 6 pièces enchaînées en boucle' },
+  pachelbel: { label: 'Pachelbel',    icon: 'music_note',  cat: 'music', files: ['sounds/music/pachelbel-canon.mp3'], desc: 'Canon en Ré majeur — enregistrement (Kevin MacLeod)' },
+  bach:      { label: 'Bach',         icon: 'music_note',  cat: 'music', files: ['sounds/music/bach-prelude-bwv846.mp3'], desc: 'Prélude en Do BWV 846 — enregistrement (Kevin MacLeod)' },
+  elise:     { label: 'Pour Élise',   icon: 'piano',       cat: 'music', files: ['sounds/music/fur-elise.mp3'], desc: 'Beethoven, Pour Élise — piano (domaine public)' },
+  satie:     { label: 'Satie',        icon: 'audiotrack',  cat: 'music', files: ['sounds/music/gymnopedie-1.ogg'], desc: 'Gymnopédie n°1 — piano (CC0)' },
+  chopin:    { label: 'Chopin',       icon: 'music_note',  cat: 'music', files: ['sounds/music/chopin-prelude-op28-7.mp3'], desc: 'Prélude op.28 n°7 — piano (CC0)' },
+  debussy:   { label: 'Debussy',      icon: 'nights_stay', cat: 'music', files: ['sounds/music/clair-de-lune.ogg'], desc: 'Clair de Lune — piano (Laurens Goedhart)' },
   // Binaural
   delta:  { label: 'Δ 2Hz Sommeil', cat: 'binaural',desc: 'Delta 2Hz — sommeil profond (casque)' },
   theta:  { label: 'θ 6Hz Méditation', cat: 'binaural', desc: 'Theta 6Hz — méditation, créativité (casque)' },
@@ -66,9 +67,6 @@ function _ensureCtx() {
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = _ambientVolume;
     _gainNode.connect(_audioCtx.destination);
-    // Expose pour music-player.js
-    window._ambientCtx = _audioCtx;
-    window._ambientGain = _gainNode;
   }
   if (_audioCtx.state === 'suspended') _audioCtx.resume();
   return _audioCtx;
@@ -116,15 +114,30 @@ function stopAmbient() {
     try { n.disconnect(); } catch (_) {}
   });
   _activeNodes = [];
-  _activeAudios.forEach(a => { try { a.pause(); a.removeAttribute('src'); a.load(); } catch (_) {} });
+  _activeAudios.forEach(a => { try { a.onended = null; a.pause(); a.removeAttribute('src'); a.load(); } catch (_) {} });
   _activeAudios = [];
-  if (window._stopScore) window._stopScore();
   _currentMode = 'off';
   _refreshAmbientUI();
 }
 
-// Lecture en boucle des enregistrements (un mode = un ou plusieurs fichiers superposés)
-function _playFiles(files) {
+// Lecture des enregistrements. Par défaut : chaque fichier boucle (plusieurs
+// fichiers = superposés, ex. orage). En mode playlist : les pièces s'enchaînent.
+function _playFiles(files, playlist) {
+  if (playlist) {
+    let i = 0;
+    const playNext = () => {
+      _activeAudios = _activeAudios.filter(x => !x.ended);
+      const a = new Audio(files[i % files.length]);
+      i++;
+      a.preload = 'auto';
+      a.volume = _ambientVolume;
+      a.onended = playNext;
+      a.play().catch(() => { if (window.showToast) window.showToast('Lecture impossible — réessaie'); });
+      _activeAudios.push(a);
+    };
+    playNext();
+    return;
+  }
   files.forEach(f => {
     const a = new Audio(f);
     a.loop = true;
@@ -173,16 +186,9 @@ function playAmbient(mode) {
   if (mode === 'off') return;
 
   const m = MODES[mode];
-  // Mode partition musicale ?
-  if (m && m.score) {
-    _ensureCtx();
-    if (window._playScore) window._playScore(m.score);
-    _refreshAmbientUI();
-    return;
-  }
   // Enregistrement réel ?
   if (m && m.files) {
-    _playFiles(m.files);
+    _playFiles(m.files, m.playlist);
     _refreshAmbientUI();
     return;
   }
@@ -236,7 +242,7 @@ function _injectAmbientUI() {
 
     const groups = {
       real:     { title: `${icon('eco',14)} Nature &amp; lieux (vrais enregistrements)`, items: ['rain','storm','ocean','river','forest','wind','fire','night','cafe'] },
-      music:    { title: `${icon('music_note',14)} Musique classique (générée localement)`, items: ['pachelbel','bach','elise','satie','chopin','debussy'] },
+      music:    { title: `${icon('music_note',14)} Musique classique (vrais enregistrements)`, items: ['playlist','pachelbel','bach','elise','satie','chopin','debussy'] },
       noise:    { title: `${icon('volume_up',14)} Bruits scientifiques`, items: ['brown','pink','white'] },
       binaural: { title: `${icon('psychology',14)} Binaural (casque)`, items: ['delta','theta','alpha','beta','gamma'] }
     };
