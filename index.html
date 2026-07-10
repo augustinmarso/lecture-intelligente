@@ -166,6 +166,13 @@
     .type-icon { font-size: 22px; line-height: 1; margin-top: 1px; }
     .type-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 2px; color: var(--text); font-family: inherit; }
     .type-card p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+    /* Variante discrète : « Maîtriser un sujet » est une voie secondaire, moins mise en avant que la lecture */
+    .type-card-sub { padding: 8px 12px; margin-top: 10px; background: transparent; opacity: .68; transition: opacity .1s, background .1s; }
+    .type-card-sub:hover { opacity: 1; background: var(--bg2); }
+    .type-card-sub.selected { opacity: 1; }
+    .type-card-sub .type-icon { color: var(--text2); }
+    .type-card-sub h4 { font-size: 13px; font-weight: 500; }
+    .type-card-sub p { font-size: 12px; }
     .timer-display { text-align: center; padding: 1.5rem 0 1rem; }
     .timer-circle { width: 140px; height: 140px; border-radius: 50%; border: 2px solid var(--border2); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 1rem; }
     .timer-time { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
@@ -1171,9 +1178,9 @@ function renderType() {
     <div class="type-icon"><span class="ms" style="font-size:24px">article</span></div>
     <div><h4>Note de chapitre</h4><p>Flux allégé centré sur un seul chapitre, sans étape de table des matières.</p></div>
   </div>
-  <div class="type-card ${isSujet?'selected':''}" data-type="sujet">
-    <div class="type-icon"><span class="ms" style="font-size:24px">school</span></div>
-    <div><h4>Maîtriser un sujet</h4><p>Méthode Oussama Ammar&nbsp;: cadrage YouTube et cartographie, puis lectures en diagonale et 50 questions du recruteur exigeant.</p></div>
+  <div class="type-card type-card-sub ${isSujet?'selected':''}" data-type="sujet">
+    <div class="type-icon"><span class="ms" style="font-size:17px">school</span></div>
+    <div><h4>Maîtriser un sujet</h4><p>Méthode d'apprentissage en 2 phases, en dehors de la lecture d'un livre.</p></div>
   </div>
   ${isSujet ? `<div class="field" style="margin-top:1.2rem">
     <label>Le sujet que tu veux maîtriser</label>
@@ -2107,7 +2114,6 @@ render();
 <script src="ambient.js"></script>
 <script src="dashboard.js"></script>
 <script src="backup.js"></script>
-<script src="dictionary.js"></script>
 <script src="shelf.js"></script>
 <script src="ai.js"></script>
 <script src="anki.js"></script>
