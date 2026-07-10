@@ -310,8 +310,8 @@ async function aiGenerateCards(note) {
 
   const auteur = note.bookAuthor || `l'auteur de « ${note.bookTitle || note.title || 'ce livre'} »`;
   const result = await aiCall({
-    system: `Tu crées des flashcards Anki en français pour la répétition espacée. Règle de format STRICTE : chaque recto est une question de la forme « Que pense ${auteur} de [sujet précis] ? » (ou « … sur [sujet précis] ? ») — le sujet est déduit de l'idée, sans dévoiler la réponse. Une seule idée par carte. Verso : la position de l'auteur, reformulée en 1 à 3 phrases à partir des mots du lecteur.`,
-    user: parts.join('\n\n') + '\n\nCrée exactement UNE carte par idée de la synthèse (dans le même ordre) et UNE carte par citation surlignée — ne fusionne jamais deux idées ou deux citations dans la même carte. Chaque recto doit suivre le format « Que pense ' + auteur + ' de [sujet] ? ».',
+    system: `Tu crées des flashcards Anki en français pour la répétition espacée, sur le principe de la devinette : le recto pose une question qui présente l'idée ou la citation SANS la dévoiler, et le lecteur doit retrouver la réponse de mémoire. Format du recto : par défaut « Que pense ${auteur} de [sujet précis] ? », ou une autre question courte qui amène l'idée sans la révéler (« Que dit ${auteur} à propos de [sujet] ? », « Quelle image utilise ${auteur} pour parler de [sujet] ? », « Comment ${auteur} justifie-t-il [sujet] ? »…). Une seule idée ou citation par carte. Verso d'une IDÉE : la position de l'auteur en 1 à 3 phrases, à partir des mots du lecteur. Verso d'une CITATION : la citation EXACTE, mot pour mot entre guillemets, avec sa page — c'est elle que le lecteur doit deviner.`,
+    user: parts.join('\n\n') + '\n\nCrée exactement UNE carte par idée de la synthèse (dans le même ordre) et UNE carte par citation surlignée — ne fusionne jamais deux idées ou deux citations dans la même carte. Recto = question devinette qui ne révèle pas la réponse ; verso = l\'idée reformulée, ou la citation exacte à deviner.',
     schema: {
       type: 'object',
       properties: { cards: { type: 'array', items: {
