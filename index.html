@@ -75,6 +75,7 @@
     button, .checklist-item, .type-card { touch-action: manipulation; }
     #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; }
     #pdf-panel.active { display: flex; flex: 0 0 50%; }
+    #pdf-panel.fullscreen { position: fixed; inset: 0; z-index: 700; width: 100vw; height: 100vh; height: 100dvh; max-width: none; border: none; }
     .pdf-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--bg); flex-wrap: wrap; }
     .pdf-toolbar button, .pdf-toolbar label.btn { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
     .pdf-toolbar button:hover:not(:disabled), .pdf-toolbar label.btn:hover { background: var(--bg3); }
@@ -363,6 +364,7 @@
       <button id="pdf-zoom-out" disabled>−</button>
       <button id="pdf-zoom-in" disabled>+</button>
       <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)"><span class="ms" style="font-size:16px">ink_highlighter</span> Surligner</button>
+      <button id="pdf-fullscreen" title="Plein écran"><span class="ms" style="font-size:16px">fullscreen</span></button>
       <span class="pdf-info" id="pdf-filename"></span>
     </div>
     <div class="pdf-viewer" id="pdf-viewer">
@@ -711,6 +713,7 @@ async function renderPage() { return renderAllPages(); }
 function renderPdfPanel() {
   const panel = document.getElementById('pdf-panel');
   panel.classList.toggle('active', state.pdfPanelOpen);
+  if (!state.pdfPanelOpen && panel.classList.contains('fullscreen')) setPdfFullscreen(false);
   if (state.pdfPanelOpen && !pdf.doc) renderPdfEmptyLibrary();
 }
 
@@ -833,7 +836,32 @@ function wirePdfControls() {
   };
   const hl = document.getElementById('pdf-highlight');
   if (hl) hl.onclick = captureHighlight;
+  const fsBtn = document.getElementById('pdf-fullscreen');
+  if (fsBtn) fsBtn.onclick = () => setPdfFullscreen(!document.getElementById('pdf-panel').classList.contains('fullscreen'));
 }
+
+// Bascule le lecteur PDF en plein écran (couvre toute la fenêtre) et inversement
+function setPdfFullscreen(on) {
+  const panel = document.getElementById('pdf-panel');
+  if (!panel) return;
+  // Ouvrir le panneau si besoin avant de passer en plein écran
+  if (on && !state.pdfPanelOpen) { state.pdfPanelOpen = true; renderPdfPanel(); syncPdfPanel(); }
+  panel.classList.toggle('fullscreen', on);
+  const fsBtn = document.getElementById('pdf-fullscreen');
+  if (fsBtn) {
+    fsBtn.querySelector('.ms').textContent = on ? 'fullscreen_exit' : 'fullscreen';
+    fsBtn.title = on ? 'Quitter le plein écran' : 'Plein écran';
+    fsBtn.classList.toggle('active', on);
+  }
+}
+
+// Échap : quitte le plein écran PDF
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('pdf-panel')?.classList.contains('fullscreen')) {
+    e.preventDefault();
+    setPdfFullscreen(false);
+  }
+});
 
 // Raccourci Ctrl+H pour surligner
 document.addEventListener('keydown', (e) => {
