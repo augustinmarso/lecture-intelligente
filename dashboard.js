@@ -251,7 +251,6 @@ function _sujetsSectionHtml() {
     const pct = total ? (answered / total) * 100 : 0;
     const cadrageOk = !!(su.videos && su.videos.trim() && su.carto && su.carto.trim());
     const profondeurOk = answered >= 30;
-    const transmissionOk = !!(su.enseigner && su.enseigner.trim());
     const chip = (label, done, started) => `<span class="dash-chip ${done ? 'done' : (started ? 'progress' : '')}">${done ? icon('check', 12) + ' ' : ''}${label}</span>`;
     const counts = [
       total ? `${answered}/${total} questions` : 'questions à générer',
@@ -266,7 +265,6 @@ function _sujetsSectionHtml() {
         <div class="dash-chips">
           ${chip('Cadrage', cadrageOk, !!(su.videos || su.carto))}
           ${chip('Profondeur', profondeurOk, total > 0)}
-          ${chip('Transmission', transmissionOk, false)}
         </div>
       </div>
       <button class="dash-resume" data-sujet="${su.id}" title="Reprendre ce sujet">${icon('play_arrow', 16)}</button>

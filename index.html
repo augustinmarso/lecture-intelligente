@@ -389,18 +389,16 @@ const STEPS_CHAPITRE = [
 ];
 const PHASES = ['Pré-lecture','Lecture','Post-lecture'];
 
-// Méthode « Maîtriser un sujet » (d'après Oussama Ammar) — routine
-// d'apprentissage en 5 phases, à planifier comme une routine sportive.
+// Méthode « Maîtriser un sujet » (d'après Oussama Ammar) —
+// deux phases : cadrage rapide puis travail en profondeur.
 const STEPS_SUJET = [
   {phase:0,id:'type',title:'Type de note',num:'Démarrage'},
   {phase:0,id:'suj-yt',title:'Dégrossis sur YouTube',num:'Cadrage · 1/2'},
   {phase:0,id:'suj-carto',title:'Cartographie les concepts',num:'Cadrage · 2/2'},
   {phase:1,id:'suj-livres',title:'Lis en diagonale les références',num:'Profondeur · 1/2'},
   {phase:1,id:'suj-50q',title:'Le crash-test des 50 questions',num:'Profondeur · 2/2'},
-  {phase:2,id:'suj-teach',title:'Enseigne pour ancrer',num:'Transmission'},
-  {phase:3,id:'suj-agenda',title:'Planifie ta routine',num:'Routine'},
 ];
-const PHASES_SUJET = ['Cadrage','Profondeur','Transmission','Routine'];
+const PHASES_SUJET = ['Cadrage','Profondeur'];
 
 function sujetInitial() {
   return {
@@ -409,7 +407,6 @@ function sujetInitial() {
     qIndex: 0,
     ytVideos: [],         // suggestions IA [{ titre, requete, raison }]
     livresSugg: [],       // suggestions IA [{ titre, auteur, raison }]
-    enseigner:'', enseignerQuand:'',
     ytChecks:{'Sujet recherché sur YouTube':false,'Une dizaine de vidéos les plus vues sélectionnées':false,'Visionnées en accéléré, notes prises':false}
   };
 }
@@ -905,7 +902,7 @@ function generateMarkdownSujet() {
   const date = new Date().toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric' });
   const su = state.sujet;
   let md = `# Maîtriser un sujet — ${wikilink(su.sujet)}\n\n`;
-  md += `> Routine d'apprentissage (méthode Oussama Ammar) — session du ${date}\n\n---\n\n`;
+  md += `> Méthode d'apprentissage (Oussama Ammar) — session du ${date}\n\n---\n\n`;
   md += `## Phase 1 — Cadrage (YouTube + cartographie)\n\n`;
   md += `**Notes de visionnage**\n\n${su.videos || '—'}\n\n`;
   md += `**Concepts à creuser**\n\n${su.carto ? su.carto.split('\n').map(x => x.trim()).filter(Boolean).map(c => `- ${wikilink(c)}`).join('\n') : '—'}\n\n`;
@@ -937,10 +934,6 @@ function generateMarkdownSujet() {
       md += `\n`;
     });
   }
-  md += `## Phase 3 — Transmission\n\n`;
-  md += `**Format** : ${su.enseigner || '—'}${su.enseignerQuand ? ` — ${su.enseignerQuand}` : ''}\n\n`;
-  md += `## Routine\n\n`;
-  md += `- Séance d'apprentissage : 1h par semaine\n- Veille : 15 min par jour (nouveautés du domaine + questions à l'IA)\n`;
   return md;
 }
 
@@ -1089,8 +1082,6 @@ function render() {
   else if (s.id==='suj-carto') body = renderSujetCarto();
   else if (s.id==='suj-livres') body = renderSujetLivres();
   else if (s.id==='suj-50q') body = renderSujet50q();
-  else if (s.id==='suj-teach') body = renderSujetTeach();
-  else if (s.id==='suj-agenda') body = renderSujetAgenda();
 
   app.innerHTML = topBar + phases + dots +
     `<div class="step-number">${s.num}</div><div class="step-title">${s.title}</div>` + body;
@@ -1119,7 +1110,7 @@ function renderType() {
   const isChap = state.noteType === 'chapitre';
   const isSujet = state.noteType === 'sujet';
   return `
-  <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section&nbsp;; <em>maîtriser un sujet</em> est une routine d'apprentissage complète en 5 phases.</div>
+  <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section&nbsp;; <em>maîtriser un sujet</em> est une méthode d'apprentissage en deux phases&nbsp;: cadrage puis profondeur.</div>
   <div class="type-card ${isLivre?'selected':''}" data-type="livre">
     <div class="type-icon"><span class="ms" style="font-size:24px">auto_stories</span></div>
     <div><h4>Note de livre</h4><p>Flux complet&nbsp;: objectif PPU, repérage des chapitres, lecture, synthèse, action, révision.</p></div>
@@ -1130,7 +1121,7 @@ function renderType() {
   </div>
   <div class="type-card ${isSujet?'selected':''}" data-type="sujet">
     <div class="type-icon"><span class="ms" style="font-size:24px">school</span></div>
-    <div><h4>Maîtriser un sujet</h4><p>Méthode Oussama Ammar&nbsp;: cadrage YouTube, 50 questions du recruteur exigeant, transmission, routine — comme un entraînement sportif.</p></div>
+    <div><h4>Maîtriser un sujet</h4><p>Méthode Oussama Ammar&nbsp;: cadrage YouTube et cartographie, puis lectures en diagonale et 50 questions du recruteur exigeant.</p></div>
   </div>
   ${isSujet ? `<div class="field" style="margin-top:1.2rem">
     <label>Le sujet que tu veux maîtriser</label>
@@ -1327,7 +1318,6 @@ function sujetDetailHtml(s) {
     ${vids ? `<div class="suj-det-section"><h5>Vidéos</h5><div class="suj-det-links">${vids}</div></div>` : ''}
     ${livres ? `<div class="suj-det-section"><h5>Dossier livres</h5>${livres}</div>` : ''}
     ${s.cartoLien ? `<div class="suj-det-section"><h5>Carte des concepts</h5><a class="suj-det-link" href="${escapeAttr(s.cartoLien)}" target="_blank" rel="noopener"><span class="ms" style="font-size:14px">account_tree</span> Ouvrir ma carte Miro</a></div>` : ''}
-    ${s.enseigner ? `<div class="suj-det-section"><h5>Transmission</h5><div class="suj-det-livre">${escapeHtml(s.enseigner)}${s.enseignerQuand ? ' — ' + escapeHtml(s.enseignerQuand) : ''}</div></div>` : ''}
   </div>`;
 }
 
@@ -1609,45 +1599,7 @@ function renderSujet50q() {
   </div>
   <button class="btn-secondary" id="suj-avis-add" style="margin-top:0;margin-bottom:1rem"><span class="ms" style="font-size:15px">add_comment</span> Ajouter mon avis (daté)</button>
   ${avisList ? `<div class="suj-avis-list">${avisList}</div>` : ''}
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">${gateOk ? 'Cap des 30 questions franchi →' : `Continuer (${answered} traitée${answered > 1 ? 's' : ''}) →`}</button></div>`;
-}
-
-function renderSujetTeach() {
-  const su = state.sujet;
-  const seance = new Date(); seance.setDate(seance.getDate() + 7); seance.setHours(17, 0, 0, 0);
-  const t = su.sujet || 'mon sujet';
-  const urlTeach = gcalUrl(`📚 Enseigner — ${t}`, seance, 90, `Transmettre ce que j'ai appris sur : ${t}\n\nFormat : ${su.enseigner || 'à définir'}\n\nEnseigner oblige à synthétiser et révèle les derniers points faibles de ma compréhension.`);
-  return `
-  <div class="step-why">Valide ta structure mentale en transmettant. Enseigner oblige à synthétiser et met en lumière les derniers points faibles de ta compréhension. Vidéo, cours structuré, workshop informel ou simple présentation à tes amis — peu importe le format.</div>
-  ${inputField('Ton format de transmission', 'suj-enseigner', su.enseigner, 'Ex: workshop d\'1h pour 4 amis, vidéo YouTube…')}
-  ${inputField('Quand ?', 'suj-enseigner-quand', su.enseignerQuand, 'Ex: samedi prochain')}
-  <div class="revision-card">
-    <h4>Bloque la date dans ton agenda</h4>
-    <p>Une séance de transmission planifiée a beaucoup plus de chances d'exister. Créneau proposé&nbsp;: ${seance.toLocaleDateString('fr-FR')} à 17h (1h30, modifiable dans Google Agenda).</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${urlTeach}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event</span> Ajouter à Google Agenda</a></div>
-  </div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!su.enseigner?'disabled':''}>Ma transmission est planifiée →</button></div>`;
-}
-
-function renderSujetAgenda() {
-  const seance = new Date(); seance.setDate(seance.getDate() + 2); seance.setHours(18, 0, 0, 0);
-  const veille = new Date(); veille.setDate(veille.getDate() + 1); veille.setHours(8, 30, 0, 0);
-  const t = state.sujet.sujet || 'mon sujet';
-  const urlSeance = gcalUrl(`📚 Apprentissage — ${t}`, seance, 60, `Routine d'apprentissage (méthode Ammar) sur : ${t}\n\nAvancer sur la phase en cours : questions du crash-test, lectures en diagonale, préparation de la transmission.`, 'FREQ=WEEKLY');
-  const urlVeille = gcalUrl(`📚 Veille — ${t}`, veille, 15, `15 min de veille sur ${t} : repérer les nouveautés et signaux faibles, et creuser avec l'IA de l'app.`, 'FREQ=DAILY');
-  return `
-  <div class="step-why">Cette méthode fonctionne comme une routine sportive&nbsp;: elle se planifie régulièrement dans l'agenda, sinon elle n'existe pas. Bloque une séance hebdomadaire et un créneau de veille quotidien.</div>
-  <div class="revision-card">
-    <h4>Séance d'apprentissage — 1h par semaine</h4>
-    <p>Avancer sur la phase en cours de la méthode.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${urlSeance}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event_repeat</span> Ajouter (hebdomadaire)</a></div>
-  </div>
-  <div class="revision-card">
-    <h4>Veille — 15 min par jour</h4>
-    <p>Repérer les nouveautés du domaine et creuser avec l'IA.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${urlVeille}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event_repeat</span> Ajouter (quotidien)</a></div>
-  </div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">${gateOk ? 'Terminer — voir mon récapitulatif →' : `Terminer (${answered} traitée${answered > 1 ? 's' : ''}) →`}</button></div>`;
 }
 
 function renderDoneSujet(topBar) {
@@ -1655,14 +1607,13 @@ function renderDoneSujet(topBar) {
   const concepts = su.carto.split('\n').map(x => x.trim()).filter(Boolean);
   return topBar + `<div class="success-screen">
     <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
-    <h2>Routine lancée</h2>
-    <p>Les 5 phases de ta routine d'apprentissage sont en place. Continue à la faire vivre — c'est un sport, pas un sprint.</p>
+    <h2>Sujet lancé</h2>
+    <p>Ton sujet est cadré et le crash-test est en route. Continue à le faire vivre depuis l'accueil — c'est un sport, pas un sprint.</p>
     <div class="recap">
       <div class="recap-block"><strong>Sujet</strong><span class="recap-val">${escapeHtml(su.sujet)}</span></div>
       <div class="recap-block"><strong>Concepts cartographiés</strong><span class="recap-val">${concepts.length ? concepts.slice(0, 8).join(', ') + (concepts.length > 8 ? '…' : '') : '—'}</span></div>
       <div class="recap-block"><strong>Références</strong><span class="recap-val">${escapeHtml(su.livres) || '—'}</span></div>
       <div class="recap-block"><strong>Crash-test</strong><span class="recap-val">${(su.questions || []).length ? sujetAnsweredCount(su) + ' / ' + su.questions.length + ' questions traitées' : '—'}</span></div>
-      <div class="recap-block"><strong>Transmission</strong><span class="recap-val">${escapeHtml(su.enseigner) || '—'}${su.enseignerQuand ? ' — ' + escapeHtml(su.enseignerQuand) : ''}</span></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
       <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
@@ -1740,8 +1691,6 @@ function bindEvents() {
       else if (id==='suj-carto') state.sujet.carto = el.value;
       else if (id==='suj-carto-lien') state.sujet.cartoLien = el.value;
       else if (id==='suj-livres') state.sujet.livres = el.value;
-      else if (id==='suj-enseigner') state.sujet.enseigner = el.value;
-      else if (id==='suj-enseigner-quand') state.sujet.enseignerQuand = el.value;
       if (id && id.startsWith('suj-') && id !== 'suj-avis-input') sujetPersist();
       const btn = document.getElementById('btn-next');
       if (btn && s) updateNextBtn(btn, s);
@@ -2052,7 +2001,6 @@ function updateNextBtn(btn, s) {
   else if (s.id==='suj-yt') btn.disabled = !state.sujet.videos.trim();
   else if (s.id==='suj-carto') btn.disabled = !state.sujet.carto.trim();
   else if (s.id==='suj-livres') btn.disabled = !state.sujet.livres.trim();
-  else if (s.id==='suj-teach') btn.disabled = !state.sujet.enseigner;
 }
 
 function toggleTimer() {
