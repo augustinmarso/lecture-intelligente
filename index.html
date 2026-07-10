@@ -227,11 +227,14 @@
     .suj-q-card-head .lib-action:hover { background: var(--hover); color: var(--text); }
     .suj-q-num { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); }
     .suj-q-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
-    .suj-q-add { display: flex; gap: 6px; flex: 1; min-width: 240px; }
-    .suj-q-add input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 32px; }
-    .suj-q-add input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
-    .suj-q-add .lib-action { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 32px; box-shadow: inset 0 0 0 1px var(--border); display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
-    .suj-q-add .lib-action:hover { background: var(--hover); color: var(--text); }
+    .suj-q-create { flex: 1 1 100%; margin-top: 4px; padding: 12px 14px 14px; background: color-mix(in srgb, var(--accent) 6%, var(--bg2)); border-radius: var(--radius); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .suj-q-create-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+    .suj-q-create-row { display: flex; gap: 8px; align-items: stretch; }
+    .suj-q-create-row .input-wrap { flex: 1; }
+    .suj-q-create-row input { width: 100%; padding: 9px 44px 9px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 40px; }
+    .suj-q-create-row input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+    .suj-q-create-btn { display: inline-flex; align-items: center; gap: 5px; padding: 0 16px; border: none; border-radius: var(--radius); background: var(--accent); color: #fff; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; height: 40px; flex-shrink: 0; transition: filter .12s; }
+    .suj-q-create-btn:hover { filter: brightness(1.08); }
     .suj-shelf { background: var(--bg2); border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 1.25rem; box-shadow: inset 0 0 0 1px var(--border); }
     .suj-shelf-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .suj-shelf-head input { flex: 1; padding: 6px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 30px; }
@@ -1556,7 +1559,13 @@ function renderSujet50q() {
   const answered = sujetAnsweredCount(su);
   const gateOk = answered >= 30;
 
-  const addRow = `<div class="suj-q-add"><input id="suj-q-new" type="text" placeholder="Ou ajoute ta propre question…"/><button class="lib-action" id="suj-q-add-btn"><span class="ms" style="font-size:15px">add</span> Ajouter</button></div>`;
+  const addRow = `<div class="suj-q-create">
+    <div class="suj-q-create-head"><span class="ms" style="font-size:16px">edit_note</span> Ajoute ta propre question</div>
+    <div class="suj-q-create-row">
+      <div class="input-wrap"><input id="suj-q-new" type="text" placeholder="Pose ta question — au clavier ou au micro…"/></div>
+      <button class="suj-q-create-btn" id="suj-q-add-btn"><span class="ms" style="font-size:16px">add</span> Ajouter</button>
+    </div>
+  </div>`;
 
   if (qs.length === 0) {
     return `
