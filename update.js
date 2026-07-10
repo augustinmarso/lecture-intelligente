@@ -19,7 +19,7 @@
     if (prev && prev !== sig && !sessionStorage.getItem('li-updating')) {
       sessionStorage.setItem('li-updating', '1'); // évite toute boucle de rechargement
       const files = ['index.html', 'library.js', 'notes.js', 'epub-reader.js', 'chapter-detect.js',
-        'vault.js', 'ambient.js', 'dashboard.js', 'backup.js',
+        'vault.js', 'ambient.js', 'dashboard.js', 'backup.js', 'dictionary.js',
         'shelf.js', 'ai.js', 'anki.js', 'cloud.js', 'update.js', 'manifest.webmanifest'];
       await Promise.all(files.map(f => fetch(f, { cache: 'reload' }).catch(() => {})));
       localStorage.setItem('li-version', sig);
