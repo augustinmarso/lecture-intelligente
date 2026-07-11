@@ -136,17 +136,19 @@ async function ankiAddCitation({ text, page, source, subject, deck }) {
 window.ankiAddCitation = ankiAddCitation;
 
 // --- Cartes "modèle" construites depuis une fiche (sans IA) ---
-// Format : une carte par idée, recto « Que pense [l'auteur] … ? »
+// Format : une carte par idée, recto « Que pense [l'auteur] sur [objectif] ? »
 function _templateCards(note) {
   const book = note.bookTitle || note.title || 'ma lecture';
   const chap = note.chapterTitle ? ' (' + note.chapterTitle + ')' : '';
   const auteur = note.bookAuthor || `l'auteur de « ${book} »`;
+  const sujet = (note.objectif || '').trim();
+  const surQuoi = sujet ? ` sur ${sujet}` : '';
   const cards = [];
   (note.synthese || []).forEach((idee, i) => {
-    if (idee && idee.trim()) cards.push({ recto: `Que pense ${auteur}${chap} ? — idée n°${i + 1} de ma synthèse`, verso: idee });
+    if (idee && idee.trim()) cards.push({ recto: `Que pense ${auteur}${surQuoi}${chap} ? — idée n°${i + 1} de ma synthèse`, verso: idee });
   });
   (note.highlights || []).forEach(h => {
-    if (h && h.text) cards.push({ recto: `Que pense ${auteur}${chap} ? — passage surligné p.${h.page}`, verso: h.text });
+    if (h && h.text) cards.push({ recto: `Que pense ${auteur}${surQuoi}${chap} ? — passage surligné p.${h.page}`, verso: h.text });
   });
   return cards;
 }
