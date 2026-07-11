@@ -6,7 +6,10 @@
 // =============================================================
 
 const ANKI_STORE_KEY = 'li-anki';
-const ANKI_DEFAULTS = { url: 'http://127.0.0.1:8765', deck: 'Lecture Intelligente', auto: false, useAI: true };
+// auto: true — la répétition espacée repose entièrement sur Anki depuis la
+// suppression des rappels Agenda : chaque fiche terminée part automatiquement
+// (décochable sur l'écran de fin).
+const ANKI_DEFAULTS = { url: 'http://127.0.0.1:8765', deck: 'Lecture Intelligente', auto: true, useAI: true };
 const ANKI_MODEL = 'Lecture Intelligente';
 
 function _ankiSettings() {
