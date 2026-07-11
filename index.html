@@ -468,6 +468,52 @@ const state = {
 
 const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null };
 
+// =============================================================
+// Persistance de la session : tout le travail en cours (étape,
+// titres, PPU, synthèse, citations…) survit aux rechargements —
+// y compris ceux déclenchés automatiquement par update.js.
+// =============================================================
+const SESSION_KEY = 'li-session-v1';
+let _persistTimer = null;
+function _sessionSnapshot() {
+  // timer.interval (handle) et running ne sont pas rejouables après reload
+  return JSON.stringify(Object.assign({}, state, {
+    timer: Object.assign({}, state.timer, { interval: null, running: false })
+  }));
+}
+function persistState() {
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    try { localStorage.setItem(SESSION_KEY, _sessionSnapshot()); } catch (_) {}
+  }, 300);
+}
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || typeof saved !== 'object') return;
+    // Session terminée : la fiche est déjà enregistrée, on repart de l'accueil
+    // (rejouer l'écran de fin recréerait une fiche en double via l'auto-save)
+    if (saved.done) { localStorage.removeItem(SESSION_KEY); return; }
+    for (const k of Object.keys(state)) {
+      if (!(k in saved)) continue;
+      if (k === 'timer') Object.assign(state.timer, saved.timer, { interval: null, running: false });
+      else if (k === 'sujet') state.sujet = Object.assign(sujetInitial(), saved.sujet);
+      else if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], saved[k]);
+      else state[k] = saved[k];
+    }
+  } catch (_) { try { localStorage.removeItem(SESSION_KEY); } catch (_) {} }
+}
+// Saisie au clavier / cases cochées → sauvegarde (debouncée)
+document.addEventListener('input', persistState);
+document.addEventListener('change', persistState);
+// Fermeture ou rechargement → flush immédiat
+window.addEventListener('beforeunload', () => {
+  clearTimeout(_persistTimer);
+  try { localStorage.setItem(SESSION_KEY, _sessionSnapshot()); } catch (_) {}
+});
+
 function getSteps() {
   if (state.noteType === 'chapitre') return STEPS_CHAPITRE;
   if (state.noteType === 'sujet') return STEPS_SUJET;
@@ -1158,6 +1204,7 @@ async function saveMarkdownAs() {
 function render() {
   const app = document.getElementById('app');
   const STEPS = getSteps();
+  persistState(); // tous les chemins de rendu sauvegardent la session (y compris l'écran de fin)
 
   if (state.done) { app.innerHTML = renderDone(); bindEvents(); wireVoiceOnAll(); wirePdfControls(); syncPdfPanel(); return; }
 
@@ -2175,6 +2222,7 @@ window.captureHighlight = captureHighlight;
 window.renderHighlightsBar = renderHighlightsBar;
 window.refreshCitationsLive = refreshCitationsLive;
 
+restoreState(); // reprend la session en cours si l'app a été rechargée
 render();
 </script>
 <script src="library.js"></script>
