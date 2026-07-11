@@ -310,6 +310,140 @@ function _wireNoteCardButtons() {
   });
 }
 
+// =============================================================
+// Navigateur de cartes : voir, modifier et supprimer les cartes
+// déjà créées, directement dans l'app (via AnkiConnect)
+// =============================================================
+let _ankiCardsFilter = '';
+
+// HTML d'un champ Anki → texte brut éditable (les <br> redeviennent des retours ligne)
+function _ankiPlain(html) {
+  return (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+}
+
+async function openAnkiCards() {
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.add('open');
+  if (!await ankiIsAvailable()) { _ankiShowHelp(); return; }
+  await renderAnkiCardsView();
+}
+
+// Cartes du deck racine, groupées par sous-paquet (deck exact, sans doublon parent/enfant)
+async function _ankiFetchGroups() {
+  const s = _ankiSettings();
+  const decks = (await ankiInvoke('deckNames'))
+    .filter(d => d === s.deck || d.startsWith(s.deck + '::')).sort();
+  const groups = [];
+  for (const deck of decks) {
+    const safe = deck.replace(/"/g, '');
+    const ids = await ankiInvoke('findNotes', { query: `deck:"${safe}" -deck:"${safe}::*"` });
+    if (!ids.length) continue;
+    const infos = await ankiInvoke('notesInfo', { notes: ids.slice(0, 200) });
+    groups.push({ deck, total: ids.length, notes: infos });
+  }
+  return groups;
+}
+
+async function renderAnkiCardsView() {
+  const body = document.getElementById('lib-body');
+  if (!body) return;
+  body.innerHTML = `<div class="lib-empty">Chargement des cartes depuis Anki…</div>`;
+  let groups;
+  try { groups = await _ankiFetchGroups(); }
+  catch (e) { body.innerHTML = `<div class="lib-empty">Erreur Anki : ${_escAnki(e.message)}</div>`; return; }
+
+  const s = _ankiSettings();
+  const q = _ankiCardsFilter.toLowerCase();
+  const match = (n) => !q || _ankiPlain(n.fields.Recto.value).toLowerCase().includes(q) || _ankiPlain(n.fields.Verso.value).toLowerCase().includes(q);
+  const totalCartes = groups.reduce((t, g) => t + g.total, 0);
+
+  body.innerHTML = `
+    <div class="notes-toolbar">
+      <div class="notes-tabs">
+        <button class="notes-tab" data-view="notes">${icon('edit_note', 15)} Mes fiches</button>
+        <button class="notes-tab" data-view="books">${icon('library_books', 15)} Mes livres</button>
+        <button class="notes-tab active">${icon('style', 15)} Cartes Anki (${totalCartes})</button>
+      </div>
+      <input id="anki-cards-search" type="search" placeholder="Rechercher une carte…" value="${_escAnki(_ankiCardsFilter)}"/>
+    </div>
+    ${groups.length === 0 ? `<div class="lib-empty">Aucune carte dans « ${_escAnki(s.deck)} » pour l'instant.</div>` : groups.map(g => {
+      const visibles = g.notes.filter(match);
+      if (!visibles.length) return '';
+      const sous = g.deck.includes('::') ? g.deck.split('::').slice(1).join('::') : g.deck;
+      return `<div class="anki-deck-group">
+        <h4 class="anki-deck-title">${icon('folder', 14)} ${_escAnki(sous)} <span class="dw-count">${g.total}</span></h4>
+        ${visibles.map(n => `
+          <div class="anki-card" data-id="${n.noteId}">
+            <div class="anki-card-view">
+              <div class="anki-card-recto">${_escAnki(_ankiPlain(n.fields.Recto.value))}</div>
+              <div class="anki-card-verso">${_escAnki(_ankiPlain(n.fields.Verso.value)).replace(/\n/g, '<br>')}</div>
+              ${n.fields.Source && n.fields.Source.value ? `<div class="anki-card-src">${_escAnki(_ankiPlain(n.fields.Source.value))}</div>` : ''}
+              <div class="note-actions">
+                <button class="lib-action" data-act="edit">${icon('edit', 15)} Modifier</button>
+                <button class="lib-action lib-del" data-act="del">${icon('delete', 15)}</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+    }).join('')}
+  `;
+
+  // Navigation vers les autres vues
+  body.querySelectorAll('.notes-tab[data-view]').forEach(t => t.onclick = () => {
+    if (t.dataset.view === 'notes' && window.openNotes) window.openNotes();
+    else if (t.dataset.view === 'books' && typeof renderLibrary === 'function') renderLibrary();
+  });
+  const search = document.getElementById('anki-cards-search');
+  if (search) search.oninput = () => { _ankiCardsFilter = search.value; clearTimeout(search._t); search._t = setTimeout(renderAnkiCardsView, 350); };
+
+  // Modifier / supprimer
+  body.querySelectorAll('.anki-card [data-act]').forEach(btn => {
+    btn.onclick = async () => {
+      const card = btn.closest('.anki-card');
+      const id = parseInt(card.dataset.id);
+      if (btn.dataset.act === 'del') {
+        if (!confirm('Supprimer cette carte d\'Anki ?')) return;
+        try { await ankiInvoke('deleteNotes', { notes: [id] }); card.remove(); if (window.showToast) window.showToast('Carte supprimée'); }
+        catch (e) { if (window.showToast) window.showToast('Erreur : ' + e.message); }
+      } else if (btn.dataset.act === 'edit') {
+        _ankiEditCard(card, id);
+      }
+    };
+  });
+}
+
+// Bascule une carte en mode édition (recto + verso), sauvegarde via updateNoteFields
+async function _ankiEditCard(cardEl, noteId) {
+  const info = (await ankiInvoke('notesInfo', { notes: [noteId] }))[0];
+  if (!info) return;
+  const recto = _ankiPlain(info.fields.Recto.value);
+  const verso = _ankiPlain(info.fields.Verso.value);
+  cardEl.innerHTML = `
+    <div class="anki-card-edit">
+      <label>Recto (question)</label>
+      <textarea class="anki-edit-recto" rows="2">${_escAnki(recto)}</textarea>
+      <label>Verso (réponse)</label>
+      <textarea class="anki-edit-verso" rows="4">${_escAnki(verso)}</textarea>
+      <div class="note-actions">
+        <button class="lib-action anki-edit-save">${icon('check', 15)} Enregistrer</button>
+        <button class="lib-action anki-edit-cancel">Annuler</button>
+      </div>
+    </div>`;
+  cardEl.querySelector('.anki-edit-cancel').onclick = renderAnkiCardsView;
+  cardEl.querySelector('.anki-edit-save').onclick = async () => {
+    const r = cardEl.querySelector('.anki-edit-recto').value.trim();
+    const v = cardEl.querySelector('.anki-edit-verso').value.trim();
+    if (!r || !v) { if (window.showToast) window.showToast('Recto et verso ne peuvent pas être vides'); return; }
+    try {
+      await ankiInvoke('updateNoteFields', { note: { id: noteId, fields: { Recto: _ankiHtml(r), Verso: _ankiHtml(v) } } });
+      if (window.showToast) window.showToast('Carte modifiée dans Anki');
+      await renderAnkiCardsView();
+    } catch (e) { if (window.showToast) window.showToast('Erreur : ' + e.message); }
+  };
+}
+window.openAnkiCards = openAnkiCards;
+
 // --- Barre Anki dans le modal bibliothèque ---
 function _renderAnkiBar() {
   const status = document.getElementById('anki-status');
@@ -345,6 +479,7 @@ function _injectAnkiBar() {
       <div class="vault-actions">
         <input id="anki-deck" type="text" title="Nom du deck Anki" value="${_escAnki(s.deck)}"/>
         <label class="anki-useai" title="Générer les questions/réponses avec l'IA (sinon cartes simples)"><input type="checkbox" id="anki-useai" ${s.useAI ? 'checked' : ''}/> Cartes IA</label>
+        <button id="anki-view-cards" class="gd-btn" title="Voir et modifier les cartes déjà créées">${icon('visibility', 15)} Voir les cartes</button>
         <button id="anki-sync-all" class="gd-btn" title="Envoyer toutes mes fiches vers Anki">${icon('sync', 15)} Tout envoyer</button>
         <button id="anki-help-btn" class="gd-btn" title="Aide à la connexion">?</button>
       </div>
@@ -353,6 +488,7 @@ function _injectAnkiBar() {
     document.getElementById('anki-deck').onchange = (e) => { _ankiSave({ deck: e.target.value.trim() || ANKI_DEFAULTS.deck }); };
     document.getElementById('anki-useai').onchange = (e) => _ankiSave({ useAI: e.target.checked });
     document.getElementById('anki-help-btn').onclick = _ankiShowHelp;
+    document.getElementById('anki-view-cards').onclick = openAnkiCards;
     document.getElementById('anki-sync-all').onclick = async () => {
       if (typeof window.notesGetAll !== 'function') return;
       if (!await ankiIsAvailable()) { _ankiShowHelp(); return; }
@@ -376,6 +512,20 @@ function _injectAnkiBar() {
 // --- Styles ---
 const _ankiStyle = document.createElement('style');
 _ankiStyle.textContent = `
+.anki-deck-group { margin-bottom: 18px; }
+.anki-deck-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.anki-card { padding: 12px 14px; border-radius: var(--radius); transition: background .1s; }
+.anki-card:hover { background: var(--hover); }
+.anki-card-recto { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.5; }
+.anki-card-verso { font-size: 13px; color: var(--text2); line-height: 1.55; margin-top: 4px; }
+.anki-card-src { font-size: 11.5px; color: var(--text3); font-style: italic; margin-top: 4px; }
+.anki-card .note-actions { opacity: 0; transition: opacity .1s; }
+.anki-card:hover .note-actions { opacity: 1; }
+.anki-card-edit label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text3); margin: 8px 0 4px; }
+.anki-card-edit textarea { width: 100%; padding: 8px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; line-height: 1.5; background: var(--bg2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); resize: vertical; }
+.anki-card-edit textarea:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
+#anki-cards-search { padding: 4px 12px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; background: var(--bg2); color: var(--text); min-width: 200px; height: 28px; box-shadow: inset 0 0 0 1px var(--border); }
+#anki-cards-search:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg); }
 .anki-bar input#anki-deck { width: 150px; padding: 4px 10px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); height: 28px; }
 .anki-bar input#anki-deck:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
 .anki-useai, .anki-auto { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); cursor: pointer; user-select: none; }
