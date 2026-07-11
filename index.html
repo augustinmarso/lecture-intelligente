@@ -392,9 +392,8 @@ const STEPS_LIVRE = [
   {phase:0,id:'env',title:'Prépare ton environnement',num:'Pré-lecture · 3/3'},
   {phase:1,id:'lecture',title:'Lecture active par blocs',num:'Lecture · 1/2'},
   {phase:1,id:'pomodoro',title:'Lance ton bloc de lecture',num:'Lecture · 2/2'},
-  {phase:2,id:'synthese',title:'Synthèse en 5 idées',num:'Post-lecture · 1/3'},
-  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/3'},
-  {phase:2,id:'revision',title:'Planifie ta révision',num:'Post-lecture · 3/3'},
+  {phase:2,id:'synthese',title:'Synthèse en 5 idées',num:'Post-lecture · 1/2'},
+  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/2'},
 ];
 const STEPS_CHAPITRE = [
   {phase:0,id:'type',title:'Type de note',num:'Démarrage'},
@@ -402,9 +401,8 @@ const STEPS_CHAPITRE = [
   {phase:0,id:'env',title:'Prépare ton environnement',num:'Pré-lecture · 2/2'},
   {phase:1,id:'lecture',title:'Lecture active par blocs',num:'Lecture · 1/2'},
   {phase:1,id:'pomodoro',title:'Lance ton bloc de lecture',num:'Lecture · 2/2'},
-  {phase:2,id:'synthese',title:'Synthèse du chapitre',num:'Post-lecture · 1/3'},
-  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/3'},
-  {phase:2,id:'revision',title:'Planifie ta révision',num:'Post-lecture · 3/3'},
+  {phase:2,id:'synthese',title:'Synthèse du chapitre',num:'Post-lecture · 1/2'},
+  {phase:2,id:'action',title:'Passe à l\'action',num:'Post-lecture · 2/2'},
 ];
 const PHASES = ['Pré-lecture','Lecture','Post-lecture'];
 
@@ -1026,43 +1024,6 @@ window.addEventListener('scroll', hideHlPopup, true);
   window.addEventListener('pointerup', () => { dragging = false; document.body.style.cursor = ''; });
 })();
 
-// ============= GOOGLE CALENDAR =============
-function gcalDateFormat(d) {
-  // Format YYYYMMDDTHHMMSSZ (UTC)
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-const APP_URL = 'https://augustinmarso.github.io/lecture-intelligente/';
-
-function gcalUrl(title, startDate, durationMin, details, recur) {
-  const end = new Date(startDate.getTime() + durationMin * 60000);
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: title,
-    dates: `${gcalDateFormat(startDate)}/${gcalDateFormat(end)}`,
-    details: (details ? details + '\n\n' : '') + 'Ouvrir l\'app : ' + APP_URL,
-    location: APP_URL
-  });
-  if (recur) params.set('recur', 'RRULE:' + recur);
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
-function getCalendarEvents() {
-  const j1 = new Date(); j1.setDate(j1.getDate() + 1); j1.setHours(9, 0, 0, 0);
-  const j7 = new Date(); j7.setDate(j7.getDate() + 7); j7.setHours(9, 0, 0, 0);
-  const titre = state.bookTitle || (state.noteType === 'chapitre' ? state.chapterTitle : 'mes notes') || 'mes notes';
-
-  const synthese = state.synthese.filter(s => s.trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
-  const detailsJ1 = `Relire ma synthèse de "${titre}" (2 min).\n\nSynthèse :\n${synthese}\n\nObjectif : ${state.ppu.precis || ''}`;
-  const detailsJ7 = `Bilan de l'action testée après lecture de "${titre}".\n\nAction : ${state.action.conseil || ''}\nDémarrée : ${state.action.quand || ''}\n\nQuestions :\n- Est-ce que ça a marché ?\n- Faut-il ajuster ?\n- Explorer d'autres chapitres ?`;
-
-  return {
-    j1: gcalUrl(`📖 Relire mes notes — ${titre}`, j1, 15, detailsJ1),
-    j7: gcalUrl(`📖 Bilan d'action — ${titre}`, j7, 20, detailsJ7),
-    j1Date: j1, j7Date: j7
-  };
-}
-
 // ============= MARKDOWN =============
 function wikilink(s) {
   if (!s) return '—';
@@ -1142,13 +1103,6 @@ function generateMarkdown() {
   md += `- **Conseil à tester** : ${state.action.conseil || '—'}\n`;
   md += `- **Quand** : ${state.action.quand || '—'}\n`;
   md += `- **Deadline bilan** : ${state.action.deadline || '—'}\n\n`;
-
-  const cal = getCalendarEvents();
-  md += `## Révision espacée\n\n`;
-  md += `- [ ] **J+1 (${cal.j1Date.toLocaleDateString('fr-FR')})** — Relire la synthèse (2 min)\n`;
-  md += `  - 📅 [Ajouter au Google Agenda](${cal.j1})\n`;
-  md += `- [ ] **J+7 (${cal.j7Date.toLocaleDateString('fr-FR')})** — Bilan de l'action testée\n`;
-  md += `  - 📅 [Ajouter au Google Agenda](${cal.j7})\n\n`;
 
   // 📜 Citations archivées (à la toute fin)
   if (state.highlights.length > 0) {
@@ -1250,7 +1204,6 @@ function render() {
   else if (s.id==='pomodoro') body = renderPomodoro();
   else if (s.id==='synthese') body = renderSynthese();
   else if (s.id==='action') body = renderAction();
-  else if (s.id==='revision') body = renderRevision();
   else if (s.id==='suj-yt') body = renderSujetYt();
   else if (s.id==='suj-carto') body = renderSujetCarto();
   else if (s.id==='suj-livres') body = renderSujetLivres();
@@ -1425,25 +1378,7 @@ function renderAction() {
   ${inputField('Le conseil le plus simple à tester tout de suite', 'act-conseil', state.action.conseil, 'Ex: Arrêter le café après 15h')}
   ${inputField('Quand exactement vas-tu le tester ?', 'act-quand', state.action.quand, 'Ex: Ce soir, dès demain matin…')}
   ${inputField('Ta deadline de bilan', 'act-deadline', state.action.deadline, 'Ex: Dans 7 jours')}
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.action.conseil||!state.action.quand?'disabled':''}>Mon plan d'action est prêt →</button></div>`;
-}
-
-function renderRevision() {
-  const cal = getCalendarEvents();
-  return `
-  <div class="step-why">La répétition espacée consolide la mémoire sur le long terme. Sans révision, on oublie 70&nbsp;% de ce qu'on a lu en 24h.</div>
-  <div class="revision-card">
-    <h4>J+1 — ${cal.j1Date.toLocaleDateString('fr-FR')}</h4>
-    <p>Relis ta synthèse en 2 min.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event</span> Ajouter à Google Agenda</a></div>
-  </div>
-  <div class="revision-card">
-    <h4>J+7 — ${cal.j7Date.toLocaleDateString('fr-FR')}</h4>
-    <p>Bilan sur le conseil appliqué. Est-ce que ça a marché ? Ajuste si besoin.</p>
-    <div class="gcal-row"><a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">event</span> Ajouter à Google Agenda</a></div>
-  </div>
-  <div class="revision-card"><h4>Rappel de ton action</h4><p><strong>${escapeHtml(state.action.conseil) || '—'}</strong><br><span style="color:var(--text2);font-size:13px">${state.action.quand ? `Début&nbsp;: ${escapeHtml(state.action.quand)}` : ''} ${state.action.deadline ? `· Bilan&nbsp;: ${escapeHtml(state.action.deadline)}` : ''}</span></p></div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">Terminer — voir mon récapitulatif →</button></div>`;
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${!state.action.conseil||!state.action.quand?'disabled':''}>Terminer — voir mon récapitulatif →</button></div>`;
 }
 
 // ============= MÉTHODE « MAÎTRISER UN SUJET » =============
@@ -1803,7 +1738,6 @@ function renderDoneSujet(topBar) {
 
 function renderDone() {
   const syn = state.synthese.filter(s => s.trim()).map(s => `<li>· ${escapeHtml(s)}</li>`).join('');
-  const cal = getCalendarEvents();
   const topBar = `<div class="top-bar">
     <div class="app-title">
       <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1829,14 +1763,6 @@ function renderDone() {
       ${state.highlights.length ? `<div class="recap-block"><strong><span class="ms" style="font-size:14px">ink_highlighter</span> Passages surlignés</strong><span class="recap-val">${state.highlights.length} passage${state.highlights.length>1?'s':''} dans le PDF</span></div>` : ''}
       <div class="recap-block"><strong>Synthèse</strong><ul style="list-style:none;padding:0;color:var(--text2);font-size:13px;margin-top:4px">${syn}</ul></div>
       <div class="recap-block"><strong>Action à tester</strong><span class="recap-val">${escapeHtml(state.action.conseil) || '—'} — ${escapeHtml(state.action.quand) || ''} ${state.action.deadline ? `(bilan : ${escapeHtml(state.action.deadline)})` : ''}</span></div>
-    </div>
-    <div class="gcal-section">
-      <h4><span class="ms" style="font-size:16px">event</span> Programmer mes rappels</h4>
-      <p>Ajoute les deux échéances dans ton Google Agenda en un clic.</p>
-      <div class="gcal-row">
-        <a class="gcal-btn" href="${cal.j1}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">menu_book</span> J+1 — Relire (${cal.j1Date.toLocaleDateString('fr-FR')})</a>
-        <a class="gcal-btn" href="${cal.j7}" target="_blank" rel="noopener"><span class="ms" style="font-size:16px">monitoring</span> J+7 — Bilan (${cal.j7Date.toLocaleDateString('fr-FR')})</a>
-      </div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
       <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
