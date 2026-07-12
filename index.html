@@ -2152,6 +2152,11 @@ window.refreshCitationsLive = refreshCitationsLive;
 
 restoreState(); // reprend la session en cours si l'app a été rechargée
 render();
+
+// Service worker : l'app installée fonctionne hors-ligne comme une vraie app
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 </script>
 <script src="library.js"></script>
 <script src="notes.js"></script>

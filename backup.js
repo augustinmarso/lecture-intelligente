@@ -20,11 +20,17 @@ async function collectAllData(includeBooks = false) {
     preferences: {}
   };
 
-  // localStorage
+  // localStorage — tout ce qui fait la mémoire de l'app
   const lsKeys = [
     'reading-stats-v1',
     'epub-reader-prefs-v1',
-    'ambient-prefs-v1'
+    'ambient-prefs-v1',
+    'li-sujets',            // sujets en cours (méthode « Maîtriser un sujet »)
+    'dict-saved-words-v1',  // mots du dictionnaire avec définitions
+    'li-session-v1',        // session de travail en cours
+    'li-anki',              // réglages Anki (deck, envoi auto)
+    'dict-lang-v1',         // langue du dictionnaire
+    'li-tomb'               // suppressions (évite les résurrections à la fusion)
   ];
   for (const k of lsKeys) {
     try { const v = localStorage.getItem(k); if (v) data.preferences[k] = v; } catch (_) {}
@@ -83,23 +89,70 @@ async function restoreAllData(data, opts = {}) {
   const merge = opts.merge !== false;
   let restored = { notes: 0, books: 0, prefs: 0 };
 
-  // localStorage
+  // localStorage — clés fusionnées intelligemment, le reste est écrasé
+  const SMART_KEYS = new Set(['li-sujets', 'dict-saved-words-v1', 'li-session-v1', 'reading-stats-v1']);
+  const _parse = (s, fb) => { try { return JSON.parse(s) ?? fb; } catch (_) { return fb; } };
   if (data.preferences) {
     for (const [k, v] of Object.entries(data.preferences)) {
+      if (SMART_KEYS.has(k)) continue;
       try { localStorage.setItem(k, v); restored.prefs++; } catch (_) {}
     }
+    // Sujets : par id, le plus récent (updatedAt) gagne
+    if (data.preferences['li-sujets']) {
+      const cur = _parse(localStorage.getItem('li-sujets'), []);
+      const inc = _parse(data.preferences['li-sujets'], []);
+      const byId = new Map();
+      [...inc, ...cur].forEach(s => {
+        if (!s || !s.id) return;
+        const p = byId.get(s.id);
+        if (!p || (s.updatedAt || 0) >= (p.updatedAt || 0)) byId.set(s.id, s);
+      });
+      localStorage.setItem('li-sujets', JSON.stringify(Array.from(byId.values())));
+      restored.prefs++;
+    }
+    // Mots : union par mot+langue, la sauvegarde la plus récente gagne
+    if (data.preferences['dict-saved-words-v1']) {
+      const cur = _parse(localStorage.getItem('dict-saved-words-v1'), []);
+      const inc = _parse(data.preferences['dict-saved-words-v1'], []);
+      const byW = new Map();
+      [...inc, ...cur].forEach(w => {
+        if (!w || !w.word) return;
+        const k = w.word + '|' + (w.lang || '');
+        const p = byW.get(k);
+        if (!p || (w.savedAt || 0) >= (p.savedAt || 0)) byW.set(k, w);
+      });
+      localStorage.setItem('dict-saved-words-v1', JSON.stringify(Array.from(byW.values()).slice(0, 500)));
+      restored.prefs++;
+    }
+    // Session en cours : la plus récente gagne
+    if (data.preferences['li-session-v1']) {
+      const cur = _parse(localStorage.getItem('li-session-v1'), null);
+      const inc = _parse(data.preferences['li-session-v1'], null);
+      if (inc && (!cur || (inc.savedAt || 0) > (cur.savedAt || 0))) {
+        localStorage.setItem('li-session-v1', JSON.stringify(inc));
+        restored.prefs++;
+      }
+    }
   }
-  if (data.stats) {
-    try { localStorage.setItem('reading-stats-v1', JSON.stringify(data.stats)); } catch (_) {}
+  // Stats : fusion monotone si le helper de cloud.js est là, sinon écrasement
+  if (data.stats && Object.keys(data.stats).length) {
+    try {
+      const cur = _parse(localStorage.getItem('reading-stats-v1'), null);
+      const merged = (typeof _mergeStats === 'function') ? _mergeStats(cur, data.stats) : data.stats;
+      localStorage.setItem('reading-stats-v1', JSON.stringify(merged));
+    } catch (_) {}
   }
 
-  // Notes
+  // Notes — sans recréer celles qui existent déjà (identité = createdAt)
   if (Array.isArray(data.notes) && typeof notesAdd === 'function') {
     if (!merge && typeof notesGetAll === 'function' && typeof notesDelete === 'function') {
       const existing = await notesGetAll();
       for (const n of existing) await notesDelete(n.id);
     }
+    let existingCreated = new Set();
+    try { if (typeof notesGetAll === 'function') existingCreated = new Set((await notesGetAll()).map(n => n.createdAt)); } catch (_) {}
     for (const n of data.notes) {
+      if (n.createdAt && existingCreated.has(n.createdAt)) continue;
       const clean = { ...n };
       delete clean.id;
       try { await notesAdd(clean); restored.notes++; } catch (_) {}
@@ -239,6 +292,9 @@ window.addEventListener('load', () => {
       window[fn].__backupWrapped = true;
     }
   });
+  // Tout changement signalé (sujets, mots…) + filet périodique (session, stats)
+  document.addEventListener('li:changed', _scheduleAutoBackup);
+  setInterval(() => { vaultAutoBackup(); }, 5 * 60 * 1000);
 });
 
 // =============================================================
@@ -253,7 +309,7 @@ function _injectBackupSection() {
     section.className = 'dash-section dash-backup';
     section.innerHTML = `
       <h3>${icon('save',15)} Sauvegarde de mes données</h3>
-      <p class="backup-desc">Tes stats, fiches, citations et positions de lecture sont stockées dans ton navigateur. Sauvegarde-les pour ne rien perdre.</p>
+      <p class="backup-desc">Toutes tes données (fiches, sujets, mots, stats, session, positions) vivent dans ton navigateur. Connecte un dossier (vault) dans la bibliothèque : l'app y enregistre automatiquement chaque modification — place ce dossier dans Google Drive ou OneDrive et tu as une synchro sans aucun serveur, en alternative à la synchro cloud.</p>
       <div class="backup-actions">
         <button class="backup-btn primary" data-act="export">↓ Télécharger un backup</button>
         <button class="backup-btn" data-act="export-full">↓ Backup complet (avec PDFs)</button>
