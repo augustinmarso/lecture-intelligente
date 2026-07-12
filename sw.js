@@ -6,7 +6,7 @@
 // modules, sons, pdf.js du CDN) est mis en cache au passage.
 // =============================================================
 
-const CACHE = 'li-offline-v2';
+const CACHE = 'li-offline-v3';
 const CORE = [
   'index.html', 'library.js', 'notes.js', 'epub-reader.js', 'chapter-detect.js',
   'vault.js', 'ambient.js', 'dashboard.js', 'backup.js', 'dictionary.js',

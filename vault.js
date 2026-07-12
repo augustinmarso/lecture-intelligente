@@ -350,12 +350,9 @@ function _renderVaultBar() {
 
 function _injectVaultBar() {
   const _doInject = () => {
-    const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.vaultWired || document.querySelector('.vault-brain-bar')) return;
-    const gdBar = modalContent.querySelector('.gd-bar');
-    const insertAfter = gdBar || modalContent.querySelector('.lib-header');
-    if (!insertAfter) return;
-    modalContent.dataset.vaultWired = '1';
+    const slot = document.getElementById('li-set-vault');
+    if (!slot || slot.dataset.wired || document.querySelector('.vault-brain-bar')) return;
+    slot.dataset.wired = '1';
 
     const bar = document.createElement('div');
     bar.className = 'vault-bar vault-brain-bar';
@@ -371,7 +368,7 @@ function _injectVaultBar() {
         <button id="vault-disconnect" class="gd-btn" disabled title="Déconnexion">✕</button>
       </div>
     `;
-    insertAfter.insertAdjacentElement('afterend', bar);
+    slot.appendChild(bar);
     document.getElementById('vault-connect').onclick = vaultConnect;
     document.getElementById('vault-disconnect').onclick = vaultDisconnect;
     document.getElementById('vault-sync-all').onclick = vaultSyncAllNotes;

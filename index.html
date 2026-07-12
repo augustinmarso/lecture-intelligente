@@ -1352,15 +1352,27 @@ function renderType() {
 }
 
 // Accueil : grille « Reprendre » — tous les livres avec couverture et progression
+const _shelfThumbCache = new Map();
 async function renderHomeBooks() {
   const host = document.getElementById('home-books');
   if (!host || typeof libGetAll !== 'function') return;
   let books = [];
-  try { books = await libGetAll(); } catch (_) { return; }
+  try { books = await libGetAll(); } catch (_) {}
   if (window.libDedupe) books = window.libDedupe(books);
-  if (!books.length) { host.innerHTML = ''; return; }
   books.sort((a, b) => (b.lastViewedAt || b.addedAt || 0) - (a.lastViewedAt || a.addedAt || 0));
-  host.innerHTML = `
+
+  // Livres du dossier connecté (« Mon ordinateur »), sans popup de permission
+  let shelfFiles = [];
+  if (window.shelfScanIfGranted) {
+    try { shelfFiles = (await window.shelfScanIfGranted()) || []; } catch (_) {}
+  }
+  const SHELF_MAX = 18;
+  const shelfShown = shelfFiles.slice(0, SHELF_MAX);
+  const shelfRest = shelfFiles.length - shelfShown.length;
+
+  if (!books.length && !shelfShown.length) { host.innerHTML = ''; return; }
+
+  const localSection = books.length ? `
     <div class="home-label">${icon('history', 14)} REPRENDRE</div>
     <div class="home-grid">${books.map(b => {
       const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
@@ -1371,10 +1383,26 @@ async function renderHomeBooks() {
         <span class="home-book-bar"><span style="width:${pct}%"></span></span>
         <span class="home-book-sub">${sub}${pct ? ` · ${pct}%` : ''}</span>
       </button>`;
-    }).join('')}</div>`;
+    }).join('')}</div>` : '';
 
-  // Clic → rouvrir le livre à la dernière page, dans le panneau PDF
-  host.querySelectorAll('.home-book').forEach(btn => {
+  const shelfSection = shelfShown.length ? `
+    <div class="home-label">${icon('computer', 14)} SUR TON ORDINATEUR</div>
+    <div class="home-grid">${shelfShown.map((f, i) => `
+      <button class="home-book home-book-shelf" data-shelf-idx="${i}" title="Ouvrir « ${escapeAttr(f.name)} »">
+        <span class="home-thumb" data-shelf-thumb="${i}"><span class="home-thumb-ph">${icon('picture_as_pdf', 30)}</span></span>
+        <span class="home-book-title">${escapeHtml(f.name.replace(/\.pdf$/i, ''))}</span>
+        <span class="home-book-sub">${escapeHtml(f.dir || 'dossier racine')}</span>
+      </button>`).join('')}${shelfRest > 0 ? `
+      <button class="home-book home-book-more" id="home-shelf-more" title="Voir toute la bibliothèque">
+        <span class="home-thumb"><span class="home-thumb-ph">${icon('more_horiz', 30)}</span></span>
+        <span class="home-book-title">+${shelfRest} autres</span>
+        <span class="home-book-sub">voir la bibliothèque</span>
+      </button>` : ''}</div>` : '';
+
+  host.innerHTML = localSection + shelfSection;
+
+  // Clic livre local → rouvrir à la dernière page, dans le panneau PDF
+  host.querySelectorAll('.home-book[data-book]').forEach(btn => {
     btn.onclick = async () => {
       try {
         const book = await libGet(parseInt(btn.dataset.book));
@@ -1389,7 +1417,20 @@ async function renderHomeBooks() {
     };
   });
 
-  // Couvertures manquantes : génération paresseuse puis remplacement dans le DOM
+  // Clic livre « ordinateur » → ouvrir depuis le dossier connecté
+  host.querySelectorAll('.home-book-shelf').forEach(btn => {
+    btn.onclick = () => {
+      const f = shelfShown[parseInt(btn.dataset.shelfIdx)];
+      if (window.shelfOpenEntry && f) {
+        state.pdfPanelOpen = true; renderPdfPanel(); syncPdfPanel();
+        window.shelfOpenEntry(f);
+      }
+    };
+  });
+  const moreBtn = document.getElementById('home-shelf-more');
+  if (moreBtn) moreBtn.onclick = () => { if (window.openLibrary) window.openLibrary(); };
+
+  // Couvertures manquantes (livres locaux) : génération paresseuse
   if (window.libEnsureThumb) {
     for (const b of books.filter(x => !x.thumb).slice(0, 8)) {
       libEnsureThumb(b.id).then(thumb => {
@@ -1398,7 +1439,26 @@ async function renderHomeBooks() {
       });
     }
   }
+  // Couvertures des PDF du dossier connecté (les 8 premiers, avec cache)
+  if (window.thumbFromFile) {
+    for (let i = 0; i < Math.min(shelfShown.length, 8); i++) {
+      const f = shelfShown[i];
+      const slot = host.querySelector(`[data-shelf-thumb="${i}"]`);
+      if (!slot || !f.handle) continue;
+      const key = (f.dir || '') + '/' + f.name;
+      if (_shelfThumbCache.has(key)) {
+        const t = _shelfThumbCache.get(key);
+        if (t) slot.innerHTML = `<img src="${t}" alt=""/>`;
+        continue;
+      }
+      Promise.resolve().then(() => f.handle.getFile()).then(file => window.thumbFromFile(file)).then(t => {
+        _shelfThumbCache.set(key, t || '');
+        if (t && slot) slot.innerHTML = `<img src="${t}" alt=""/>`;
+      }).catch(() => {});
+    }
+  }
 }
+window.renderHomeBooks = renderHomeBooks;
 
 function renderPPU() {
   const isChap = state.noteType === 'chapitre';

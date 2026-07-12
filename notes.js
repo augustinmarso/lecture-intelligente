@@ -14,6 +14,7 @@ window.liTabs = function(active, opts) {
     ${opts.noBooks ? '' : tab('books', 'Mes livres', 'library_books')}
     ${tab('words', 'Mes mots', 'menu_book')}
     ${tab('cards', 'Cartes Anki', 'style')}
+    ${tab('settings', 'Paramètres', 'tune')}
   </div>`;
 };
 window.liWireTabs = function(container) {
@@ -23,7 +24,29 @@ window.liWireTabs = function(container) {
     else if (v === 'books' && typeof renderLibrary === 'function') renderLibrary();
     else if (v === 'words' && window.openWords) window.openWords();
     else if (v === 'cards' && window.openAnkiCards) window.openAnkiCards();
+    else if (v === 'settings' && window.renderSettingsView) window.renderSettingsView();
   });
+};
+
+// Onglet « Paramètres » : seul endroit où s'affichent les barres de connexion
+// (Cloud, Anki, Assistant IA, Mon ordinateur, Second Cerveau). Chaque module
+// injecte sa barre dans son emplacement dédié via son MutationObserver.
+window.renderSettingsView = function() {
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.add('open');
+  const body = document.getElementById('lib-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="notes-toolbar">${window.liTabs('settings')}</div>
+    <div class="li-settings">
+      <p class="li-settings-intro">${icon('tune', 14)} Connexions &amp; synchronisation — tout ce qui suit ne s'affiche qu'ici.</p>
+      <div id="li-set-cloud" class="li-set-slot"></div>
+      <div id="li-set-anki" class="li-set-slot"></div>
+      <div id="li-set-ai" class="li-set-slot"></div>
+      <div id="li-set-shelf" class="li-set-slot"></div>
+      <div id="li-set-vault" class="li-set-slot"></div>
+    </div>`;
+  window.liWireTabs(body);
 };
 
 async function notesAdd(note) {
@@ -317,7 +340,7 @@ _notesStyle.textContent = `
 .tags-section { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; text-align: left; margin-top: 1rem; box-shadow: inset 0 0 0 1px var(--border); }
 .notes-actions { display: flex; gap: 6px; justify-content: center; }
 .notes-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.notes-tabs { display: flex; gap: 2px; }
+.notes-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
 .notes-tab { padding: 4px 12px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; }
 .notes-tab:hover { background: var(--hover); color: var(--text); }
 .notes-tab.active { background: var(--hover-strong); color: var(--text); font-weight: 500; }
@@ -336,6 +359,24 @@ _notesStyle.textContent = `
 .note-actions { display: flex; gap: 2px; margin-top: 8px; }
 .note-view-content { padding: 12px 0; }
 .md-render { font-size: 14px; line-height: 1.65; white-space: pre-wrap; color: var(--text); padding: 14px 16px; background: var(--bg2); border-radius: var(--radius); margin-top: 12px; box-shadow: inset 0 0 0 1px var(--border); }
+/* Onglet Paramètres : pile de barres de connexion, responsive */
+.li-settings { display: flex; flex-direction: column; gap: 10px; }
+.li-settings-intro { font-size: 12.5px; color: var(--text3); display: flex; align-items: center; gap: 6px; margin: 0 2px 4px; line-height: 1.4; }
+.li-set-slot { }
+.li-set-slot .vault-bar { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2); }
+@media (max-width: 640px) {
+  .li-settings-intro { display: none; }
+  .li-set-slot .vault-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .li-set-slot .vault-actions { justify-content: flex-start; }
+  .li-set-slot .vault-actions > * { flex: 1 1 auto; }
+  /* Écrase les largeurs fixes des champs (specificité > .classe input#id) */
+  .li-settings .ai-bar input#ai-key,
+  .li-settings .anki-bar input#anki-deck,
+  .li-settings .cloud-bar input#cloud-code-in,
+  .li-settings .vault-actions input,
+  .li-settings .vault-actions select { width: 100%; min-width: 0; box-sizing: border-box; }
+  .li-set-slot .vault-status { max-width: none; }
+}
 `;
 document.head.appendChild(_notesStyle);
 

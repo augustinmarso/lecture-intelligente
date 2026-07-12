@@ -647,11 +647,9 @@ window._renderAnkiBar = _renderAnkiBar;
 
 function _injectAnkiBar() {
   const _doInject = () => {
-    const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.ankiWired || document.querySelector('.anki-bar')) return;
-    const header = modalContent.querySelector('.lib-header');
-    if (!header) return;
-    modalContent.dataset.ankiWired = '1';
+    const slot = document.getElementById('li-set-anki');
+    if (!slot || slot.dataset.wired || document.querySelector('.anki-bar')) return;
+    slot.dataset.wired = '1';
 
     const s = _ankiSettings();
     const bar = document.createElement('div');
@@ -669,7 +667,7 @@ function _injectAnkiBar() {
         <button id="anki-help-btn" class="gd-btn" title="Aide à la connexion">?</button>
       </div>
     `;
-    header.insertAdjacentElement('afterend', bar);
+    slot.appendChild(bar);
     document.getElementById('anki-deck').onchange = (e) => { _ankiSave({ deck: e.target.value.trim() || ANKI_DEFAULTS.deck }); };
     document.getElementById('anki-useai').onchange = (e) => _ankiSave({ useAI: e.target.checked });
     document.getElementById('anki-help-btn').onclick = _ankiShowHelp;

@@ -319,11 +319,9 @@ function _renderCloudBar(statusOverride) {
 
 function _injectCloudBar() {
   const _doInject = () => {
-    const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.cloudWired || document.querySelector('.cloud-bar')) return;
-    const header = modalContent.querySelector('.lib-header');
-    if (!header) return;
-    modalContent.dataset.cloudWired = '1';
+    const slot = document.getElementById('li-set-cloud');
+    if (!slot || slot.dataset.wired || document.querySelector('.cloud-bar')) return;
+    slot.dataset.wired = '1';
 
     const bar = document.createElement('div');
     bar.className = 'vault-bar cloud-bar';
@@ -345,7 +343,7 @@ function _injectCloudBar() {
         </span>
       </div>
     `;
-    header.insertAdjacentElement('afterend', bar);
+    slot.appendChild(bar);
 
     document.getElementById('cloud-enable').onclick = async () => {
       _cloudSave({ code: _cloudNewCode() });

@@ -386,11 +386,9 @@ function _renderAiBar() {
 
 function _injectAiBar() {
   const _doInject = () => {
-    const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.aiWired || document.querySelector('.ai-bar')) return;
-    const header = modalContent.querySelector('.lib-header');
-    if (!header) return;
-    modalContent.dataset.aiWired = '1';
+    const slot = document.getElementById('li-set-ai');
+    if (!slot || slot.dataset.wired || document.querySelector('.ai-bar')) return;
+    slot.dataset.wired = '1';
 
     const s = _aiSettings();
     const groups = { anthropic: [], openai: [] };
@@ -413,7 +411,7 @@ function _injectAiBar() {
         <button id="ai-test" class="gd-btn" title="Enregistrer et tester la clé">${icon('check', 15)} Tester</button>
       </div>
     `;
-    header.insertAdjacentElement('afterend', bar);
+    slot.appendChild(bar);
     const _saveKey = () => {
       const st = _aiSettings();
       const provider = _aiProvider(st.model);

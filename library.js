@@ -137,6 +137,26 @@ async function libEnsureThumb(id) {
 }
 window.libEnsureThumb = libEnsureThumb;
 
+// Miniature depuis un objet File (ex : PDF du dossier connecté, hors IndexedDB)
+async function thumbFromFile(file) {
+  try {
+    if (!window.pdfjsLib || !file) return null;
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({ scale: 1 });
+    const v2 = page.getViewport({ scale: 220 / vp.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(v2.width);
+    canvas.height = Math.round(v2.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: v2 }).promise;
+    const thumb = canvas.toDataURL('image/jpeg', 0.72);
+    doc.destroy();
+    return thumb;
+  } catch (e) { console.warn('thumbFromFile', e); return null; }
+}
+window.thumbFromFile = thumbFromFile;
+
 // =============================================================
 // Hook : auto-save sur ouverture PDF
 // =============================================================

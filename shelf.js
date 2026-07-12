@@ -69,6 +69,7 @@ async function shelfConnect() {
     await _saveShelfHandle(handle);
     if (window.showToast) window.showToast('Dossier connecté : ' + handle.name);
     _renderShelfBar();
+    if (window.renderHomeBooks) window.renderHomeBooks();
     await shelfBrowse();
     return true;
   } catch (e) {
@@ -83,6 +84,7 @@ async function shelfDisconnect() {
   await _clearShelfHandle();
   if (window.showToast) window.showToast('Dossier déconnecté');
   _renderShelfBar();
+  if (window.renderHomeBooks) window.renderHomeBooks();
   if (typeof renderLibrary === 'function') renderLibrary();
 }
 
@@ -229,11 +231,9 @@ function _renderShelfBar() {
 
 function _injectShelfBar() {
   const _doInject = () => {
-    const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.shelfWired || document.querySelector('.shelf-bar')) return;
-    const header = modalContent.querySelector('.lib-header');
-    if (!header) return;
-    modalContent.dataset.shelfWired = '1';
+    const slot = document.getElementById('li-set-shelf');
+    if (!slot || slot.dataset.wired || document.querySelector('.shelf-bar')) return;
+    slot.dataset.wired = '1';
 
     const bar = document.createElement('div');
     bar.className = 'vault-bar shelf-bar';
@@ -248,7 +248,7 @@ function _injectShelfBar() {
         <button id="shelf-disconnect" class="gd-btn" disabled title="Déconnexion">✕</button>
       </div>
     `;
-    header.insertAdjacentElement('afterend', bar);
+    slot.appendChild(bar);
     document.getElementById('shelf-connect').onclick = shelfConnect;
     document.getElementById('shelf-browse').onclick = shelfBrowse;
     document.getElementById('shelf-disconnect').onclick = shelfDisconnect;
@@ -283,7 +283,7 @@ window.addEventListener('load', async () => {
   _injectShelfBar();
   try {
     const h = await _loadShelfHandle();
-    if (h) { _shelfHandle = h; _renderShelfBar(); }
+    if (h) { _shelfHandle = h; _renderShelfBar(); if (window.renderHomeBooks) window.renderHomeBooks(); }
   } catch (e) { console.warn('shelf load', e); }
 });
 
