@@ -6,12 +6,12 @@
 // modules, sons, pdf.js du CDN) est mis en cache au passage.
 // =============================================================
 
-const CACHE = 'li-offline-v1';
+const CACHE = 'li-offline-v2';
 const CORE = [
   'index.html', 'library.js', 'notes.js', 'epub-reader.js', 'chapter-detect.js',
   'vault.js', 'ambient.js', 'dashboard.js', 'backup.js', 'dictionary.js',
   'shelf.js', 'ai.js', 'anki.js', 'cloud.js', 'update.js',
-  'manifest.webmanifest', 'icon.svg'
+  'manifest.webmanifest', 'icon.svg', 'fonts/fonts.css'
 ];
 
 self.addEventListener('install', (e) => {
@@ -37,6 +37,21 @@ self.addEventListener('fetch', (e) => {
   // Même origine + CDN pdf.js/jszip (nécessaires au lecteur hors-ligne)
   if (url.origin !== location.origin && url.origin !== 'https://cdnjs.cloudflare.com') return;
   // Les APIs externes (Wiktionnaire, Supabase, AnkiConnect…) ne passent pas ici
+
+  // Polices : cache d'abord, et requête GET propre (les requêtes de police
+  // portent parfois un en-tête Range que le relais SW fait échouer)
+  if (req.destination === 'font' || url.pathname.includes('/fonts/')) {
+    e.respondWith(
+      caches.match(url.href).then(hit => hit || fetch(url.href).then(resp => {
+        if (resp && resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE).then(c => c.put(url.href, copy)).catch(() => {});
+        }
+        return resp;
+      }))
+    );
+    return;
+  }
 
   e.respondWith(
     fetch(req).then(resp => {
