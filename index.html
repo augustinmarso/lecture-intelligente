@@ -475,8 +475,10 @@ const SESSION_KEY = 'li-session-v1';
 let _persistTimer = null;
 function _sessionSnapshot() {
   // timer.interval (handle) et running ne sont pas rejouables après reload
+  // savedAt permet à la synchro cloud de garder la session la plus récente
   return JSON.stringify(Object.assign({}, state, {
-    timer: Object.assign({}, state.timer, { interval: null, running: false })
+    timer: Object.assign({}, state.timer, { interval: null, running: false }),
+    savedAt: Date.now()
   }));
 }
 function persistState() {

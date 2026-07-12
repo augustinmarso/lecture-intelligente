@@ -103,12 +103,14 @@ function saveWord(word, definition, context) {
   if (list.some(w => w.word === word && w.lang === lang)) return false;
   list.unshift({ word, lang, definition, context: context || '', savedAt: Date.now() });
   try { localStorage.setItem(DICT_SAVED_KEY, JSON.stringify(list.slice(0, 500))); } catch (_) {}
+  document.dispatchEvent(new CustomEvent('li:changed')); // synchro cloud différée
   return true;
 }
 function removeWord(word, lang) {
   let list = getSavedWords();
   list = list.filter(w => !(w.word === word && w.lang === lang));
   try { localStorage.setItem(DICT_SAVED_KEY, JSON.stringify(list)); } catch (_) {}
+  document.dispatchEvent(new CustomEvent('li:changed'));
 }
 
 // =============================================================

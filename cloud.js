@@ -1,8 +1,10 @@
 // =============================================================
-// cloud.js — Synchro cloud (Supabase) : sujets + fiches sur tous
-// les appareils via un code secret (pas de compte). Les données
-// passent par les RPC li_pull/li_push ; la table est verrouillée
-// par RLS, le code (>= 32 chars aléatoires) fait office de clé.
+// cloud.js — Synchro cloud (Supabase) : sujets, fiches, mots du
+// dictionnaire, statistiques, session en cours et progression de
+// lecture, sur tous les appareils via un code secret (pas de
+// compte). Les données passent par les RPC li_pull/li_push ; la
+// table est verrouillée par RLS, le code (>= 32 chars aléatoires)
+// fait office de clé. Les PDF eux-mêmes restent locaux.
 // =============================================================
 
 const CLOUD_URL = 'https://aicfplhedeuveautpbio.supabase.co';
@@ -46,6 +48,10 @@ async function _cloudRpc(fn, args) {
 }
 
 // --- Collecte et fusion ---
+function _lsJson(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; }
+}
+
 async function _collectLocal() {
   const sujets = (typeof sujetsAll === 'function' ? sujetsAll() : (window.sujetsAll ? window.sujetsAll() : []));
   let notes = [];
@@ -53,7 +59,26 @@ async function _collectLocal() {
   // Les fiches sont identifiées entre appareils par createdAt (l'id
   // IndexedDB est local) ; on retire les ids pour éviter les collisions.
   notes = notes.map(n => { const c = Object.assign({}, n); delete c.id; return c; });
-  return { sujets, notes, tomb: _tomb(), exportedAt: Date.now() };
+
+  // Mots du dictionnaire (avec définitions)
+  const mots = _lsJson('dict-saved-words-v1', []);
+  // Statistiques / gamification
+  const stats = _lsJson('reading-stats-v1', null);
+  // Session de travail en cours (la plus récente gagne entre appareils)
+  const session = _lsJson('li-session-v1', null);
+  // Progression de lecture des livres (métadonnées seulement — pas les PDF)
+  let booksMeta = [];
+  try {
+    if (window.libGetAll) {
+      booksMeta = (await window.libGetAll()).map(b => ({
+        title: b.title, name: b.name, size: b.size,
+        lastPage: b.lastPage, totalPages: b.totalPages,
+        lastViewedAt: b.lastViewedAt, addedAt: b.addedAt
+      }));
+    }
+  } catch (_) {}
+
+  return { sujets, notes, mots, stats, session, booksMeta, tomb: _tomb(), exportedAt: Date.now() };
 }
 
 function _mergePayloads(local, remote) {
@@ -80,12 +105,70 @@ function _mergePayloads(local, remote) {
     byCreated.set(n.createdAt, n);
   });
 
+  // Mots : union par mot+langue, la sauvegarde la plus récente gagne
+  const byWord = new Map();
+  [...(remote.mots || []), ...(local.mots || [])].forEach(w => {
+    if (!w || !w.word) return;
+    const k = w.word + '|' + (w.lang || '');
+    const cur = byWord.get(k);
+    if (!cur || (w.savedAt || 0) >= (cur.savedAt || 0)) byWord.set(k, w);
+  });
+
+  // Stats : fusion monotone — union des pages/livres, max des compteurs
+  // (la somme compterait double entre appareils, le max ne régresse jamais)
+  const stats = _mergeStats(local.stats, remote.stats);
+
+  // Session en cours : la plus récemment enregistrée gagne
+  const lS = local.session, rS = remote.session;
+  const session = (!rS || (lS && (lS.savedAt || 0) >= (rS.savedAt || 0))) ? lS : rS;
+
+  // Progression des livres : par fichier (nom|taille), la lecture la plus récente gagne
+  const byBook = new Map();
+  [...(remote.booksMeta || []), ...(local.booksMeta || [])].forEach(b => {
+    if (!b || !b.name) return;
+    const k = b.name + '|' + (b.size || 0);
+    const cur = byBook.get(k);
+    if (!cur || (b.lastViewedAt || 0) >= (cur.lastViewedAt || 0)) byBook.set(k, b);
+  });
+
   return {
     sujets: Array.from(byId.values()),
     notes: Array.from(byCreated.values()),
+    mots: Array.from(byWord.values()).slice(0, 500),
+    stats,
+    session,
+    booksMeta: Array.from(byBook.values()),
     tomb,
     exportedAt: Date.now()
   };
+}
+
+function _mergeStats(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const out = Object.assign({}, a);
+  out.pagesRead = Object.assign({}, b.pagesRead, a.pagesRead);
+  out.booksOpened = Object.assign({}, b.booksOpened, a.booksOpened);
+  out.readingTimeMs = Math.max(a.readingTimeMs || 0, b.readingTimeMs || 0);
+  out.citations = Math.max(a.citations || 0, b.citations || 0);
+  out.notes = Math.max(a.notes || 0, b.notes || 0);
+  out.xp = Math.max(a.xp || 0, b.xp || 0);
+  out.streakDays = Math.max(a.streakDays || 0, b.streakDays || 0);
+  out.longestStreak = Math.max(a.longestStreak || 0, b.longestStreak || 0);
+  out.lastActiveDay = [a.lastActiveDay, b.lastActiveDay].filter(Boolean).sort().pop() || null;
+  out.badges = Array.from(new Set([...(a.badges || []), ...(b.badges || [])]));
+  out.daily = Object.assign({}, b.daily, a.daily);
+  // Jours présents des deux côtés : max champ par champ
+  for (const day of Object.keys(b.daily || {})) {
+    if (!(a.daily || {})[day]) continue;
+    const da = a.daily[day], db = b.daily[day];
+    out.daily[day] = {
+      minutes: Math.max(da.minutes || 0, db.minutes || 0),
+      pages: Math.max(da.pages || 0, db.pages || 0),
+      citations: Math.max(da.citations || 0, db.citations || 0)
+    };
+  }
+  return out;
 }
 
 async function _applyLocal(merged, local) {
@@ -101,6 +184,42 @@ async function _applyLocal(merged, local) {
       try { await window.notesAdd(Object.assign({}, n)); added++; } catch (e) { console.warn('cloud note add', e); }
     }
   }
+  // Mots du dictionnaire
+  try {
+    if (JSON.stringify(merged.mots || []) !== JSON.stringify(local.mots || [])) {
+      localStorage.setItem('dict-saved-words-v1', JSON.stringify(merged.mots || []));
+    }
+  } catch (_) {}
+  // Statistiques
+  try {
+    if (merged.stats && JSON.stringify(merged.stats) !== JSON.stringify(local.stats)) {
+      localStorage.setItem('reading-stats-v1', JSON.stringify(merged.stats));
+    }
+  } catch (_) {}
+  // Session en cours : appliquée en stockage seulement — elle prendra effet
+  // au prochain démarrage (restoreState), sans perturber la session active
+  try {
+    if (merged.session && (!local.session || (merged.session.savedAt || 0) > (local.session.savedAt || 0))) {
+      localStorage.setItem('li-session-v1', JSON.stringify(merged.session));
+    }
+  } catch (_) {}
+  // Progression des livres : si un livre local a été lu plus loin ailleurs,
+  // on met à jour sa position (sans toucher au fichier ni à lastViewedAt local
+  // au-delà de la valeur distante — évite l'escalade entre appareils)
+  try {
+    if (window.libGetAll && typeof openDB === 'function' && (merged.booksMeta || []).length) {
+      const metaByKey = new Map((merged.booksMeta || []).map(b => [b.name + '|' + (b.size || 0), b]));
+      const books = await window.libGetAll();
+      const d = await openDB();
+      for (const b of books) {
+        const m = metaByKey.get(b.name + '|' + (b.size || 0));
+        if (m && (m.lastViewedAt || 0) > (b.lastViewedAt || 0)) {
+          b.lastPage = m.lastPage; b.totalPages = m.totalPages || b.totalPages; b.lastViewedAt = m.lastViewedAt;
+          d.transaction('books', 'readwrite').objectStore('books').put(b);
+        }
+      }
+    }
+  } catch (e) { console.warn('cloud books meta', e); }
   return added;
 }
 
