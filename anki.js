@@ -472,6 +472,28 @@ async function _ankiEditCard(cardEl, noteId) {
 }
 window.openAnkiCards = openAnkiCards;
 
+// --- Bouton « Mes cartes Anki » dans la barre du haut (accès direct) ---
+function _injectAnkiTopButton() {
+  const _do = () => {
+    document.querySelectorAll('.top-bar').forEach(bar => {
+      if (bar.dataset.ankiBtn) return;
+      bar.dataset.ankiBtn = '1';
+      const btn = document.createElement('button');
+      btn.className = 'btn-pdf-toggle';
+      btn.title = 'Mes cartes Anki';
+      btn.innerHTML = icon('style');
+      btn.onclick = openAnkiCards;
+      const pdfBtn = bar.querySelector('#btn-pdf-toggle');
+      if (pdfBtn) bar.insertBefore(btn, pdfBtn);
+      else bar.appendChild(btn);
+    });
+  };
+  new MutationObserver(_do).observe(document.body, { childList: true, subtree: true });
+  _do();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _injectAnkiTopButton);
+else _injectAnkiTopButton();
+
 // --- Barre Anki dans le modal bibliothèque ---
 function _renderAnkiBar() {
   const status = document.getElementById('anki-status');
