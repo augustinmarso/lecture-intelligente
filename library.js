@@ -108,6 +108,36 @@ async function libSetLastPosition(id, page, totalPages) {
 window.libSetLastPosition = libSetLastPosition;
 
 // =============================================================
+// Vignette de couverture : rend la 1re page du PDF en petite
+// image (JPEG dataURL) stockée dans la fiche du livre.
+// =============================================================
+async function libEnsureThumb(id) {
+  try {
+    const b = await libGet(id);
+    if (!b) return null;
+    if (b.thumb) return b.thumb;
+    if (!window.pdfjsLib || (b.mime && b.mime !== 'application/pdf')) return null;
+    // Copie du buffer : pdf.js transfère les données au worker
+    const doc = await pdfjsLib.getDocument({ data: b.data.slice(0) }).promise;
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({ scale: 1 });
+    const scale = 220 / vp.width;
+    const v2 = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(v2.width);
+    canvas.height = Math.round(v2.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: v2 }).promise;
+    const thumb = canvas.toDataURL('image/jpeg', 0.72);
+    doc.destroy();
+    b.thumb = thumb;
+    const d = await openDB();
+    d.transaction('books', 'readwrite').objectStore('books').put(b);
+    return thumb;
+  } catch (e) { console.warn('libEnsureThumb', e); return null; }
+}
+window.libEnsureThumb = libEnsureThumb;
+
+// =============================================================
 // Hook : auto-save sur ouverture PDF
 // =============================================================
 const _origLoadPdfFile = window.loadPdfFile;

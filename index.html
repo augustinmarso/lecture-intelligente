@@ -161,6 +161,24 @@
     .check-box.checked { background: var(--accent); border-color: var(--accent); }
     .check-tick { display: none; width: 8px; height: 5px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translate(1px,-1px); }
     .check-box.checked .check-tick { display: block; }
+    /* Accueil : héros + grille « Reprendre » (même esprit qu'Écoute Intelligente) */
+    .home-hero { text-align: center; padding: 2.2rem 0 1.6rem; }
+    .home-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: clamp(34px, 6vw, 52px); letter-spacing: -0.01em; color: var(--text); }
+    .home-sub { margin-top: 6px; font-size: 15px; color: var(--text2); }
+    .home-actions { margin-top: 1.4rem; display: flex; justify-content: center; }
+    .home-open-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; background: var(--accent); color: #fff; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.12)); }
+    .home-open-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .home-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--text3); margin: 1.6rem 0 .7rem; }
+    .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+    .home-book { display: flex; flex-direction: column; align-items: stretch; text-align: left; padding: 0 0 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); cursor: pointer; overflow: hidden; font-family: inherit; transition: transform .12s, box-shadow .12s, border-color .12s; }
+    .home-book:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg, 0 6px 18px rgba(0,0,0,.14)); border-color: var(--border2); }
+    .home-thumb { display: block; aspect-ratio: 3 / 4; background: var(--bg3); position: relative; }
+    .home-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .home-thumb-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text3); }
+    .home-book-title { font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.35; padding: 9px 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .home-book-bar { display: block; height: 3px; background: var(--bg3); border-radius: 999px; margin: 8px 10px 0; overflow: hidden; }
+    .home-book-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+    .home-book-sub { font-size: 11.5px; color: var(--text2); padding: 5px 10px 0; }
     .type-card { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; transition: background .1s; background: var(--bg); }
     .type-card:hover { background: var(--bg2); }
     .type-card.selected { background: var(--bg2); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -1215,6 +1233,7 @@ function render() {
     `<div class="step-number">${s.num}</div><div class="step-title">${s.title}</div>` + body;
 
   bindEvents(); wireVoiceOnAll(); wirePdfControls(); syncPdfPanel();
+  if (s.id === 'type') renderHomeBooks(); // grille « Reprendre » de l'accueil
   // Câbler les boutons de suppression de citations dans le panneau Pomodoro
   document.querySelectorAll('.citations-live-list .citation-del').forEach(btn => {
     btn.onclick = () => {
@@ -1238,6 +1257,15 @@ function renderType() {
   const isChap = state.noteType === 'chapitre';
   const isSujet = state.noteType === 'sujet';
   return `
+  <div class="home-hero">
+    <h1 class="home-title">Lecture Intelligente</h1>
+    <p class="home-sub">Lis mieux, retiens plus — méthode de lecture active.</p>
+    <div class="home-actions">
+      <label class="home-open-btn"><span class="ms" style="font-size:18px">menu_book</span> Ouvrir un livre (PDF)<input type="file" accept="application/pdf" style="display:none" onchange="state.pdfPanelOpen=true;renderPdfPanel();syncPdfPanel();loadPdfFromInput(event)"/></label>
+    </div>
+  </div>
+  <div id="home-books"></div>
+  <div class="home-label">${icon('add_circle', 14)} NOUVELLE SESSION</div>
   <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section&nbsp;; <em>maîtriser un sujet</em> est une méthode d'apprentissage en deux phases&nbsp;: cadrage puis profondeur.</div>
   <div class="type-card ${isLivre?'selected':''}" data-type="livre">
     <div class="type-icon"><span class="ms" style="font-size:24px">auto_stories</span></div>
@@ -1268,6 +1296,55 @@ function renderType() {
   </div>` : ''}
   <div class="nav-row"><button class="btn-main" id="btn-next" ${!state.noteType||(isSujet&&!state.sujet.sujet)?'disabled':''}>Commencer →</button></div>
   ${sujetsHomeHtml()}`;
+}
+
+// Accueil : grille « Reprendre » — tous les livres avec couverture et progression
+async function renderHomeBooks() {
+  const host = document.getElementById('home-books');
+  if (!host || typeof libGetAll !== 'function') return;
+  let books = [];
+  try { books = await libGetAll(); } catch (_) { return; }
+  if (window.libDedupe) books = window.libDedupe(books);
+  if (!books.length) { host.innerHTML = ''; return; }
+  books.sort((a, b) => (b.lastViewedAt || b.addedAt || 0) - (a.lastViewedAt || a.addedAt || 0));
+  host.innerHTML = `
+    <div class="home-label">${icon('history', 14)} REPRENDRE</div>
+    <div class="home-grid">${books.map(b => {
+      const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
+      const sub = b.totalPages ? `page ${b.lastPage || 1} / ${b.totalPages}` : (b.lastPage > 1 ? `page ${b.lastPage}` : 'pas encore commencé');
+      return `<button class="home-book" data-book="${b.id}" title="Reprendre « ${escapeAttr(b.title || b.name)} »">
+        <span class="home-thumb" data-thumb="${b.id}">${b.thumb ? `<img src="${b.thumb}" alt=""/>` : `<span class="home-thumb-ph">${icon('auto_stories', 30)}</span>`}</span>
+        <span class="home-book-title">${escapeHtml(b.title || b.name)}</span>
+        <span class="home-book-bar"><span style="width:${pct}%"></span></span>
+        <span class="home-book-sub">${sub}${pct ? ` · ${pct}%` : ''}</span>
+      </button>`;
+    }).join('')}</div>`;
+
+  // Clic → rouvrir le livre à la dernière page, dans le panneau PDF
+  host.querySelectorAll('.home-book').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const book = await libGet(parseInt(btn.dataset.book));
+        if (!book) return;
+        state.pdfPanelOpen = true; renderPdfPanel(); syncPdfPanel();
+        const file = new File([book.data], book.name, { type: 'application/pdf' });
+        if (book.lastPage) pdf.startPage = book.lastPage;
+        await window.loadPdfFile(file);
+        pdf.bookId = book.id;
+        if (book.lastPage > 1) showToast(`Reprise à la page ${book.lastPage}`);
+      } catch (_) { showToast('Impossible d\'ouvrir ce livre'); }
+    };
+  });
+
+  // Couvertures manquantes : génération paresseuse puis remplacement dans le DOM
+  if (window.libEnsureThumb) {
+    for (const b of books.filter(x => !x.thumb).slice(0, 8)) {
+      libEnsureThumb(b.id).then(thumb => {
+        const slot = host.querySelector(`[data-thumb="${b.id}"]`);
+        if (thumb && slot) slot.innerHTML = `<img src="${thumb}" alt=""/>`;
+      });
+    }
+  }
 }
 
 function renderPPU() {
