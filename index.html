@@ -846,13 +846,19 @@ function captureHighlight() {
   _citationToAnki(txt, page);
 }
 
-// Envoie une citation surlignée dans Anki (sous-paquet du livre)
+// Envoie une citation surlignée dans Anki (sous-paquet du livre).
+// Le chapitre est détecté automatiquement depuis le sommaire du PDF.
 async function _citationToAnki(text, page) {
   if (!window.ankiAddCitation) return;
   const source = state.bookAuthor || state.bookTitle || 'ce texte';
   const subject = (state.noteType === 'sujet' ? state.sujet.sujet : '') || state.ppu.precis || state.chapterTitle || '';
   const deck = state.bookTitle || (state.noteType === 'sujet' ? state.sujet.sujet : '') || state.chapterTitle || 'Citations';
-  const ok = await window.ankiAddCitation({ text, page, source, subject, deck });
+  let chapter = state.chapterTitle || '';
+  try { if (window.getCurrentChapterFromPdf) chapter = (await window.getCurrentChapterFromPdf()) || chapter; } catch (_) {}
+  const ok = await window.ankiAddCitation({
+    text, page, source, subject, deck,
+    book: state.bookTitle, author: state.bookAuthor, chapter
+  });
   if (ok) showToast('Citation archivée + carte Anki ✓');
 }
 

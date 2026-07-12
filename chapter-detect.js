@@ -89,6 +89,7 @@ async function setChapterFromCurrentView() {
 }
 
 window.setChapterFromCurrentView = setChapterFromCurrentView;
+window.getCurrentChapterFromPdf = getCurrentChapterFromPdf;
 
 // =============================================================
 // Injecte le bouton "📍 Ce chapitre" dans :

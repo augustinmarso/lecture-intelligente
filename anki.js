@@ -55,6 +55,24 @@ function _ankiDeckFor(label) {
   return clean ? `${s.deck}::${clean}` : s.deck;
 }
 
+// Style des cartes : police système lisible, largeur bornée (responsive
+// mobile/desktop), verso encadré, mode nuit d'Anki pris en charge.
+const ANKI_CSS = `.card { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif; font-size: clamp(17px, 2.8vw, 21px); line-height: 1.6; color: #2A2520; background: #FBF8F2; text-align: center; padding: 20px 14px; }
+.li-wrap { max-width: 640px; margin: 0 auto; text-align: left; }
+.recto { font-weight: 600; font-size: 1.08em; line-height: 1.5; }
+.verso { margin-top: 16px; background: #FFFFFF; border-left: 4px solid #C0603A; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(42,37,32,.08); }
+.source { margin-top: 18px; font-size: .72em; color: #9C8F78; letter-spacing: .02em; }
+hr#answer { border: none; border-top: 1px solid #ECE2D2; margin: 18px 0; }
+.night_mode .card, .card.nightMode { color: #EDE6D8; background: #201D19; }
+.night_mode .verso, .nightMode .verso { background: #2A2620; box-shadow: none; }
+.night_mode hr#answer, .nightMode hr#answer { border-top-color: #3A352E; }
+.night_mode .source, .nightMode .source { color: #8A7F6C; }`;
+const ANKI_TEMPLATES = {
+  Front: '<div class="li-wrap"><div class="recto">{{Recto}}</div><div class="source">{{Source}}</div></div>',
+  Back: '<div class="li-wrap"><div class="recto">{{Recto}}</div><hr id="answer"><div class="verso">{{Verso}}</div><div class="source">{{Source}}</div></div>'
+};
+
+let _ankiModelSynced = false;
 async function _ankiEnsureDeckAndModel(deckName) {
   await ankiInvoke('createDeck', { deck: deckName || _ankiSettings().deck }); // no-op si le deck existe
   const models = await ankiInvoke('modelNames');
@@ -62,16 +80,18 @@ async function _ankiEnsureDeckAndModel(deckName) {
     await ankiInvoke('createModel', {
       modelName: ANKI_MODEL,
       inOrderFields: ['Recto', 'Verso', 'Source'],
-      css: `.card { font-family: Georgia, serif; font-size: 19px; line-height: 1.5; color: #2A2520; background: #FBF8F2; text-align: left; padding: 24px; }
-.recto { font-weight: 600; }
-.source { margin-top: 18px; font-size: 13px; color: #9C8F78; font-style: italic; }
-hr#answer { border: none; border-top: 1px solid #ECE2D2; margin: 16px 0; }`,
-      cardTemplates: [{
-        Name: 'Carte',
-        Front: '<div class="recto">{{Recto}}</div><div class="source">{{Source}}</div>',
-        Back: '<div class="recto">{{Recto}}</div><hr id="answer"><div>{{Verso}}</div><div class="source">{{Source}}</div>'
-      }]
+      css: ANKI_CSS,
+      cardTemplates: [{ Name: 'Carte', Front: ANKI_TEMPLATES.Front, Back: ANKI_TEMPLATES.Back }]
     });
+    _ankiModelSynced = true;
+  } else if (!_ankiModelSynced) {
+    // Le modèle existe déjà dans Anki : pousser le style et les gabarits
+    // à jour (une fois par session) pour que les cartes anciennes en profitent
+    try {
+      await ankiInvoke('updateModelStyling', { model: { name: ANKI_MODEL, css: ANKI_CSS } });
+      await ankiInvoke('updateModelTemplates', { model: { name: ANKI_MODEL, templates: { 'Carte': { Front: ANKI_TEMPLATES.Front, Back: ANKI_TEMPLATES.Back } } } });
+    } catch (e) { console.warn('anki model sync', e); }
+    _ankiModelSynced = true;
   }
 }
 
@@ -108,16 +128,36 @@ async function ankiQuickAdd(recto, verso, sourceLabel) {
 }
 window.ankiQuickAdd = ankiQuickAdd;
 
-// Carte pour une citation surlignée : recto « Que dit [source] sur [sujet] ? »,
-// verso = la citation exacte (+ page). Silencieux si Anki est fermé.
+// Carte pour une citation surlignée. Recto : question devinette générée par
+// l'IA (modèle éco) SPÉCIFIQUE au contenu de la citation ; repli sur
+// « Que dit [source] sur [sujet] ? » sans IA. Verso = citation exacte (+ page).
+// Source auto : « Livre — Auteur · Chapitre · p.N ». Silencieux si Anki fermé.
 // allowDuplicate: true car chaque passage surligné est une carte à part entière.
-async function ankiAddCitation({ text, page, source, subject, deck }) {
+async function ankiAddCitation({ text, page, source, subject, deck, book, author, chapter }) {
   if (!text) return false;
   try {
     if (!await ankiIsAvailable()) return false;
     const src = (source || 'ce texte').trim();
-    const recto = subject && subject.trim() ? `Que dit ${src} sur ${subject.trim()} ?` : `Que dit ${src} ?`;
+    let recto = subject && subject.trim() ? `Que dit ${src} sur ${subject.trim()} ?` : `Que dit ${src} ?`;
+    if (window.aiIsConfigured && window.aiIsConfigured() && window.aiCall) {
+      try {
+        const r = await window.aiCall({
+          model: window.aiCheapestModel ? window.aiCheapestModel() : undefined,
+          system: 'Tu écris le recto d\'une flashcard Anki en français, sur le principe de la devinette : UNE question courte et précise qui désigne le contenu exact de la citation sans en révéler la réponse. Mentionne l\'auteur (ou la source) dans la question.',
+          user: `Source : ${src}${book ? `\nLivre : ${book}` : ''}${chapter ? `\nChapitre : ${chapter}` : ''}\nCitation à deviner (le verso de la carte) : « ${text.slice(0, 500)} »\n\nÉcris la question du recto, spécifique à cette citation.`,
+          schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'], additionalProperties: false },
+          maxTokens: 150
+        });
+        if (r && r.question && r.question.trim()) recto = r.question.trim();
+      } catch (_) { /* repli sur la question générique */ }
+    }
     const verso = text.trim() + (page ? `\n\n(p. ${page})` : '');
+    // Source : Livre — Auteur · Chapitre · p.N (tout ce qui est connu, automatiquement)
+    const srcLine = [
+      book ? book + (author ? ' — ' + author : '') : (author || src),
+      (chapter || '').trim() || null,
+      page ? 'p.' + page : null
+    ].filter(Boolean).join(' · ');
     // Chaque livre a son dossier « Citations » : Racine::Livre::Citations
     const deckName = _ankiDeckFor(deck || source || 'Lecture') + '::Citations';
     await _ankiEnsureDeckAndModel(deckName);
@@ -127,7 +167,7 @@ async function ankiAddCitation({ text, page, source, subject, deck }) {
       fields: {
         Recto: _ankiHtml(recto),
         Verso: _ankiHtml(verso),
-        Source: _escAnki(src + (page ? ' · p.' + page : ''))
+        Source: _escAnki(srcLine)
       },
       tags: ['lecture-intelligente', 'citation', _ankiSlug(deck || source)].filter(Boolean),
       options: { allowDuplicate: true }
