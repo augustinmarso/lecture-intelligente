@@ -178,10 +178,10 @@ async function renderNotesView() {
     </div>
     <div class="notes-list">
       ${filtered.length === 0 ? '<div class="lib-empty">Aucune fiche ne correspond.</div>' : filtered.map(n => `
-        <div class="note-card" data-id="${n.id}">
+        <div class="note-card" data-id="${n.id}"${n.fromAnki ? ' data-from-anki="1"' : ''}>
           <div class="note-header">
             <strong>${_esc(n.title)}</strong>
-            <small>${new Date(n.createdAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' })} · ${n.type}</small>
+            <small>${new Date(n.createdAt).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' })} · ${n.fromAnki ? 'depuis Anki' : n.type}</small>
           </div>
           ${n.objectif ? `<p class="note-objective">${icon('target', 14)} ${_esc(n.objectif)}</p>` : ''}
           ${n.synthese && n.synthese.length ? `<ul class="note-synth">${n.synthese.slice(0,3).map(s => `<li>${_esc(s)}</li>`).join('')}${n.synthese.length>3?'<li>…</li>':''}</ul>` : ''}

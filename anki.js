@@ -213,6 +213,8 @@ function _templateCards(note) {
 // --- Export d'une fiche complète vers Anki ---
 async function ankiExportNote(note, opts) {
   opts = opts || {};
+  // Fiche reconstituée depuis Anki : ses cartes existent déjà, ne pas les recréer
+  if (note && note.fromAnki && !opts.force) return { added: 0, dups: 0, skipped: true };
   const s = _ankiSettings();
   const book = note.bookTitle || note.title || 'Lecture';
   const sourceLabel = book + (note.bookAuthor ? ' — ' + note.bookAuthor : '') + (note.chapterTitle ? ' · ' + note.chapterTitle : '');
@@ -361,6 +363,7 @@ function _injectDoneUI() {
 // --- Bouton Anki sur chaque fiche dans "Mes fiches" ---
 function _wireNoteCardButtons() {
   document.querySelectorAll('.note-card').forEach(card => {
+    if (card.dataset.fromAnki) return; // fiche déjà issue d'Anki : pas de renvoi
     const actions = card.querySelector('.note-actions');
     if (!actions || actions.dataset.ankiBtn) return;
     actions.dataset.ankiBtn = '1';
@@ -505,6 +508,105 @@ async function _ankiEditCard(cardEl, noteId) {
 }
 window.openAnkiCards = openAnkiCards;
 
+// =============================================================
+// Synchro bidirectionnelle app ⇄ Anki
+// Envoie les fiches locales vers Anki ET reconstitue dans l'app les
+// livres et les mots présents dans Anki mais absents localement
+// (indispensable après réinstallation : Anki garde tout via AnkiWeb).
+// =============================================================
+function _ficheMarkdownFromAnki(book, data) {
+  let md = `# ${book}\n\n_Fiche reconstituée depuis Anki._\n\n`;
+  if (data.idees.length) md += `## Idées\n\n` + data.idees.map((x, i) => `${i + 1}. ${x}`).join('\n') + '\n\n';
+  if (data.citations.length) md += `## Citations\n\n` + data.citations.map(x => `> ${x}`).join('\n\n') + '\n';
+  return md;
+}
+
+async function ankiSyncAll() {
+  if (!await ankiIsAvailable()) { _ankiShowHelp(); return; }
+  const s = _ankiSettings();
+  if (window.showToast) window.showToast('Synchronisation avec Anki…');
+  let pushed = 0, fichesRec = 0, motsRec = 0;
+
+  // 1. App → Anki : envoyer les fiches locales (celles issues d'Anki sont ignorées)
+  const localNotes = window.notesGetAll ? await window.notesGetAll() : [];
+  for (const n of localNotes) {
+    if (n.fromAnki) continue;
+    const r = await ankiExportNote(n, { silent: true });
+    if (r && r.added) pushed += r.added;
+  }
+
+  // 2. Anki → App : regrouper les cartes par livre (Idées/Citations) et les mots
+  const decks = (await ankiInvoke('deckNames')).filter(d => d.startsWith(s.deck + '::'));
+  const books = {}, words = [];
+  for (const d of decks) {
+    const safe = d.replace(/"/g, '');
+    const ids = await ankiInvoke('findNotes', { query: `deck:"${safe}" -deck:"${safe}::*"` });
+    if (!ids.length) continue;
+    const infos = await ankiInvoke('notesInfo', { notes: ids });
+    const parts = d.slice((s.deck + '::').length).split('::');
+    const bookName = parts[0];
+    const kind = (parts[1] || '').toLowerCase();
+    if (bookName === 'Mes mots') {
+      infos.forEach(info => words.push({ word: _ankiPlain(info.fields.Recto.value).trim().toLowerCase(), def: _ankiPlain(info.fields.Verso.value) }));
+      continue;
+    }
+    if (!books[bookName]) books[bookName] = { idees: [], citations: [] };
+    infos.forEach(info => {
+      const verso = _ankiPlain(info.fields.Verso.value);
+      if (!verso) return;
+      if (kind.includes('citation')) books[bookName].citations.push(verso);
+      else books[bookName].idees.push(verso);
+    });
+  }
+
+  // Fiches manquantes → recréées (marquées fromAnki, donc pas ré-exportées)
+  if (window.notesAdd && window.notesGetAll) {
+    const norm = t => window.noteNorm ? window.noteNorm(t) : (t || '').toLowerCase().trim();
+    const have = new Set((await window.notesGetAll()).map(n => norm(n.bookTitle || n.title)));
+    for (const [book, data] of Object.entries(books)) {
+      if (!book || have.has(norm(book))) continue;
+      try {
+        await window.notesAdd({
+          title: book, bookTitle: book, type: 'livre', objectif: '',
+          synthese: data.idees, action: {},
+          highlights: data.citations.map(t => ({ text: t, page: 0, ts: Date.now() })),
+          tags: [], markdown: _ficheMarkdownFromAnki(book, data),
+          createdAt: Date.now(), fromAnki: true
+        });
+        fichesRec++;
+      } catch (_) {}
+    }
+  }
+
+  // Mots manquants → réinjectés dans « Mes mots »
+  if (words.length) {
+    try {
+      const cur = JSON.parse(localStorage.getItem('dict-saved-words-v1') || '[]');
+      const have = new Set(cur.map(w => (w.word || '') + '|' + (w.lang || 'fr')));
+      for (const w of words) {
+        if (!w.word || have.has(w.word + '|fr')) continue;
+        cur.unshift({ word: w.word, lang: 'fr', definition: w.def, context: '', savedAt: Date.now() });
+        have.add(w.word + '|fr'); motsRec++;
+      }
+      localStorage.setItem('dict-saved-words-v1', JSON.stringify(cur.slice(0, 500)));
+      if (motsRec) document.dispatchEvent(new CustomEvent('li:changed'));
+    } catch (_) {}
+  }
+
+  if (window.showToast) {
+    const bits = [];
+    if (pushed) bits.push(`${pushed} carte(s) envoyée(s)`);
+    if (fichesRec) bits.push(`${fichesRec} fiche(s) récupérée(s)`);
+    if (motsRec) bits.push(`${motsRec} mot(s) récupéré(s)`);
+    window.showToast(bits.length ? 'Synchro : ' + bits.join(', ') : 'Déjà synchronisé — tout est à jour');
+  }
+  _renderAnkiBar();
+  // Montrer le résultat : ouvrir « Mes fiches »
+  if (document.getElementById('lib-modal')?.classList.contains('open') && window.openNotes) window.openNotes();
+  return { pushed, fichesRec, motsRec };
+}
+window.ankiSyncAll = ankiSyncAll;
+
 // --- Bouton « Mes cartes Anki » dans la barre du haut (accès direct) ---
 function _injectAnkiTopButton() {
   const _do = () => {
@@ -563,7 +665,7 @@ function _injectAnkiBar() {
         <input id="anki-deck" type="text" title="Nom du deck Anki" value="${_escAnki(s.deck)}"/>
         <label class="anki-useai" title="Générer les questions/réponses avec l'IA (sinon cartes simples)"><input type="checkbox" id="anki-useai" ${s.useAI ? 'checked' : ''}/> Cartes IA</label>
         <button id="anki-view-cards" class="gd-btn" title="Voir et modifier les cartes déjà créées">${icon('visibility', 15)} Voir les cartes</button>
-        <button id="anki-sync-all" class="gd-btn" title="Envoyer toutes mes fiches vers Anki">${icon('sync', 15)} Tout envoyer</button>
+        <button id="anki-sync-all" class="gd-btn" title="Synchro app ⇄ Anki : envoie tes fiches ET récupère depuis Anki ce qui manque dans l'app">${icon('sync', 15)} Tout synchroniser</button>
         <button id="anki-help-btn" class="gd-btn" title="Aide à la connexion">?</button>
       </div>
     `;
@@ -572,20 +674,7 @@ function _injectAnkiBar() {
     document.getElementById('anki-useai').onchange = (e) => _ankiSave({ useAI: e.target.checked });
     document.getElementById('anki-help-btn').onclick = _ankiShowHelp;
     document.getElementById('anki-view-cards').onclick = openAnkiCards;
-    document.getElementById('anki-sync-all').onclick = async () => {
-      if (typeof window.notesGetAll !== 'function') return;
-      if (!await ankiIsAvailable()) { _ankiShowHelp(); return; }
-      const all = await window.notesGetAll();
-      if (all.length === 0) { if (window.showToast) window.showToast('Aucune fiche à envoyer'); return; }
-      if (window.showToast) window.showToast(`Envoi de ${all.length} fiche${all.length > 1 ? 's' : ''}…`);
-      let total = 0;
-      for (const n of all) {
-        const res = await ankiExportNote(n, { silent: true });
-        if (res) total += res.added;
-      }
-      if (window.showToast) window.showToast(`Terminé : ${total} nouvelle${total > 1 ? 's' : ''} carte${total > 1 ? 's' : ''} dans Anki`);
-      _renderAnkiBar();
-    };
+    document.getElementById('anki-sync-all').onclick = () => ankiSyncAll();
     _renderAnkiBar();
   };
   new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });
