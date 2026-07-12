@@ -76,8 +76,10 @@ hr#answer { border: none; border-top: 1px solid #ECE2D2; margin: 16px 0; }`,
 }
 
 // --- Envoi de cartes ---
-async function _ankiAddCards(cards, sourceLabel, tagSlug, deckLabel) {
-  const deckName = _ankiDeckFor(deckLabel);
+// subDeck (facultatif) : range les cartes dans « Racine::Livre::subDeck »
+// (ex : Idées / Citations) pour séparer les types de cartes par livre.
+async function _ankiAddCards(cards, sourceLabel, tagSlug, deckLabel, subDeck) {
+  const deckName = _ankiDeckFor(deckLabel) + (subDeck ? '::' + subDeck : '');
   await _ankiEnsureDeckAndModel(deckName);
   const notes = cards.map(c => ({
     deckName,
@@ -116,7 +118,8 @@ async function ankiAddCitation({ text, page, source, subject, deck }) {
     const src = (source || 'ce texte').trim();
     const recto = subject && subject.trim() ? `Que dit ${src} sur ${subject.trim()} ?` : `Que dit ${src} ?`;
     const verso = text.trim() + (page ? `\n\n(p. ${page})` : '');
-    const deckName = _ankiDeckFor(deck || source || 'Citations');
+    // Chaque livre a son dossier « Citations » : Racine::Livre::Citations
+    const deckName = _ankiDeckFor(deck || source || 'Lecture') + '::Citations';
     await _ankiEnsureDeckAndModel(deckName);
     const note = {
       deckName,
@@ -136,21 +139,35 @@ async function ankiAddCitation({ text, page, source, subject, deck }) {
 window.ankiAddCitation = ankiAddCitation;
 
 // --- Cartes "modèle" construites depuis une fiche (sans IA) ---
-// Format : une carte par idée, recto « Que pense [l'auteur] sur [objectif] ? »
-function _templateCards(note) {
+function _noteVoc(note) {
   const book = note.bookTitle || note.title || 'ma lecture';
-  const chap = note.chapterTitle ? ' (' + note.chapterTitle + ')' : '';
   const auteur = note.bookAuthor || `l'auteur de « ${book} »`;
   const sujet = (note.objectif || '').trim();
-  const surQuoi = sujet ? ` sur ${sujet}` : '';
+  return { chap: note.chapterTitle ? ' (' + note.chapterTitle + ')' : '', auteur, surQuoi: sujet ? ` sur ${sujet}` : '' };
+}
+
+// Une carte par idée de synthèse : recto « Que pense [l'auteur] sur [objectif] ? »
+function _ideaCards(note) {
+  const { chap, auteur, surQuoi } = _noteVoc(note);
   const cards = [];
   (note.synthese || []).forEach((idee, i) => {
     if (idee && idee.trim()) cards.push({ recto: `Que pense ${auteur}${surQuoi}${chap} ? — idée n°${i + 1} de ma synthèse`, verso: idee });
   });
+  return cards;
+}
+
+// Une carte par passage surligné : verso = la citation exacte
+function _citationCards(note) {
+  const { auteur, surQuoi } = _noteVoc(note);
+  const cards = [];
   (note.highlights || []).forEach(h => {
-    if (h && h.text) cards.push({ recto: `Que pense ${auteur}${surQuoi}${chap} ? — passage surligné p.${h.page}`, verso: h.text });
+    if (h && h.text) cards.push({ recto: `Que dit ${auteur}${surQuoi} ? — p.${h.page}`, verso: h.text });
   });
   return cards;
+}
+
+function _templateCards(note) {
+  return [..._ideaCards(note), ..._citationCards(note)];
 }
 
 // --- Export d'une fiche complète vers Anki ---
@@ -166,24 +183,35 @@ async function ankiExportNote(note, opts) {
     return null;
   }
 
-  let cards = null;
-  // Cartes intelligentes via l'IA si dispo et activé
+  // Idées de synthèse : via l'IA si dispo (sans les citations — elles ont
+  // leur propre dossier et leur verso doit rester le texte exact), sinon modèle
+  let ideaCards = null;
   if (s.useAI && window.aiIsConfigured && window.aiIsConfigured() && window.aiGenerateCards) {
     try {
       if (window.showToast && !opts.silent) window.showToast('Génération des cartes par l\'IA…');
-      cards = await window.aiGenerateCards(note);
+      ideaCards = await window.aiGenerateCards(Object.assign({}, note, { highlights: [] }));
     } catch (e) {
       console.warn('anki AI cards failed, fallback template', e);
     }
   }
-  if (!cards || cards.length === 0) cards = _templateCards(note);
-  if (cards.length === 0) {
+  if (!ideaCards || ideaCards.length === 0) ideaCards = _ideaCards(note);
+  const citeCards = _citationCards(note);
+  if (ideaCards.length === 0 && citeCards.length === 0) {
     if (window.showToast && !opts.silent) window.showToast('Rien à exporter — la fiche est vide');
     return { added: 0, dups: 0 };
   }
 
   try {
-    const res = await _ankiAddCards(cards, sourceLabel, tagSlug, book);
+    // Dossiers séparés par livre : Idées / Citations
+    const res = { added: 0, dups: 0 };
+    if (ideaCards.length) {
+      const r = await _ankiAddCards(ideaCards, sourceLabel, tagSlug, book, 'Idées');
+      res.added += r.added; res.dups += r.dups;
+    }
+    if (citeCards.length) {
+      const r = await _ankiAddCards(citeCards, sourceLabel, tagSlug, book, 'Citations');
+      res.added += r.added; res.dups += r.dups;
+    }
     if (window.showToast && !opts.silent) {
       window.showToast(res.added ? `${res.added} carte${res.added > 1 ? 's' : ''} dans Anki` + (res.dups ? ` (${res.dups} déjà présente${res.dups > 1 ? 's' : ''})` : '') : 'Cartes déjà présentes dans Anki');
     }
