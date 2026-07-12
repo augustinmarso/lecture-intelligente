@@ -387,7 +387,7 @@ function _renderAiBar() {
 function _injectAiBar() {
   const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.aiWired) return;
+    if (!modalContent || modalContent.dataset.aiWired || document.querySelector('.ai-bar')) return;
     const header = modalContent.querySelector('.lib-header');
     if (!header) return;
     modalContent.dataset.aiWired = '1';

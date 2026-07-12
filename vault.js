@@ -351,14 +351,14 @@ function _renderVaultBar() {
 function _injectVaultBar() {
   const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.vaultWired) return;
+    if (!modalContent || modalContent.dataset.vaultWired || document.querySelector('.vault-brain-bar')) return;
     const gdBar = modalContent.querySelector('.gd-bar');
     const insertAfter = gdBar || modalContent.querySelector('.lib-header');
     if (!insertAfter) return;
     modalContent.dataset.vaultWired = '1';
 
     const bar = document.createElement('div');
-    bar.className = 'vault-bar';
+    bar.className = 'vault-bar vault-brain-bar';
     bar.innerHTML = `
       <div class="vault-left">
         <strong>${icon('psychology', 14)} Second Cerveau</strong>

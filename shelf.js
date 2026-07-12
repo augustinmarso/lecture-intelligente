@@ -230,7 +230,7 @@ function _renderShelfBar() {
 function _injectShelfBar() {
   const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.shelfWired) return;
+    if (!modalContent || modalContent.dataset.shelfWired || document.querySelector('.shelf-bar')) return;
     const header = modalContent.querySelector('.lib-header');
     if (!header) return;
     modalContent.dataset.shelfWired = '1';
@@ -292,6 +292,14 @@ window.shelfConnect = shelfConnect;
 window.shelfBrowse = shelfBrowse;
 window.shelfIsConnected = () => !!_shelfHandle;
 window.shelfScan = shelfScan;
+// Scan SANS demander de permission (pour afficher les PDF du dossier dans la
+// bibliothèque sans popup) : renvoie null si l'accès n'est pas déjà accordé.
+window.shelfScanIfGranted = async () => {
+  if (!_shelfHandle) return null;
+  try { if ((await _shelfHandle.queryPermission({ mode: 'read' })) !== 'granted') return null; }
+  catch (_) { return null; }
+  try { return await shelfScan(); } catch (_) { return null; }
+};
 window.shelfOpenEntry = async (entry) => {
   try {
     const file = await entry.handle.getFile();

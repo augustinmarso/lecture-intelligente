@@ -320,7 +320,7 @@ function _renderCloudBar(statusOverride) {
 function _injectCloudBar() {
   const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.cloudWired) return;
+    if (!modalContent || modalContent.dataset.cloudWired || document.querySelector('.cloud-bar')) return;
     const header = modalContent.querySelector('.lib-header');
     if (!header) return;
     modalContent.dataset.cloudWired = '1';

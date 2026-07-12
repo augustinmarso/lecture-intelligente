@@ -648,7 +648,7 @@ window._renderAnkiBar = _renderAnkiBar;
 function _injectAnkiBar() {
   const _doInject = () => {
     const modalContent = document.querySelector('#lib-modal .lib-content');
-    if (!modalContent || modalContent.dataset.ankiWired) return;
+    if (!modalContent || modalContent.dataset.ankiWired || document.querySelector('.anki-bar')) return;
     const header = modalContent.querySelector('.lib-header');
     if (!header) return;
     modalContent.dataset.ankiWired = '1';

@@ -233,8 +233,12 @@ async function openLibrary() {
 async function renderLibrary() {
   const body = document.getElementById('lib-body');
   const books = await libGetAll();
+  const shelfConnected = window.shelfIsConnected && window.shelfIsConnected();
   if (books.length === 0) {
-    body.innerHTML = `<div class="lib-empty">Aucun livre.<br><br>Ouvre un PDF, il sera automatiquement sauvegardé ici.<br>Ou clique sur <strong>+ Importer</strong> en haut à droite.</div>`;
+    body.innerHTML = shelfConnected
+      ? `<div class="lib-empty" style="padding:1rem 0 0">Aucun PDF importé — voici ceux de ton dossier connecté&nbsp;:</div>`
+      : `<div class="lib-empty">Aucun livre.<br><br>Ouvre un PDF, il sera automatiquement sauvegardé ici.<br>Ou clique sur <strong>+ Importer</strong> en haut à droite.</div>`;
+    await _appendShelfBooks(body);
     return;
   }
   // Tri : derniers consultés / récents en premier
@@ -290,6 +294,39 @@ async function renderLibrary() {
         await downloadAsEpub(id);
       }
     });
+  });
+  // Ajoute les PDF du dossier connecté (Mon ordinateur) pour que TOUT s'affiche
+  await _appendShelfBooks(body);
+}
+
+// Liste les PDF du dossier connecté sous les livres importés (sans popup de
+// permission : uniquement si l'accès a déjà été accordé).
+async function _appendShelfBooks(body) {
+  if (!body || !window.shelfScanIfGranted) return;
+  let files = null;
+  try { files = await window.shelfScanIfGranted(); } catch (_) { return; }
+  if (!files || !files.length) return;
+  const sec = document.createElement('div');
+  sec.className = 'lib-shelf-section';
+  sec.innerHTML = `<div class="lib-section-label">${icon('computer', 14)} Sur ton ordinateur (${files.length})</div>` +
+    files.map((f, i) => `
+      <div class="lib-book lib-book-shelf" data-shelf-idx="${i}">
+        <div class="lib-book-info">
+          <strong>${escHtmlLib(f.name)}</strong>
+          <small>${escHtmlLib(f.dir || 'dossier racine')}</small>
+        </div>
+        <div class="lib-book-actions">
+          <button class="lib-action lib-shelf-open">${icon('menu_book', 15)} Ouvrir</button>
+        </div>
+      </div>`).join('');
+  body.appendChild(sec);
+  sec.querySelectorAll('.lib-shelf-open').forEach(btn => {
+    btn.onclick = () => {
+      const idx = parseInt(btn.closest('[data-shelf-idx]').dataset.shelfIdx);
+      const f = files[idx];
+      document.getElementById('lib-modal')?.classList.remove('open');
+      if (window.shelfOpenEntry && f) window.shelfOpenEntry(f);
+    };
   });
 }
 
@@ -443,6 +480,8 @@ _libStyle.textContent = `
 .lib-empty { text-align: center; color: var(--text2); padding: 3rem 1rem; font-size: 14px; line-height: 1.6; }
 .lib-book { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: var(--radius); margin-bottom: 2px; gap: 12px; flex-wrap: wrap; transition: background .1s; }
 .lib-book:hover { background: var(--hover); }
+.lib-section-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.lib-book-shelf .lib-book-info small { color: var(--text3); }
 .lib-book-info { flex: 1; min-width: 180px; }
 .lib-book-info strong { display: block; font-weight: 600; margin-bottom: 2px; font-size: 14px; color: var(--text); }
 .lib-book-info small { font-size: 12px; color: var(--text2); }
