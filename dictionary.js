@@ -583,6 +583,46 @@ function openSavedWords() {
 window.openSavedWords = openSavedWords;
 
 // =============================================================
+// Vue « Mes mots » intégrée aux onglets de la bibliothèque
+// (Mes fiches · Mes livres · Mes mots · Cartes Anki)
+// =============================================================
+function openWords() {
+  const modal = document.getElementById('lib-modal');
+  if (modal) modal.classList.add('open');
+  renderWordsView();
+}
+function renderWordsView() {
+  const body = document.getElementById('lib-body');
+  if (!body) return;
+  const list = getSavedWords();
+  body.innerHTML = `
+    <div class="notes-toolbar">
+      ${window.liTabs ? window.liTabs('words') : ''}
+    </div>
+    <div class="notes-list">
+      ${list.length === 0
+        ? `<div class="lib-empty">Aucun mot enregistré.<br><br>Clique sur un mot dans un PDF ou EPUB&nbsp;: sa définition s'affiche, puis « Ajouter à Mes mots ».</div>`
+        : list.map(w => `
+          <div class="note-card dw-card" data-word="${_esc(w.word)}" data-lang="${_esc(w.lang)}">
+            <div class="note-header"><strong>${_esc(w.word)}</strong><small>${_esc(w.lang)} · ${new Date(w.savedAt).toLocaleDateString('fr-FR')}</small></div>
+            <div class="dw-def">${_esc(w.definition || '—')}</div>
+            ${w.context ? `<div class="dw-ctx">« …${_esc(w.context)}… »</div>` : ''}
+            <div class="note-actions"><button class="lib-action lib-del" data-act="del-word">${icon('delete', 15)}</button></div>
+          </div>`).join('')}
+    </div>`;
+  if (window.liWireTabs) window.liWireTabs(body);
+  body.querySelectorAll('[data-act="del-word"]').forEach(b => {
+    b.onclick = () => {
+      const card = b.closest('.dw-card');
+      removeWord(card.dataset.word, card.dataset.lang);
+      renderWordsView();
+    };
+  });
+}
+window.openWords = openWords;
+window.renderWordsView = renderWordsView;
+
+// =============================================================
 // Injection bouton 📖 dans le top-bar
 // =============================================================
 function _injectDictButton() {
@@ -592,9 +632,9 @@ function _injectDictButton() {
       bar.dataset.dictBtn = '1';
       const btn = document.createElement('button');
       btn.className = 'btn-pdf-toggle';
-      btn.title = 'Dictionnaire';
+      btn.title = 'Mes mots';
       btn.innerHTML = icon('dictionary');
-      btn.onclick = openSavedWords;
+      btn.onclick = openWords;
       const pdfBtn = bar.querySelector('#btn-pdf-toggle');
       if (pdfBtn) bar.insertBefore(btn, pdfBtn);
       else bar.appendChild(btn);

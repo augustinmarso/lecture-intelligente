@@ -381,6 +381,7 @@
       <button id="pdf-next" disabled>›</button>
       <button id="pdf-zoom-out" disabled>−</button>
       <button id="pdf-zoom-in" disabled>+</button>
+      <button id="pdf-fit" title="Ajuster à la largeur"><span class="ms" style="font-size:16px">fit_screen</span></button>
       <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)"><span class="ms" style="font-size:16px">ink_highlighter</span> Surligner</button>
       <button id="pdf-fullscreen" title="Plein écran"><span class="ms" style="font-size:16px">fullscreen</span></button>
       <span class="pdf-info" id="pdf-filename"></span>
@@ -482,7 +483,7 @@ const state = {
   done: false
 };
 
-const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null };
+const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null, fit: true };
 
 // =============================================================
 // Persistance de la session : tout le travail en cours (étape,
@@ -652,12 +653,48 @@ async function loadPdfFile(file) {
 let _pdfObserver = null;
 const _renderedPages = new Set();
 
+// Échelle qui fait tenir la page dans la largeur du panneau (PDF responsive).
+async function _pdfFitScale() {
+  const viewer = document.getElementById('pdf-viewer');
+  if (!viewer || !pdf.doc) return pdf.scale;
+  const page = await pdf.doc.getPage(pdf.page || 1);
+  const natural = page.getViewport({ scale: 1 });
+  const avail = viewer.clientWidth - 26; // padding 12px de chaque côté + marge
+  if (avail < 60) return pdf.scale;
+  return Math.max(0.4, Math.min(3, avail / natural.width));
+}
+
+// Re-ajuste le PDF quand le panneau ou la fenêtre change de largeur.
+let _pdfRO = null, _pdfROTimer = null, _pdfLastW = 0;
+function _observePdfResize() {
+  const viewer = document.getElementById('pdf-viewer');
+  if (!viewer || _pdfRO || !window.ResizeObserver) return;
+  _pdfLastW = viewer.clientWidth;
+  _pdfRO = new ResizeObserver(() => {
+    if (!pdf.doc || !pdf.fit) return;
+    const w = viewer.clientWidth;
+    if (Math.abs(w - _pdfLastW) < 8) return; // ignore les micro-variations
+    _pdfLastW = w;
+    clearTimeout(_pdfROTimer);
+    _pdfROTimer = setTimeout(async () => {
+      const wasPage = pdf.page;
+      await renderAllPages();
+      setTimeout(() => scrollToPage(wasPage), 80);
+    }, 180);
+  });
+  _pdfRO.observe(viewer);
+}
+
 async function renderAllPages() {
   if (!pdf.doc) return;
   const viewer = document.getElementById('pdf-viewer');
   viewer.innerHTML = '';
   _renderedPages.clear();
   if (_pdfObserver) { _pdfObserver.disconnect(); _pdfObserver = null; }
+
+  // PDF responsive : par défaut, la page s'ajuste à la largeur du panneau
+  if (pdf.fit) { try { pdf.scale = await _pdfFitScale(); } catch (_) {} }
+  _observePdfResize();
 
   // Dimensions de la page 1 pour estimer
   const firstPage = await pdf.doc.getPage(1);
@@ -905,6 +942,7 @@ function wirePdfControls() {
   if (bn) bn.onclick = () => { if (pdf.page < pdf.total) scrollToPage(pdf.page + 1); };
   const zi = document.getElementById('pdf-zoom-in');
   if (zi) zi.onclick = async () => {
+    pdf.fit = false; // zoom manuel : on quitte l'ajustement auto
     pdf.scale = Math.min(3, pdf.scale + 0.2);
     const wasPage = pdf.page;
     await renderAllPages();
@@ -912,7 +950,16 @@ function wirePdfControls() {
   };
   const zo = document.getElementById('pdf-zoom-out');
   if (zo) zo.onclick = async () => {
-    pdf.scale = Math.max(0.5, pdf.scale - 0.2);
+    pdf.fit = false;
+    pdf.scale = Math.max(0.4, pdf.scale - 0.2);
+    const wasPage = pdf.page;
+    await renderAllPages();
+    setTimeout(() => scrollToPage(wasPage), 100);
+  };
+  // Bouton « ajuster à la largeur » : réactive le mode responsive
+  const zf = document.getElementById('pdf-fit');
+  if (zf) zf.onclick = async () => {
+    pdf.fit = true;
     const wasPage = pdf.page;
     await renderAllPages();
     setTimeout(() => scrollToPage(wasPage), 100);

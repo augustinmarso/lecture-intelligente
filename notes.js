@@ -4,6 +4,28 @@
 
 function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// Barre d'onglets partagée entre « Mes fiches », « Mes mots » et « Cartes Anki ».
+// opts.noBooks retire l'onglet « Mes livres » (ex : dans la vue Anki).
+window.liTabs = function(active, opts) {
+  opts = opts || {};
+  const tab = (v, label, ic) => `<button class="notes-tab ${active === v ? 'active' : ''}" data-view="${v}">${icon(ic, 15)} ${label}</button>`;
+  return `<div class="notes-tabs">
+    ${tab('notes', 'Mes fiches', 'edit_note')}
+    ${opts.noBooks ? '' : tab('books', 'Mes livres', 'library_books')}
+    ${tab('words', 'Mes mots', 'menu_book')}
+    ${tab('cards', 'Cartes Anki', 'style')}
+  </div>`;
+};
+window.liWireTabs = function(container) {
+  container.querySelectorAll('.notes-tab[data-view]').forEach(t => t.onclick = () => {
+    const v = t.dataset.view;
+    if (v === 'notes' && window.openNotes) window.openNotes();
+    else if (v === 'books' && typeof renderLibrary === 'function') renderLibrary();
+    else if (v === 'words' && window.openWords) window.openWords();
+    else if (v === 'cards' && window.openAnkiCards) window.openAnkiCards();
+  });
+};
+
 async function notesAdd(note) {
   const d = await openDB();
   return new Promise((resolve, reject) => {
@@ -151,10 +173,7 @@ async function renderNotesView() {
 
   body.innerHTML = `
     <div class="notes-toolbar">
-      <div class="notes-tabs">
-        <button class="notes-tab active" data-view="notes">${icon('edit_note', 15)} Mes fiches (${all.length})</button>
-        <button class="notes-tab" data-view="books">${icon('library_books', 15)} Mes livres</button>
-      </div>
+      ${window.liTabs('notes')}
       <input id="notes-search" type="search" placeholder="Rechercher…" value="${_esc(_notesFilter.text)}"/>
     </div>
     <div class="notes-list">
@@ -177,9 +196,7 @@ async function renderNotesView() {
   `;
 
   // Wire toolbar
-  body.querySelectorAll('.notes-tab').forEach(t => t.onclick = () => {
-    if (t.dataset.view === 'books' && typeof renderLibrary === 'function') renderLibrary();
-  });
+  window.liWireTabs(body);
   const search = document.getElementById('notes-search');
   if (search) {
     search.oninput = () => { _notesFilter.text = search.value; renderNotesView(); };

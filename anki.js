@@ -428,11 +428,7 @@ async function renderAnkiCardsView() {
 
   body.innerHTML = `
     <div class="notes-toolbar">
-      <div class="notes-tabs">
-        <button class="notes-tab" data-view="notes">${icon('edit_note', 15)} Mes fiches</button>
-        <button class="notes-tab" data-view="books">${icon('library_books', 15)} Mes livres</button>
-        <button class="notes-tab active">${icon('style', 15)} Cartes Anki (${totalCartes})</button>
-      </div>
+      ${window.liTabs ? window.liTabs('cards', { noBooks: true }) : ''}
       <input id="anki-cards-search" type="search" placeholder="Rechercher une carte…" value="${_escAnki(_ankiCardsFilter)}"/>
     </div>
     ${groups.length === 0 ? `<div class="lib-empty">Aucune carte dans « ${_escAnki(s.deck)} » pour l'instant.</div>` : groups.map(g => {
@@ -458,10 +454,7 @@ async function renderAnkiCardsView() {
   `;
 
   // Navigation vers les autres vues
-  body.querySelectorAll('.notes-tab[data-view]').forEach(t => t.onclick = () => {
-    if (t.dataset.view === 'notes' && window.openNotes) window.openNotes();
-    else if (t.dataset.view === 'books' && typeof renderLibrary === 'function') renderLibrary();
-  });
+  if (window.liWireTabs) window.liWireTabs(body);
   const search = document.getElementById('anki-cards-search');
   if (search) search.oninput = () => { _ankiCardsFilter = search.value; clearTimeout(search._t); search._t = setTimeout(renderAnkiCardsView, 350); };
 
