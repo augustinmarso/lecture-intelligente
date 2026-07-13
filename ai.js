@@ -6,13 +6,15 @@
 // =============================================================
 
 const AI_STORE_KEY = 'li-ai';
-const AI_DEFAULTS = { keys: { anthropic: '', openai: '' }, model: 'claude-haiku-4-5' };
+const LM_STUDIO_DEFAULT_URL = 'http://localhost:1234/v1';
+const AI_DEFAULTS = { keys: { anthropic: '', openai: '' }, model: 'claude-haiku-4-5', localUrl: LM_STUDIO_DEFAULT_URL, localModel: '' };
 
 // Catalogue des modèles proposés (le fournisseur est déduit du modèle choisi)
 const AI_MODELS = {
+  'qwen-local':        { provider: 'local',     label: 'LM Studio — modèle local (gratuit)' },
+  'gpt-4.1-nano':      { provider: 'openai',    label: 'GPT-4.1 nano (ultra éco)' },
   'claude-haiku-4-5':  { provider: 'anthropic', label: 'Claude Haiku 4.5 (éco)' },
   'claude-opus-4-8':   { provider: 'anthropic', label: 'Claude Opus 4.8 (qualité)' },
-  'gpt-4.1-nano':      { provider: 'openai',    label: 'GPT-4.1 nano (ultra éco)' },
   'gpt-4.1-mini':      { provider: 'openai',    label: 'GPT-4.1 mini (éco)' },
   'gpt-4.1':           { provider: 'openai',    label: 'GPT-4.1 (qualité)' },
   'gpt-5.4-nano':      { provider: 'openai',    label: 'GPT-5.4 nano (raisonne, éco)' },
@@ -20,7 +22,7 @@ const AI_MODELS = {
   'gpt-5.4':           { provider: 'openai',    label: 'GPT-5.4 (raisonne, qualité)' },
   'gpt-5.5':           { provider: 'openai',    label: 'GPT-5.5 (max)' }
 };
-const AI_PROVIDER_LABELS = { anthropic: 'Claude', openai: 'OpenAI' };
+const AI_PROVIDER_LABELS = { anthropic: 'Claude', openai: 'OpenAI', local: 'LM Studio' };
 
 function _aiSettings() {
   let s;
@@ -29,6 +31,8 @@ function _aiSettings() {
   if (s.key && !s.keys) s.keys = { anthropic: s.key, openai: '' };
   s.keys = Object.assign({}, AI_DEFAULTS.keys, s.keys || {});
   if (!s.model || !AI_MODELS[s.model]) s.model = AI_DEFAULTS.model;
+  if (!s.localUrl) s.localUrl = LM_STUDIO_DEFAULT_URL;
+  if (typeof s.localModel !== 'string') s.localModel = '';
   return s;
 }
 function _aiSave(patch) {
@@ -39,7 +43,9 @@ function _aiSave(patch) {
 function _aiProvider(model) { return (AI_MODELS[model] || {}).provider || (String(model).startsWith('gpt') ? 'openai' : 'anthropic'); }
 function aiIsConfigured() {
   const s = _aiSettings();
-  return !!s.keys[_aiProvider(s.model)];
+  const p = _aiProvider(s.model);
+  if (p === 'local') return true; // LM Studio : pas de clé, juste le serveur local
+  return !!s.keys[p];
 }
 
 function _escAi(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -75,10 +81,45 @@ async function aiCall({ system, user, schema, maxTokens, model: modelOverride })
   // Un appel peut imposer son modèle (ex : dictionnaire → modèle ultra éco),
   // à condition d'avoir la clé du fournisseur correspondant.
   let model = s.model;
-  if (modelOverride && AI_MODELS[modelOverride] && s.keys[_aiProvider(modelOverride)]) model = modelOverride;
+  if (modelOverride && AI_MODELS[modelOverride]) {
+    const op = _aiProvider(modelOverride);
+    if (op === 'local' || s.keys[op]) model = modelOverride; // local = sans clé
+  }
   const provider = _aiProvider(model);
   const key = s.keys[provider];
-  if (!key) throw new Error(`Clé API ${AI_PROVIDER_LABELS[provider]} manquante — configure-la dans la bibliothèque (barre « Assistant IA »)`);
+  if (provider !== 'local' && !key) throw new Error(`Clé API ${AI_PROVIDER_LABELS[provider]} manquante — configure-la dans les Paramètres (barre « Assistant IA »)`);
+
+  // Modèle local via LM Studio (API compatible OpenAI, aucune clé requise)
+  if (provider === 'local') {
+    const base = (s.localUrl || LM_STUDIO_DEFAULT_URL).replace(/\/+$/, '');
+    let lmModel = s.localModel;
+    if (!lmModel) {
+      try {
+        const r = await fetch(base + '/models');
+        const j = await r.json();
+        lmModel = (j.data && j.data[0] && j.data[0].id) || 'local-model';
+      } catch (_) { lmModel = 'local-model'; }
+    }
+    const body = {
+      model: lmModel,
+      max_tokens: maxTokens || 2000,
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: system || AI_DEFAULT_SYSTEM },
+        { role: 'user', content: user }
+      ]
+    };
+    if (schema) body.response_format = { type: 'json_schema', json_schema: { name: 'reponse', strict: true, schema } };
+    let data;
+    try {
+      data = await _aiHttp(base + '/chat/completions', {}, body);
+    } catch (e) {
+      throw new Error('LM Studio injoignable — lance LM Studio, charge un modèle Qwen puis démarre le serveur local (onglet « Developer », port 1234).');
+    }
+    const msg = data.choices && data.choices[0] && data.choices[0].message;
+    if (!msg) throw new Error('Réponse du modèle local vide — réessaie');
+    return _aiParse(msg.content || '', schema);
+  }
 
   if (provider === 'openai') {
     // Les GPT-5.x raisonnent (paramètre reasoning_effort + marge de tokens) ;
@@ -125,6 +166,7 @@ window.aiIsConfigured = aiIsConfigured;
 // (pour les micro-tâches : GPT-4.1 nano ~0,10 $/M, sinon Haiku ~1 $/M).
 function aiCheapestModel() {
   const s = _aiSettings();
+  if (_aiProvider(s.model) === 'local') return s.model; // local = gratuit, on l'utilise pour tout
   if (s.keys.openai) return 'gpt-4.1-nano';
   if (s.keys.anthropic) return 'claude-haiku-4-5';
   return s.model;
@@ -363,12 +405,74 @@ function _injectAiButtons() {
   obs.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
 }
 
+// Liste les modèles chargés dans LM Studio (API compatible OpenAI : GET /v1/models)
+async function _lmStudioModels() {
+  const s = _aiSettings();
+  const base = (s.localUrl || LM_STUDIO_DEFAULT_URL).replace(/\/+$/, '');
+  const r = await fetch(base + '/models');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  return (j.data || []).map(m => m.id).filter(Boolean);
+}
+
+// Remplit le sélecteur avec N'IMPORTE QUEL modèle chargé dans LM Studio.
+let _lmPopulating = false;
+async function _populateLocalModels(opts) {
+  opts = opts || {};
+  const sel = document.getElementById('ai-local-model');
+  const status = document.getElementById('ai-status');
+  if (!sel || _lmPopulating) return;
+  _lmPopulating = true;
+  try {
+    let models = [];
+    try { models = await _lmStudioModels(); }
+    catch (_) {
+      sel.innerHTML = '<option value="">(LM Studio non démarré)</option>';
+      if (status) { status.textContent = 'LM Studio injoignable — démarre le serveur (port 1234)'; status.classList.remove('connected'); }
+      if (opts.notify && window.showToast) window.showToast('LM Studio injoignable — ouvre LM Studio → Developer → Start Server');
+      return;
+    }
+    if (!models.length) {
+      sel.innerHTML = '<option value="">(aucun modèle chargé)</option>';
+      if (status) { status.textContent = 'LM Studio lancé, aucun modèle chargé'; status.classList.remove('connected'); }
+      if (opts.notify && window.showToast) window.showToast('LM Studio est lancé mais aucun modèle n\'est chargé');
+      return;
+    }
+    const s = _aiSettings();
+    const chosen = models.includes(s.localModel) ? s.localModel : models[0];
+    sel.innerHTML = models.map(m => `<option value="${_escAi(m)}"${chosen === m ? ' selected' : ''}>${_escAi(m)}</option>`).join('');
+    if (chosen !== s.localModel) _aiSave({ localModel: chosen });
+    if (status) { status.textContent = 'LM Studio · ' + chosen; status.classList.add('connected'); }
+    if (opts.notify && window.showToast) window.showToast(models.length + ' modèle(s) LM Studio détecté(s)');
+  } finally { _lmPopulating = false; }
+}
+
 // --- Barre de configuration dans le modal bibliothèque ---
 function _renderAiBar() {
   const status = document.getElementById('ai-status');
   if (!status) return;
   const s = _aiSettings();
   const provider = _aiProvider(s.model);
+  const keyInput = document.getElementById('ai-key');
+  const localSel = document.getElementById('ai-local-model');
+  const detectBtn = document.getElementById('ai-local-detect');
+  if (provider === 'local') {
+    // Modèle local : pas de clé. Le champ clé sert à l'URL du serveur LM Studio,
+    // et un sélecteur liste N'IMPORTE QUEL modèle chargé dans LM Studio.
+    if (keyInput) {
+      keyInput.type = 'text';
+      keyInput.value = s.localUrl && s.localUrl !== LM_STUDIO_DEFAULT_URL ? s.localUrl : '';
+      keyInput.placeholder = 'URL LM Studio (' + LM_STUDIO_DEFAULT_URL + ')';
+    }
+    if (localSel) localSel.style.display = '';
+    if (detectBtn) detectBtn.style.display = '';
+    status.textContent = s.localModel ? ('LM Studio · ' + s.localModel) : 'LM Studio — clique « Détecter »';
+    status.classList.toggle('connected', !!s.localModel);
+    _populateLocalModels({}); // liste les modèles chargés (silencieux)
+    return;
+  }
+  if (localSel) localSel.style.display = 'none';
+  if (detectBtn) detectBtn.style.display = 'none';
   if (s.keys[provider]) {
     status.textContent = (AI_MODELS[s.model] || { label: s.model }).label;
     status.classList.add('connected');
@@ -377,8 +481,8 @@ function _renderAiBar() {
     status.classList.remove('connected');
   }
   // Le champ clé affiche/enregistre la clé du fournisseur du modèle choisi
-  const keyInput = document.getElementById('ai-key');
   if (keyInput) {
+    keyInput.type = 'password';
     keyInput.value = s.keys[provider] || '';
     keyInput.placeholder = provider === 'openai' ? 'Clé API OpenAI (sk-…)' : 'Clé API Claude (sk-ant-…)';
   }
@@ -391,7 +495,7 @@ function _injectAiBar() {
     slot.dataset.wired = '1';
 
     const s = _aiSettings();
-    const groups = { anthropic: [], openai: [] };
+    const groups = { local: [], openai: [], anthropic: [] };
     Object.entries(AI_MODELS).forEach(([id, m]) => {
       groups[m.provider].push(`<option value="${id}" ${s.model === id ? 'selected' : ''}>${m.label}</option>`);
     });
@@ -404,19 +508,28 @@ function _injectAiBar() {
       </div>
       <div class="vault-actions">
         <select id="ai-model" title="Modèle utilisé">
-          <optgroup label="Claude">${groups.anthropic.join('')}</optgroup>
+          <optgroup label="Local (gratuit)">${groups.local.join('')}</optgroup>
           <optgroup label="OpenAI">${groups.openai.join('')}</optgroup>
+          <optgroup label="Claude">${groups.anthropic.join('')}</optgroup>
         </select>
         <input id="ai-key" type="password" placeholder="Clé API"/>
-        <button id="ai-test" class="gd-btn" title="Enregistrer et tester la clé">${icon('check', 15)} Tester</button>
+        <select id="ai-local-model" title="Modèle chargé dans LM Studio" style="display:none"></select>
+        <button id="ai-local-detect" class="gd-btn" title="Détecter les modèles chargés dans LM Studio" style="display:none">${icon('refresh', 15)} Détecter</button>
+        <button id="ai-test" class="gd-btn" title="Enregistrer et tester">${icon('check', 15)} Tester</button>
       </div>
     `;
     slot.appendChild(bar);
     const _saveKey = () => {
       const st = _aiSettings();
       const provider = _aiProvider(st.model);
-      const keys = {}; keys[provider] = document.getElementById('ai-key').value.trim();
-      _aiSave({ keys });
+      const val = document.getElementById('ai-key').value.trim();
+      if (provider === 'local') {
+        const newUrl = val || LM_STUDIO_DEFAULT_URL;
+        const patch = { localUrl: newUrl };
+        // URL changée → re-détecter les modèles ; sinon on garde le modèle choisi
+        if (newUrl !== (st.localUrl || LM_STUDIO_DEFAULT_URL)) patch.localModel = '';
+        _aiSave(patch);
+      } else { const keys = {}; keys[provider] = val; _aiSave({ keys }); }
     };
     document.getElementById('ai-test').onclick = async () => {
       _saveKey();
@@ -432,6 +545,12 @@ function _injectAiBar() {
     };
     document.getElementById('ai-key').addEventListener('change', () => { _saveKey(); _renderAiBar(); });
     document.getElementById('ai-model').onchange = (e) => { _aiSave({ model: e.target.value }); _renderAiBar(); };
+    document.getElementById('ai-local-detect').onclick = () => _populateLocalModels({ notify: true });
+    document.getElementById('ai-local-model').onchange = (e) => {
+      _aiSave({ localModel: e.target.value });
+      const st = document.getElementById('ai-status');
+      if (st && e.target.value) { st.textContent = 'LM Studio · ' + e.target.value; st.classList.add('connected'); }
+    };
     _renderAiBar();
   };
   new MutationObserver(_doInject).observe(document.body, { childList: true, subtree: true });

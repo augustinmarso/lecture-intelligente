@@ -57,7 +57,8 @@ async function _shelfPermission(mode = 'read') {
 }
 
 // --- Connexion ---
-async function shelfConnect() {
+async function shelfConnect(opts) {
+  opts = opts || {};
   if (!window.showDirectoryPicker) {
     if (window.showToast) window.showToast('Navigateur non compatible (utilise Chrome/Edge)');
     return false;
@@ -70,7 +71,9 @@ async function shelfConnect() {
     if (window.showToast) window.showToast('Dossier connecté : ' + handle.name);
     _renderShelfBar();
     if (window.renderHomeBooks) window.renderHomeBooks();
-    await shelfBrowse();
+    // Depuis l'accueil (browse:false) : on reste sur la page home, la section
+    // « Sur ton ordinateur » + sa recherche apparaissent sans ouvrir la modale.
+    if (opts.browse !== false) await shelfBrowse();
     return true;
   } catch (e) {
     if (e.name !== 'AbortError') console.warn('shelf connect error', e);

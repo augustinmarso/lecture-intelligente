@@ -118,6 +118,34 @@
     #resizer:hover { background: var(--border2); }
     .main-scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 2rem 1rem 4rem; }
     .app { width: 100%; max-width: 620px; position: relative; }
+    /* Accueil : le site s'adapte à la taille de l'écran (grille plus large) */
+    .app.app-wide { max-width: 1100px; }
+    /* Mode lecture PDF : le PDF prend tout, la méthode devient un dock façon
+       barre des tâches au centre-bas, qui se déplie en popup. */
+    #method-dock { display: none; }
+    .layout.pdf-mode #pdf-panel.active { flex: 1 1 auto; max-width: none; }
+    .layout.pdf-mode #resizer { display: none; }
+    .layout.pdf-mode .main-scroll {
+      position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%);
+      width: min(680px, 94vw); max-height: 72vh; padding: 1.1rem 1rem 1.4rem;
+      background: var(--bg); border: 1px solid var(--border2); border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(40,30,20,.34); z-index: 655; display: none;
+    }
+    .layout.pdf-mode.method-open .main-scroll { display: flex; animation: methodPop .16s ease; }
+    @keyframes methodPop { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    .layout.pdf-mode #method-dock {
+      display: inline-flex; align-items: center; gap: 8px; position: fixed;
+      left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 660;
+      padding: 10px 18px; border: none; border-radius: 999px;
+      background: var(--text); color: var(--bg); cursor: pointer; font-family: inherit;
+      font-size: 13px; font-weight: 600; box-shadow: 0 8px 26px rgba(40,30,20,.36);
+      transition: transform .12s, background .12s; max-width: 90vw;
+    }
+    .layout.pdf-mode #method-dock:hover { transform: translateX(-50%) translateY(-1px); }
+    .layout.pdf-mode.method-open #method-dock { background: var(--accent); color: #fff; }
+    #method-dock-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .method-dock-chev { font-size: 18px; transition: transform .18s; }
+    .layout.pdf-mode.method-open .method-dock-chev { transform: rotate(180deg); }
     .top-bar { position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding: .5rem 0; margin: -2rem 0 2rem; z-index: 5; display: flex; justify-content: flex-start; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
     .top-bar .app-title { margin-right: auto; }
     .btn-pdf-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background .1s; height: 36px; min-width: 36px; flex-shrink: 0; }
@@ -165,9 +193,11 @@
     .home-hero { text-align: center; padding: 2.2rem 0 1.6rem; }
     .home-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: clamp(34px, 6vw, 52px); letter-spacing: -0.01em; color: var(--text); }
     .home-sub { margin-top: 6px; font-size: 15px; color: var(--text2); }
-    .home-actions { margin-top: 1.4rem; display: flex; justify-content: center; }
-    .home-open-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; background: var(--accent); color: #fff; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.12)); }
+    .home-actions { margin-top: 1.4rem; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .home-open-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; background: var(--accent); color: #fff; border-radius: var(--radius); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .15s, transform .1s; box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.12)); }
     .home-open-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .home-open-folder { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border2); }
+    .home-open-folder:hover { background: var(--bg2); }
     .home-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--text3); margin: 1.6rem 0 .7rem; }
     .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
     .home-book { display: flex; flex-direction: column; align-items: stretch; text-align: left; padding: 0 0 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); cursor: pointer; overflow: hidden; font-family: inherit; transition: transform .12s, box-shadow .12s, border-color .12s; }
@@ -179,6 +209,13 @@
     .home-book-bar { display: block; height: 3px; background: var(--bg3); border-radius: 999px; margin: 8px 10px 0; overflow: hidden; }
     .home-book-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
     .home-book-sub { font-size: 11.5px; color: var(--text2); padding: 5px 10px 0; }
+    .home-shelf-label { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .home-shelf-search { display: flex; align-items: center; gap: 8px; letter-spacing: normal; text-transform: none; font-weight: 400; }
+    .home-shelf-search input { padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; font-family: inherit; font-size: 12.5px; background: var(--bg); color: var(--text); width: 220px; max-width: 48vw; height: 30px; }
+    .home-shelf-search input:focus { outline: none; border-color: var(--accent); }
+    .home-shelf-count { font-size: 11px; color: var(--text3); white-space: nowrap; }
+    .home-shelf-empty { font-size: 13px; color: var(--text2); padding: 10px 2px; }
+    @media (max-width: 560px) { .home-shelf-search input { width: 100%; max-width: none; } .home-shelf-search { width: 100%; } }
     .type-card { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; transition: background .1s; background: var(--bg); }
     .type-card:hover { background: var(--bg2); }
     .type-card.selected { background: var(--bg2); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -397,6 +434,11 @@
   <div class="main-scroll">
     <div class="app" id="app"></div>
   </div>
+  <button id="method-dock" title="Afficher / masquer ma méthode">
+    <span class="ms">menu_book</span>
+    <span id="method-dock-label">Ma méthode</span>
+    <span class="ms method-dock-chev">expand_less</span>
+  </button>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -610,6 +652,69 @@ async function loadPdfFromInput(e) {
   e.target.value = '';
 }
 
+// Garde-fou : beaucoup de PDF mettent le nom du logiciel dans Title/Author
+// (Microsoft Word, Acrobat, LaTeX…) — on n'auto-remplit que si ça ressemble
+// à un vrai titre/nom.
+function _looksLikeMeta(v) {
+  if (!v || v.length < 2 || v.length > 90) return false;
+  if (/^(untitled|microsoft|word|acrobat|pscript|pdftex|latex|xetex|calibre|writer|ghostscript|quartz|indesign|distiller|powerpoint|libreoffice|openoffice|unknown|admin|user|owner|default|document\d*)\b/i.test(v)) return false;
+  if (/\.(pdf|docx?|indd|tex)$/i.test(v)) return false;
+  return true;
+}
+
+// Texte des premières pages (page de titre) pour retrouver l'auteur
+async function _firstPagesText(maxPages, maxChars) {
+  maxPages = maxPages || 3; maxChars = maxChars || 2200;
+  let out = '';
+  try {
+    for (let i = 1; i <= Math.min(maxPages, pdf.total || 1); i++) {
+      const page = await pdf.doc.getPage(i);
+      const tc = await page.getTextContent();
+      out += tc.items.map(it => it.str).join(' ') + '\n';
+      if (out.length > maxChars) break;
+    }
+  } catch (_) {}
+  return out.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+}
+
+// Repli sans IA : motif « par / by <Nom Prénom> » sur la page de titre
+function _authorFromText(text) {
+  const m = (text || '').match(/\b(?:par|by)\s+([A-ZÀ-Þ][\p{L}'’.-]+(?:\s+[A-ZÀ-Þ][\p{L}'’.-]+){1,2})/u);
+  return m ? m[1].trim() : '';
+}
+
+// L'IA (Qwen/LM Studio, GPT-4.1 nano, Claude…) identifie l'auteur depuis la page de titre
+async function _aiFindAuthor(title, firstText) {
+  if (!window.aiIsConfigured || !window.aiIsConfigured() || !window.aiCall) return '';
+  try {
+    const r = await window.aiCall({
+      system: 'Tu identifies l\'auteur d\'un livre à partir de sa page de titre. Ne devine jamais : si l\'auteur n\'apparaît pas clairement, renvoie une chaîne vide.',
+      user: `Titre supposé : "${title || '(inconnu)'}"\n\nDébut du livre (page de titre) :\n"""${firstText}"""\n\nDonne uniquement le nom complet de l'auteur (une personne). Si tu n'es pas sûr, renvoie "".`,
+      schema: { type: 'object', properties: { author: { type: 'string' } }, required: ['author'], additionalProperties: false },
+      model: window.aiCheapestModel ? window.aiCheapestModel() : undefined,
+      maxTokens: 60
+    });
+    return (r && typeof r.author === 'string') ? r.author.trim() : '';
+  } catch (_) { return ''; }
+}
+
+// Détection d'auteur en tâche de fond : IA d'abord, repli texte, sinon rien
+async function _detectAuthorAsync(title) {
+  try {
+    const text = await _firstPagesText();
+    if (!text) return;
+    let author = await _aiFindAuthor(title, text);
+    if (!author) author = _authorFromText(text);
+    author = (author || '').trim();
+    // On n'écrase pas une saisie de l'utilisateur et on refuse le bruit
+    if (author && _looksLikeMeta(author) && !/^\d/.test(author) && !state.bookAuthor) {
+      state.bookAuthor = author;
+      showToast('Auteur détecté : ' + author);
+      if (typeof re === 'function') re();
+    }
+  } catch (_) {}
+}
+
 async function loadPdfFile(file) {
   if (!window.pdfjsLib) { showToast('PDF.js non chargé'); return; }
   const buf = await file.arrayBuffer();
@@ -622,15 +727,33 @@ async function loadPdfFile(file) {
     pdf.name = file.name;
     state.pdfPanelOpen = true;
 
-    // 🎯 Auto-fill du titre du livre depuis le nom du fichier
+    // 🎯 Auto-fill titre + auteur depuis les métadonnées du PDF
+    let metaTitle = '', metaAuthor = '';
+    try {
+      const md = await pdf.doc.getMetadata();
+      const info = (md && md.info) || {};
+      metaTitle = (info.Title || '').trim();
+      metaAuthor = (info.Author || '').trim();
+    } catch (_) {}
+
     if (!state.bookTitle) {
       const cleanName = file.name
         .replace(/\.pdf$/i, '')
         .replace(/[_-]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-      state.bookTitle = cleanName;
-      showToast('Titre détecté : ' + cleanName);
+      // Titre des métadonnées s'il est propre, sinon le nom de fichier
+      state.bookTitle = _looksLikeMeta(metaTitle) ? metaTitle : cleanName;
+      showToast('Titre détecté : ' + state.bookTitle);
+    }
+    // Auteur rempli automatiquement dans l'encart (comme le titre)
+    if (!state.bookAuthor && _looksLikeMeta(metaAuthor)) {
+      state.bookAuthor = metaAuthor;
+      showToast('Auteur détecté : ' + metaAuthor);
+    } else if (!state.bookAuthor) {
+      // Pas d'auteur dans les métadonnées → on le cherche en tâche de fond
+      // (page de titre + IA si dispo), sans bloquer l'affichage du PDF.
+      _detectAuthorAsync(state.bookTitle);
     }
 
     renderPdfPanel();
@@ -811,12 +934,41 @@ function scrollToPage(pageNum) {
 // Backward compat
 async function renderPage() { return renderAllPages(); }
 
+let _methodExpanded = false;
 function renderPdfPanel() {
   const panel = document.getElementById('pdf-panel');
+  const layout = document.querySelector('.layout');
   panel.classList.toggle('active', state.pdfPanelOpen);
+  // Mode lecture : PDF plein cadre, méthode repliée en dock au centre-bas
+  if (layout) {
+    layout.classList.toggle('pdf-mode', state.pdfPanelOpen);
+    if (!state.pdfPanelOpen) _methodExpanded = false;
+    layout.classList.toggle('method-open', state.pdfPanelOpen && _methodExpanded);
+  }
   if (!state.pdfPanelOpen && panel.classList.contains('fullscreen')) setPdfFullscreen(false);
   if (state.pdfPanelOpen && !pdf.doc) renderPdfEmptyLibrary();
+  updateMethodDock();
 }
+function setMethodExpanded(on) {
+  _methodExpanded = !!on;
+  const layout = document.querySelector('.layout');
+  if (layout) layout.classList.toggle('method-open', state.pdfPanelOpen && _methodExpanded);
+  updateMethodDock();
+  if (_methodExpanded) { const ms = document.querySelector('.main-scroll'); if (ms) ms.scrollTop = 0; }
+}
+function updateMethodDock() {
+  const label = document.getElementById('method-dock-label');
+  if (!label) return;
+  let t = 'Ma méthode';
+  try {
+    const STEPS = getSteps();
+    const s = STEPS[state.step];
+    if (state.done) t = 'Fiche terminée';
+    else if (s && s.title) t = s.title;
+  } catch (_) {}
+  label.textContent = t;
+}
+window.setMethodExpanded = setMethodExpanded;
 
 // Panneau PDF vide : proposer les livres de la bibliothèque (les mêmes
 // que sur l'accueil et le tableau de bord), avec reprise à la dernière page
@@ -860,6 +1012,7 @@ window.renderPdfEmptyLibrary = renderPdfEmptyLibrary;
 function syncPdfPanel() {
   const btn = document.getElementById('btn-pdf-toggle');
   if (btn) btn.classList.toggle('active', state.pdfPanelOpen);
+  updateMethodDock();
   renderHighlightsBar();
 }
 
@@ -985,9 +1138,20 @@ function setPdfFullscreen(on) {
   }
 }
 
-// Échap : quitte le plein écran PDF
+// Dock « Ma méthode » (centre-bas en mode lecture PDF) : plie/déplie la méthode
+(function wireMethodDock() {
+  const dock = document.getElementById('method-dock');
+  if (dock) dock.onclick = () => setMethodExpanded(!_methodExpanded);
+})();
+
+// Échap : replie d'abord la méthode, sinon quitte le plein écran PDF
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && document.getElementById('pdf-panel')?.classList.contains('fullscreen')) {
+  if (e.key !== 'Escape') return;
+  const layout = document.querySelector('.layout');
+  if (layout && layout.classList.contains('method-open')) {
+    e.preventDefault();
+    setMethodExpanded(false);
+  } else if (document.getElementById('pdf-panel')?.classList.contains('fullscreen')) {
     e.preventDefault();
     setPdfFullscreen(false);
   }
@@ -1284,6 +1448,7 @@ function render() {
 
   app.innerHTML = topBar + phases + dots +
     `<div class="step-number">${s.num}</div><div class="step-title">${s.title}</div>` + body;
+  app.classList.toggle('app-wide', s.id === 'type'); // accueil : pleine largeur écran
 
   bindEvents(); wireVoiceOnAll(); wirePdfControls(); syncPdfPanel();
   if (s.id === 'type') renderHomeBooks(); // grille « Reprendre » de l'accueil
@@ -1315,6 +1480,7 @@ function renderType() {
     <p class="home-sub">Lis mieux, retiens plus — méthode de lecture active.</p>
     <div class="home-actions">
       <label class="home-open-btn"><span class="ms" style="font-size:18px">menu_book</span> Ouvrir un livre (PDF)<input type="file" accept="application/pdf" style="display:none" onchange="state.pdfPanelOpen=true;renderPdfPanel();syncPdfPanel();loadPdfFromInput(event)"/></label>
+      <button class="home-open-btn home-open-folder" onclick="if(window.shelfConnect){window.shelfConnect({browse:false})}else{showToast('Fonction dossier indisponible')}"><span class="ms" style="font-size:18px">folder_open</span> Ouvrir un dossier</button>
     </div>
   </div>
   <div id="home-books"></div>
@@ -1340,7 +1506,7 @@ function renderType() {
     <div class="input-wrap"><input id="book-title" type="text" placeholder="Ex: Why We Sleep" value="${escapeAttr(state.bookTitle)}"/></div>
   </div>
   <div class="field">
-    <label>Auteur(s)</label>
+    <label>Auteur(s) <span style="color:var(--text3);font-weight:400">(rempli auto si le PDF le renseigne)</span></label>
     <div class="input-wrap"><input id="book-author" type="text" placeholder="Ex: Matthew Walker" value="${escapeAttr(state.bookAuthor)}"/></div>
   </div>`}
   ${isChap ? `<div class="field">
@@ -1353,6 +1519,7 @@ function renderType() {
 
 // Accueil : grille « Reprendre » — tous les livres avec couverture et progression
 const _shelfThumbCache = new Map();
+let _shelfHomeQuery = '';
 async function renderHomeBooks() {
   const host = document.getElementById('home-books');
   if (!host || typeof libGetAll !== 'function') return;
@@ -1366,11 +1533,15 @@ async function renderHomeBooks() {
   if (window.shelfScanIfGranted) {
     try { shelfFiles = (await window.shelfScanIfGranted()) || []; } catch (_) {}
   }
-  const SHELF_MAX = 18;
-  const shelfShown = shelfFiles.slice(0, SHELF_MAX);
-  const shelfRest = shelfFiles.length - shelfShown.length;
+  // Recherche parmi le dossier (nom de fichier + sous-dossier)
+  const q = _shelfHomeQuery.trim().toLowerCase();
+  const shelfMatched = q ? shelfFiles.filter(f => ((f.dir || '') + '/' + f.name).toLowerCase().includes(q)) : shelfFiles;
+  const SHELF_MAX = q ? 60 : 18;
+  const shelfShown = shelfMatched.slice(0, SHELF_MAX);
+  const shelfRest = shelfMatched.length - shelfShown.length;
+  const hasFolder = shelfFiles.length > 0;
 
-  if (!books.length && !shelfShown.length) { host.innerHTML = ''; return; }
+  if (!books.length && !hasFolder) { host.innerHTML = ''; return; }
 
   const localSection = books.length ? `
     <div class="home-label">${icon('history', 14)} REPRENDRE</div>
@@ -1385,9 +1556,12 @@ async function renderHomeBooks() {
       </button>`;
     }).join('')}</div>` : '';
 
-  const shelfSection = shelfShown.length ? `
-    <div class="home-label">${icon('computer', 14)} SUR TON ORDINATEUR</div>
-    <div class="home-grid">${shelfShown.map((f, i) => `
+  const shelfSection = hasFolder ? `
+    <div class="home-label home-shelf-label">
+      <span>${icon('computer', 14)} SUR TON ORDINATEUR</span>
+      <span class="home-shelf-search"><input id="home-shelf-q" type="search" placeholder="Rechercher dans le dossier…" value="${escapeAttr(_shelfHomeQuery)}"/>${q ? `<span class="home-shelf-count">${shelfMatched.length} résultat${shelfMatched.length > 1 ? 's' : ''}</span>` : ''}</span>
+    </div>
+    ${shelfShown.length ? `<div class="home-grid">${shelfShown.map((f, i) => `
       <button class="home-book home-book-shelf" data-shelf-idx="${i}" title="Ouvrir « ${escapeAttr(f.name)} »">
         <span class="home-thumb" data-shelf-thumb="${i}"><span class="home-thumb-ph">${icon('picture_as_pdf', 30)}</span></span>
         <span class="home-book-title">${escapeHtml(f.name.replace(/\.pdf$/i, ''))}</span>
@@ -1397,7 +1571,8 @@ async function renderHomeBooks() {
         <span class="home-thumb"><span class="home-thumb-ph">${icon('more_horiz', 30)}</span></span>
         <span class="home-book-title">+${shelfRest} autres</span>
         <span class="home-book-sub">voir la bibliothèque</span>
-      </button>` : ''}</div>` : '';
+      </button>` : ''}</div>`
+    : `<div class="home-shelf-empty">Aucun livre ne correspond à « ${escapeHtml(_shelfHomeQuery)} ».</div>`}` : '';
 
   host.innerHTML = localSection + shelfSection;
 
@@ -1429,6 +1604,17 @@ async function renderHomeBooks() {
   });
   const moreBtn = document.getElementById('home-shelf-more');
   if (moreBtn) moreBtn.onclick = () => { if (window.openLibrary) window.openLibrary(); };
+
+  // Recherche dans le dossier connecté (filtre en direct, focus conservé)
+  const shelfQ = document.getElementById('home-shelf-q');
+  if (shelfQ) {
+    shelfQ.oninput = async () => {
+      _shelfHomeQuery = shelfQ.value;
+      await renderHomeBooks();
+      const again = document.getElementById('home-shelf-q');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
 
   // Couvertures manquantes (livres locaux) : génération paresseuse
   if (window.libEnsureThumb) {

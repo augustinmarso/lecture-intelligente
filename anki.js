@@ -128,6 +128,36 @@ async function ankiQuickAdd(recto, verso, sourceLabel) {
 }
 window.ankiQuickAdd = ankiQuickAdd;
 
+// Récupère les mots du deck Anki « Mes mots » et les fusionne dans la liste
+// locale (dict-saved-words-v1) → remplit la page « Mes mots » avec ce qui a
+// déjà été enregistré, même sur un profil vide. Renvoie le nombre ajouté.
+async function ankiPullWords() {
+  try {
+    if (!await ankiIsAvailable()) return 0;
+    const deck = _ankiDeckFor('Mes mots');
+    const safe = deck.replace(/"/g, '');
+    const ids = await ankiInvoke('findNotes', { query: `deck:"${safe}"` });
+    if (!ids || !ids.length) return 0;
+    const infos = await ankiInvoke('notesInfo', { notes: ids });
+    const cur = JSON.parse(localStorage.getItem('dict-saved-words-v1') || '[]');
+    const have = new Set(cur.map(w => (w.word || '') + '|' + (w.lang || 'fr')));
+    let added = 0;
+    infos.forEach(info => {
+      const word = _ankiPlain(info.fields.Recto.value).trim().toLowerCase();
+      const def = _ankiPlain(info.fields.Verso.value);
+      if (!word || have.has(word + '|fr')) return;
+      cur.unshift({ word, lang: 'fr', definition: def, context: '', savedAt: Date.now() });
+      have.add(word + '|fr'); added++;
+    });
+    if (added) {
+      localStorage.setItem('dict-saved-words-v1', JSON.stringify(cur.slice(0, 500)));
+      document.dispatchEvent(new CustomEvent('li:changed'));
+    }
+    return added;
+  } catch (_) { return 0; }
+}
+window.ankiPullWords = ankiPullWords;
+
 // Carte pour une citation surlignée. Recto : question devinette générée par
 // l'IA (modèle éco) SPÉCIFIQUE au contenu de la citation ; repli sur
 // « Que dit [source] sur [sujet] ? » sans IA. Verso = citation exacte (+ page).
@@ -701,7 +731,7 @@ _ankiStyle.textContent = `
 .anki-useai, .anki-auto { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); cursor: pointer; user-select: none; }
 .anki-useai input, .anki-auto input { accent-color: var(--accent); cursor: pointer; }
 .anki-section .gcal-row { align-items: center; }
-.anki-help-modal { position: fixed; inset: 0; z-index: 650; display: none; }
+.anki-help-modal { position: fixed; inset: 0; z-index: 690; display: none; }
 .anki-help-modal.open { display: block; }
 .anki-help-body { font-size: 14px; line-height: 1.6; color: var(--text); }
 .anki-help-body ol { padding-left: 20px; margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }

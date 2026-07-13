@@ -397,11 +397,14 @@ async function showDefinitionPopup(word, rect, context) {
         <option value="de"${_dictLang()==='de'?' selected':''}>Deutsch</option>
         <option value="it"${_dictLang()==='it'?' selected':''}>Italiano</option>
       </select>
+      <button class="dict-action" data-act="split" title="Ouvrir en 2 volets (mot | définition)">${icon('splitscreen', 14)} 2 volets</button>
       <button class="dict-action" data-act="close">✕</button>
     </div>
   `;
 
   popup.querySelector('[data-act="close"]').onclick = _hidePopup;
+  const splitEl = popup.querySelector('[data-act="split"]');
+  if (splitEl) splitEl.onclick = () => { showWordSplitView(word, defHolder.text, context); _hidePopup(); };
   const addEl = popup.querySelector('[data-act="add"]');
   if (addEl) addEl.onclick = () => {
     if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defHolder.text, context);
@@ -526,7 +529,10 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') _hidePopup();
+  if (e.key !== 'Escape') return;
+  const split = document.getElementById('dict-split');
+  if (split) { split.remove(); return; }
+  _hidePopup();
 });
 
 // =============================================================
@@ -590,6 +596,10 @@ function openWords() {
   const modal = document.getElementById('lib-modal');
   if (modal) modal.classList.add('open');
   renderWordsView();
+  // Remplir la page avec les mots déjà enregistrés dans le deck Anki « Mes mots »
+  if (window.ankiPullWords) {
+    window.ankiPullWords().then(n => { if (n) renderWordsView(); }).catch(() => {});
+  }
 }
 function renderWordsView() {
   const body = document.getElementById('lib-body');
@@ -607,7 +617,10 @@ function renderWordsView() {
             <div class="note-header"><strong>${_esc(w.word)}</strong><small>${_esc(w.lang)} · ${new Date(w.savedAt).toLocaleDateString('fr-FR')}</small></div>
             <div class="dw-def">${_esc(w.definition || '—')}</div>
             ${w.context ? `<div class="dw-ctx">« …${_esc(w.context)}… »</div>` : ''}
-            <div class="note-actions"><button class="lib-action lib-del" data-act="del-word">${icon('delete', 15)}</button></div>
+            <div class="note-actions">
+              <button class="lib-action" data-act="split-word" title="Ouvrir en 2 volets">${icon('splitscreen', 15)} 2 volets</button>
+              <button class="lib-action lib-del" data-act="del-word">${icon('delete', 15)}</button>
+            </div>
           </div>`).join('')}
     </div>`;
   if (window.liWireTabs) window.liWireTabs(body);
@@ -618,9 +631,40 @@ function renderWordsView() {
       renderWordsView();
     };
   });
+  body.querySelectorAll('[data-act="split-word"]').forEach(b => {
+    b.onclick = () => {
+      const card = b.closest('.dw-card');
+      const wobj = getSavedWords().find(x => x.word === card.dataset.word && x.lang === card.dataset.lang);
+      if (wobj) showWordSplitView(wobj.word, wobj.definition, wobj.context);
+    };
+  });
 }
 window.openWords = openWords;
 window.renderWordsView = renderWordsView;
+
+// =============================================================
+// Vue « 2 volets » : le popup passe en page séparée, mot | définition
+// =============================================================
+function showWordSplitView(word, def, context) {
+  const old = document.getElementById('dict-split');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'dict-split';
+  el.innerHTML = `
+    <button class="dsp-close" title="Fermer (Échap)">✕</button>
+    <div class="dsp-pane dsp-word">
+      <div class="dsp-word-main">${_esc(word)}</div>
+      ${context ? `<div class="dsp-ctx">« …${_esc(context)}… »</div>` : ''}
+    </div>
+    <div class="dsp-pane dsp-def">
+      <div class="dsp-label">Définition</div>
+      <div class="dsp-def-text">${_esc(def || '—')}</div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.dsp-close').onclick = () => el.remove();
+  el.onclick = (e) => { if (e.target === el) el.remove(); }; // clic hors volets = fermer
+}
+window.showWordSplitView = showWordSplitView;
 
 // =============================================================
 // Injection bouton 📖 dans le top-bar
@@ -702,9 +746,27 @@ _dictStyle.textContent = `
 .dw-del { background: transparent; border: none; color: var(--text3); cursor: pointer; padding: 4px 8px; border-radius: var(--radius); height: 28px; transition: background .1s; }
 .dw-del:hover { background: rgba(224,62,62,0.12); color: var(--danger); }
 
+/* Vue « 2 volets » : mot | définition en page séparée */
+#dict-split { position: fixed; inset: 0; z-index: 695; display: flex; background: var(--bg); animation: dsFade .16s ease; }
+@keyframes dsFade { from { opacity: 0; } to { opacity: 1; } }
+.dsp-pane { flex: 1; min-width: 0; overflow-y: auto; padding: clamp(24px, 5vw, 64px); display: flex; flex-direction: column; justify-content: center; }
+.dsp-word { align-items: center; text-align: center; background: var(--bg2); border-right: 1px solid var(--border); gap: 18px; }
+.dsp-word-main { font-family: 'Newsreader', Georgia, serif; font-weight: 600; font-size: clamp(34px, 6vw, 64px); color: var(--text); line-height: 1.15; word-break: break-word; }
+.dsp-ctx { font-size: 14px; color: var(--text2); font-style: italic; line-height: 1.6; max-width: 420px; }
+.dsp-def { justify-content: flex-start; }
+.dsp-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+.dsp-def-text { font-size: clamp(15px, 2vw, 19px); line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+.dsp-close { position: fixed; top: 14px; right: 16px; z-index: 2; background: var(--bg3); border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--text2); box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.15)); transition: background .1s, color .1s; }
+.dsp-close:hover { background: var(--hover-strong); color: var(--text); }
+
 @media (max-width: 600px) {
   .dw-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; }
   #dict-popup { width: calc(100vw - 16px); }
+  /* En 2 volets empilés verticalement sur mobile */
+  #dict-split { flex-direction: column; }
+  .dsp-word { border-right: none; border-bottom: 1px solid var(--border); }
+  .dsp-pane { justify-content: flex-start; padding: 28px 20px; }
+  .dsp-word { padding-top: 56px; }
 }
 `;
 document.head.appendChild(_dictStyle);
