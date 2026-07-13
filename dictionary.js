@@ -397,6 +397,7 @@ async function showDefinitionPopup(word, rect, context) {
         <option value="de"${_dictLang()==='de'?' selected':''}>Deutsch</option>
         <option value="it"${_dictLang()==='it'?' selected':''}>Italiano</option>
       </select>
+      <button class="dict-action" data-act="side" title="Ouvrir sur le côté (garde la lecture visible)">${icon('dock_to_right', 14)} Côté</button>
       <button class="dict-action" data-act="split" title="Ouvrir en 2 volets (mot | définition)">${icon('splitscreen', 14)} 2 volets</button>
       <button class="dict-action" data-act="close">✕</button>
     </div>
@@ -405,6 +406,8 @@ async function showDefinitionPopup(word, rect, context) {
   popup.querySelector('[data-act="close"]').onclick = _hidePopup;
   const splitEl = popup.querySelector('[data-act="split"]');
   if (splitEl) splitEl.onclick = () => { showWordSplitView(word, defHolder.text, context); _hidePopup(); };
+  const sideEl = popup.querySelector('[data-act="side"]');
+  if (sideEl) sideEl.onclick = () => { showWordSidePanel(word, defHolder.text, context); _hidePopup(); };
   const addEl = popup.querySelector('[data-act="add"]');
   if (addEl) addEl.onclick = () => {
     if (!getSavedWords().some(x => x.word === w && x.lang === _dictLang())) saveWord(w, defHolder.text, context);
@@ -530,6 +533,8 @@ document.addEventListener('mousedown', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  const side = document.getElementById('dict-side');
+  if (side) { side.remove(); return; }
   const split = document.getElementById('dict-split');
   if (split) { split.remove(); return; }
   _hidePopup();
@@ -618,6 +623,7 @@ function renderWordsView() {
             <div class="dw-def">${_esc(w.definition || '—')}</div>
             ${w.context ? `<div class="dw-ctx">« …${_esc(w.context)}… »</div>` : ''}
             <div class="note-actions">
+              <button class="lib-action" data-act="side-word" title="Ouvrir sur le côté">${icon('dock_to_right', 15)} Côté</button>
               <button class="lib-action" data-act="split-word" title="Ouvrir en 2 volets">${icon('splitscreen', 15)} 2 volets</button>
               <button class="lib-action lib-del" data-act="del-word">${icon('delete', 15)}</button>
             </div>
@@ -636,6 +642,13 @@ function renderWordsView() {
       const card = b.closest('.dw-card');
       const wobj = getSavedWords().find(x => x.word === card.dataset.word && x.lang === card.dataset.lang);
       if (wobj) showWordSplitView(wobj.word, wobj.definition, wobj.context);
+    };
+  });
+  body.querySelectorAll('[data-act="side-word"]').forEach(b => {
+    b.onclick = () => {
+      const card = b.closest('.dw-card');
+      const wobj = getSavedWords().find(x => x.word === card.dataset.word && x.lang === card.dataset.lang);
+      if (wobj) showWordSidePanel(wobj.word, wobj.definition, wobj.context);
     };
   });
 }
@@ -665,6 +678,28 @@ function showWordSplitView(word, def, context) {
   el.onclick = (e) => { if (e.target === el) el.remove(); }; // clic hors volets = fermer
 }
 window.showWordSplitView = showWordSplitView;
+
+// Panneau latéral : la définition se cale sur le bord droit, la lecture reste
+// visible à côté (ne se ferme pas au clic ailleurs → on peut lire en même temps).
+function showWordSidePanel(word, def, context) {
+  const old = document.getElementById('dict-side');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'dict-side';
+  el.innerHTML = `
+    <div class="dsi-head">
+      <strong class="dsi-word">${_esc(word)}</strong>
+      <button class="dsi-close" title="Fermer (Échap)">✕</button>
+    </div>
+    <div class="dsi-body">
+      ${context ? `<div class="dsi-ctx">« …${_esc(context)}… »</div>` : ''}
+      <div class="dsi-label">Définition</div>
+      <div class="dsi-def">${_esc(def || '—')}</div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.dsi-close').onclick = () => el.remove();
+}
+window.showWordSidePanel = showWordSidePanel;
 
 // =============================================================
 // Injection bouton 📖 dans le top-bar
@@ -758,6 +793,18 @@ _dictStyle.textContent = `
 .dsp-def-text { font-size: clamp(15px, 2vw, 19px); line-height: 1.7; color: var(--text); white-space: pre-wrap; }
 .dsp-close { position: fixed; top: 14px; right: 16px; z-index: 2; background: var(--bg3); border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--text2); box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.15)); transition: background .1s, color .1s; }
 .dsp-close:hover { background: var(--hover-strong); color: var(--text); }
+
+/* Panneau latéral : la définition calée sur le bord droit */
+#dict-side { position: fixed; top: 0; right: 0; height: 100vh; height: 100dvh; width: min(360px, 92vw); z-index: 690; background: var(--bg); border-left: 1px solid var(--border2); box-shadow: -8px 0 28px rgba(40,30,20,.18); display: flex; flex-direction: column; animation: dsiSlide .18s ease; }
+@keyframes dsiSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.dsi-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+.dsi-word { font-family: 'Newsreader', Georgia, serif; font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.2; word-break: break-word; }
+.dsi-close { background: transparent; border: none; font-size: 16px; cursor: pointer; color: var(--text2); width: 30px; height: 30px; border-radius: var(--radius); flex-shrink: 0; transition: background .1s; }
+.dsi-close:hover { background: var(--hover); color: var(--text); }
+.dsi-body { flex: 1; overflow-y: auto; padding: 16px; }
+.dsi-ctx { font-size: 13px; color: var(--text2); font-style: italic; line-height: 1.6; margin-bottom: 14px; }
+.dsi-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.dsi-def { font-size: 15px; line-height: 1.65; color: var(--text); white-space: pre-wrap; }
 
 @media (max-width: 600px) {
   .dw-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; }
