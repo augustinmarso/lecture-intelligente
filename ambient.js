@@ -303,7 +303,7 @@ _ambStyle.textContent = `
 .ambient-wrap > #ambient-toggle:hover { background: var(--hover); color: var(--text); }
 .ambient-wrap > #ambient-toggle.active { background: var(--hover-strong); color: var(--text); }
 .ambient-current { font-size: 12px; color: var(--text2); font-weight: 500; }
-.ambient-panel { position: fixed; top: 56px; left: 12px; max-width: 360px; width: calc(100vw - 24px); background: var(--bg); border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow); z-index: 200; max-height: calc(100vh - 80px); overflow-y: auto; }
+.ambient-panel { position: fixed; top: 56px; left: 12px; max-width: 360px; width: calc(100vw - 24px); background: var(--bg); border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow); z-index: 210; max-height: calc(100vh - 80px); overflow-y: auto; }
 .ambient-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
 .ambient-off-btn { width: 100%; padding: 6px 10px; border: none; background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; margin-bottom: 12px; height: 30px; transition: background .1s; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
 .ambient-off-btn:hover { background: var(--bg3); }

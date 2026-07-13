@@ -468,7 +468,7 @@ function _injectDashboardButton() {
 // =============================================================
 const _dashStyle = document.createElement('style');
 _dashStyle.textContent = `
-#dash-modal { position: fixed; inset: 0; z-index: 550; }
+#dash-modal { position: fixed; inset: 0; z-index: 500; }
 .dash-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .dash-content { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); width: 92vw; max-width: 820px; max-height: 92vh; max-height: 92dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
 .dash-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); }

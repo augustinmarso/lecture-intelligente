@@ -280,8 +280,8 @@ function _scheduleAutoBackup() {
 }
 
 window.addEventListener('load', () => {
-  // Hook notesAdd / notesUpdate / notesDelete
-  ['notesAdd', 'notesUpdate', 'notesDelete'].forEach(fn => {
+  // Hook notesAdd / notesDelete
+  ['notesAdd', 'notesDelete'].forEach(fn => {
     const orig = window[fn];
     if (typeof orig === 'function' && !orig.__backupWrapped) {
       window[fn] = async function(...args) {

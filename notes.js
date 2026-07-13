@@ -57,23 +57,6 @@ async function notesAdd(note) {
     r.onerror = () => reject(r.error);
   });
 }
-async function notesUpdate(id, patch) {
-  const d = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = d.transaction('notes', 'readwrite');
-    const s = tx.objectStore('notes');
-    const g = s.get(id);
-    g.onsuccess = () => {
-      const n = g.result;
-      if (!n) { reject(new Error('Note introuvable')); return; }
-      Object.assign(n, patch);
-      const p = s.put(n);
-      p.onsuccess = () => resolve(n);
-      p.onerror = () => reject(p.error);
-    };
-    g.onerror = () => reject(g.error);
-  });
-}
 async function notesGetAll() {
   const d = await openDB();
   return new Promise((resolve, reject) => {

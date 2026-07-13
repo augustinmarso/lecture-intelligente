@@ -541,59 +541,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 // =============================================================
-// UI : Modal "Mes mots appris"
-// =============================================================
-function openSavedWords() {
-  const existing = document.getElementById('dict-words-modal');
-  if (existing) { existing.remove(); return; }
-
-  const list = getSavedWords();
-  const modal = document.createElement('div');
-  modal.id = 'dict-words-modal';
-  modal.innerHTML = `
-    <div class="dw-overlay"></div>
-    <div class="dw-content">
-      <div class="dw-header">
-        <h2>${icon('menu_book', 18)} Mes mots <span class="dw-count">${list.length}</span></h2>
-        <button class="dw-close">✕</button>
-      </div>
-      <div class="dw-body">
-        ${list.length === 0 ?
-          `<div class="dw-empty">Aucun mot enregistré.<br><br>Clique sur un mot dans un PDF ou EPUB&nbsp;: sa définition s'affiche, puis clique « Ajouter à Mes mots » si tu veux le garder (ici et dans ton deck Anki).</div>` :
-          list.map(w => `
-            <div class="dw-card" data-word="${_esc(w.word)}" data-lang="${_esc(w.lang)}">
-              <div class="dw-head">
-                <strong>${_esc(w.word)}</strong>
-                <small>${_esc(w.lang)} · ${new Date(w.savedAt).toLocaleDateString('fr-FR')}</small>
-              </div>
-              <div class="dw-def">${_esc(w.definition || '—')}</div>
-              ${w.context ? `<div class="dw-ctx">« …${_esc(w.context)}… »</div>` : ''}
-              <div class="dw-actions">
-                <button class="dw-del">${icon('delete', 15)}</button>
-              </div>
-            </div>
-          `).join('')
-        }
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  modal.querySelector('.dw-close').onclick = () => modal.remove();
-  modal.querySelector('.dw-overlay').onclick = () => modal.remove();
-  modal.querySelectorAll('.dw-del').forEach(b => {
-    b.onclick = (e) => {
-      const card = e.target.closest('.dw-card');
-      removeWord(card.dataset.word, card.dataset.lang);
-      card.remove();
-      const c = modal.querySelector('.dw-count');
-      if (c) c.textContent = getSavedWords().length;
-    };
-  });
-}
-
-window.openSavedWords = openSavedWords;
-
-// =============================================================
 // Vue « Mes mots » intégrée aux onglets de la bibliothèque
 // (Mes fiches · Mes livres · Mes mots · Cartes Anki)
 // =============================================================
@@ -729,9 +676,7 @@ function _injectDictButton() {
 const _dictStyle = document.createElement('style');
 _dictStyle.textContent = `
 /* Popup définition */
-#dict-popup { position: absolute; width: 440px; max-width: calc(100vw - 16px); max-height: 500px; overflow-y: auto; background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 600; padding: 16px 18px; font-size: 14px; color: var(--text); line-height: 1.5; }
-.dict-section { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; padding: 8px 0 4px !important; border-top: 1px solid var(--border); margin-top: 6px; }
-.dict-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+#dict-popup { position: absolute; width: 440px; max-width: calc(100vw - 16px); max-height: 500px; overflow-y: auto; background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 540; padding: 16px 18px; font-size: 14px; color: var(--text); line-height: 1.5; }
 .dict-loading { color: var(--text2); font-size: 13px; }
 .dict-empty { color: var(--text2); font-size: 13px; line-height: 1.5; }
 .dict-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
@@ -747,7 +692,6 @@ _dictStyle.textContent = `
 .dict-action { padding: 4px 12px; background: var(--bg2); color: var(--text); border: none; border-radius: var(--radius); font-family: inherit; font-size: 13px; cursor: pointer; height: 28px; transition: background .1s; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
 .dict-action:hover { background: var(--bg3); }
 .dict-action.saved { background: var(--accent); color: #fff; box-shadow: none; }
-.dict-saved-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--accent); }
 .dict-action[data-act="close"] { margin-left: auto; min-width: 28px; padding: 4px 8px; }
 .dict-lang { padding: 4px 8px; background: var(--bg2); color: var(--text); border: none; border-radius: var(--radius); font-family: inherit; font-size: 12px; height: 28px; box-shadow: inset 0 0 0 1px var(--border); cursor: pointer; }
 .dict-link { color: var(--accent); text-decoration: none; font-size: 13px; }
@@ -758,31 +702,15 @@ _dictStyle.textContent = `
 .dict-simple-wait { color: var(--text2); font-size: 13px; }
 .dict-simple-ex { margin-top: 4px; font-size: 12.5px; color: var(--text2); font-style: italic; }
 
-/* Modal mots enregistrés */
-#dict-words-modal { position: fixed; inset: 0; z-index: 555; }
-.dw-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-.dw-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 700px; height: 90vh; height: 90dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }
-.dw-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-.dw-header h2 { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+/* Cartes de la vue « Mes mots » (+ compteur réutilisé par anki.js) */
 .dw-count { font-size: 11px; color: var(--text2); padding: 1px 8px; background: var(--bg3); border-radius: 3px; font-weight: 500; }
-.dw-close { background: transparent; border: none; font-size: 16px; cursor: pointer; color: var(--text2); padding: 4px 8px; border-radius: var(--radius); height: 28px; min-width: 28px; transition: background .1s; }
-.dw-close:hover { background: var(--hover); color: var(--text); }
-.dw-body { padding: 14px 16px; overflow-y: auto; flex: 1; }
-.dw-empty { text-align: center; color: var(--text2); padding: 3rem 1rem; font-size: 14px; line-height: 1.6; }
 .dw-card { padding: 12px 14px; border-radius: var(--radius); margin-bottom: 2px; position: relative; transition: background .1s; }
 .dw-card:hover { background: var(--hover); }
-.dw-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.dw-head strong { font-size: 15px; font-weight: 700; color: var(--text); }
-.dw-head small { font-size: 11px; color: var(--text3); font-weight: 500; }
 .dw-def { font-size: 13px; color: var(--text); line-height: 1.55; }
 .dw-ctx { margin-top: 6px; font-size: 12px; color: var(--text2); font-style: italic; }
-.dw-actions { position: absolute; top: 8px; right: 8px; opacity: .55; transition: opacity .1s; }
-.dw-card:hover .dw-actions { opacity: 1; }
-.dw-del { background: transparent; border: none; color: var(--text3); cursor: pointer; padding: 4px 8px; border-radius: var(--radius); height: 28px; transition: background .1s; }
-.dw-del:hover { background: rgba(224,62,62,0.12); color: var(--danger); }
 
 /* Vue « 2 volets » : mot | définition en page séparée */
-#dict-split { position: fixed; inset: 0; z-index: 695; display: flex; background: var(--bg); animation: dsFade .16s ease; }
+#dict-split { position: fixed; inset: 0; z-index: 640; display: flex; background: var(--bg); animation: dsFade .16s ease; }
 @keyframes dsFade { from { opacity: 0; } to { opacity: 1; } }
 .dsp-pane { flex: 1; min-width: 0; overflow-y: auto; padding: clamp(24px, 5vw, 64px); display: flex; flex-direction: column; justify-content: center; }
 .dsp-word { align-items: center; text-align: center; background: var(--bg2); border-right: 1px solid var(--border); gap: 18px; }
@@ -795,7 +723,7 @@ _dictStyle.textContent = `
 .dsp-close:hover { background: var(--hover-strong); color: var(--text); }
 
 /* Panneau latéral : la définition calée sur le bord droit */
-#dict-side { position: fixed; top: 0; right: 0; height: 100vh; height: 100dvh; width: min(360px, 92vw); z-index: 690; background: var(--bg); border-left: 1px solid var(--border2); box-shadow: -8px 0 28px rgba(40,30,20,.18); display: flex; flex-direction: column; animation: dsiSlide .18s ease; }
+#dict-side { position: fixed; top: 0; right: 0; height: 100vh; height: 100dvh; width: min(360px, 92vw); z-index: 620; background: var(--bg); border-left: 1px solid var(--border2); box-shadow: -8px 0 28px rgba(40,30,20,.18); display: flex; flex-direction: column; animation: dsiSlide .18s ease; }
 @keyframes dsiSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
 .dsi-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); }
 .dsi-word { font-family: 'Newsreader', Georgia, serif; font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.2; word-break: break-word; }
@@ -807,7 +735,6 @@ _dictStyle.textContent = `
 .dsi-def { font-size: 15px; line-height: 1.65; color: var(--text); white-space: pre-wrap; }
 
 @media (max-width: 600px) {
-  .dw-content { width: 100vw; height: 100vh; height: 100dvh; top: 0; border-radius: 0; }
   #dict-popup { width: calc(100vw - 16px); }
   /* En 2 volets empilés verticalement sur mobile */
   #dict-split { flex-direction: column; }

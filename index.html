@@ -75,11 +75,24 @@
     button, .checklist-item, .type-card { touch-action: manipulation; }
     #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; }
     #pdf-panel.active { display: flex; flex: 0 0 50%; }
-    #pdf-panel.fullscreen { position: fixed; inset: 0; z-index: 700; width: 100vw; height: 100vh; height: 100dvh; max-width: none; border: none; }
+    /* ------------------------------------------------------------
+       Échelle des superpositions (unique pour toute l'app) :
+         5    .top-bar (sticky)          210  .ambient-panel
+         300  #pdf-panel.fullscreen      310  méthode (pdf-mode .main-scroll)
+         320  #method-dock               340  .hl-popup (bulle surlignage)
+         500  #dash-modal                520  #ai-popup
+         540  #dict-popup                600  #lib-modal
+         620  #dict-side                 640  #dict-split
+         660  .anki-help-modal           900  #yt-theater
+         1000 .toast (au-dessus de tout)
+       Toute nouvelle couche doit prendre une valeur libre de cette liste.
+       ------------------------------------------------------------ */
+    #pdf-panel.fullscreen { position: fixed; inset: 0; z-index: 300; width: 100vw; height: 100vh; height: 100dvh; max-width: none; border: none; }
     .pdf-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--bg); flex-wrap: wrap; }
     .pdf-toolbar button, .pdf-toolbar label.btn { padding: 6px 10px; border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: var(--radius); font-family: inherit; font-size: 12px; cursor: pointer; }
     .pdf-toolbar button:hover:not(:disabled), .pdf-toolbar label.btn:hover { background: var(--bg3); }
     .pdf-toolbar button:disabled { opacity: .4; cursor: default; }
+    .pdf-toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .pdf-toolbar button.highlight-btn { background: #F4D272; color: #4A3A15; border-color: #E3BE55; font-weight: 600; }
     .pdf-toolbar button.highlight-btn:hover { background: #EFC85B; opacity: 1; }
     .pdf-toolbar .pdf-info { font-size: 12px; color: var(--text2); margin-left: auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -109,19 +122,23 @@
     .hl-text { flex: 1; line-height: 1.4; font-size: 12px; }
     .hl-del { flex: 0 0 auto; background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0 4px; }
     .hl-del:hover { color: var(--accent); }
-    .hl-popup { position: absolute; z-index: 200; background: var(--text); color: var(--bg); padding: 0; border-radius: var(--radius); font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.25); display: none; animation: hlFadeIn .15s ease; }
+    .hl-popup { position: absolute; z-index: 340; background: var(--text); color: var(--bg); padding: 0; border-radius: var(--radius); font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.25); display: none; animation: hlFadeIn .15s ease; }
     .hl-popup button { background: transparent; color: var(--bg); border: none; font-family: inherit; font-size: 13px; cursor: pointer; padding: 8px 14px; display: flex; align-items: center; gap: 6px; font-weight: 500; border-radius: var(--radius); }
     .hl-popup button:hover { background: rgba(255,255,255,.1); }
     .hl-popup::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--text); }
     @keyframes hlFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     #resizer { width: 6px; cursor: col-resize; background: var(--border); flex-shrink: 0; }
     #resizer:hover { background: var(--border2); }
+    #pdf-panel:not(.active) + #resizer { display: none; }
     .main-scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 2rem 1rem 4rem; }
     .app { width: 100%; max-width: 620px; position: relative; }
     /* Accueil : le site s'adapte à la taille de l'écran (grille plus large) */
     .app.app-wide { max-width: 1100px; }
     /* Mode lecture PDF : le PDF prend tout, la méthode devient un dock façon
-       barre des tâches au centre-bas, qui se déplie en popup. */
+       barre des tâches au centre-bas, qui se déplie en popup.
+       Alternative « écran séparé » (bouton vertical_split de la toolbar) :
+       pdf-mode n'est pas posé → layout côte à côte PDF | méthode d'origine,
+       avec la poignée #resizer. Choix persistant (localStorage li-pdf-split). */
     #method-dock { display: none; }
     .layout.pdf-mode #pdf-panel.active { flex: 1 1 auto; max-width: none; }
     .layout.pdf-mode #resizer { display: none; }
@@ -129,13 +146,13 @@
       position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%);
       width: min(680px, 94vw); max-height: 72vh; padding: 1.1rem 1rem 1.4rem;
       background: var(--bg); border: 1px solid var(--border2); border-radius: 18px;
-      box-shadow: 0 18px 50px rgba(40,30,20,.34); z-index: 655; display: none;
+      box-shadow: 0 18px 50px rgba(40,30,20,.34); z-index: 310; display: none;
     }
     .layout.pdf-mode.method-open .main-scroll { display: flex; animation: methodPop .16s ease; }
     @keyframes methodPop { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
     .layout.pdf-mode #method-dock {
       display: inline-flex; align-items: center; gap: 8px; position: fixed;
-      left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 660;
+      left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 320;
       padding: 10px 18px; border: none; border-radius: 999px;
       background: var(--text); color: var(--bg); cursor: pointer; font-family: inherit;
       font-size: 13px; font-weight: 600; box-shadow: 0 8px 26px rgba(40,30,20,.36);
@@ -387,7 +404,7 @@
     .ytt-notes-hint { font-weight: 400; color: rgba(245,238,228,0.4); font-size: 12px; }
     .ytt-notes textarea { width: 100%; padding: 12px 40px 12px 14px; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; background: rgba(245,238,228,0.08); color: rgba(245,238,228,0.9); resize: vertical; line-height: 1.55; min-height: 110px; }
     .ytt-notes textarea:focus { outline: 1px solid var(--accent); }
-    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 100; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 1000; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .toast.show { opacity: 1; }
     @media (max-width: 720px) {
       .layout { flex-direction: column; }
@@ -421,6 +438,7 @@
       <button id="pdf-fit" title="Ajuster à la largeur"><span class="ms" style="font-size:16px">fit_screen</span></button>
       <button id="pdf-highlight" class="highlight-btn" disabled title="Surligner la sélection (Ctrl+H)"><span class="ms" style="font-size:16px">ink_highlighter</span> Surligner</button>
       <button id="pdf-fullscreen" title="Plein écran"><span class="ms" style="font-size:16px">fullscreen</span></button>
+      <button id="pdf-split" title="Écran séparé : PDF | méthode"><span class="ms" style="font-size:16px">vertical_split</span></button>
       <span class="pdf-info" id="pdf-filename"></span>
     </div>
     <div class="pdf-viewer" id="pdf-viewer">
@@ -935,20 +953,35 @@ function scrollToPage(pageNum) {
 async function renderPage() { return renderAllPages(); }
 
 let _methodExpanded = false;
+// Écran séparé PDF | méthode (sinon : PDF plein cadre + méthode en dock)
+let _pdfSplit = localStorage.getItem('li-pdf-split') === '1';
 function renderPdfPanel() {
   const panel = document.getElementById('pdf-panel');
   const layout = document.querySelector('.layout');
   panel.classList.toggle('active', state.pdfPanelOpen);
-  // Mode lecture : PDF plein cadre, méthode repliée en dock au centre-bas
+  // Mode lecture : PDF plein cadre + dock, ou côte à côte si écran séparé
   if (layout) {
-    layout.classList.toggle('pdf-mode', state.pdfPanelOpen);
+    layout.classList.toggle('pdf-mode', state.pdfPanelOpen && !_pdfSplit);
     if (!state.pdfPanelOpen) _methodExpanded = false;
-    layout.classList.toggle('method-open', state.pdfPanelOpen && _methodExpanded);
+    layout.classList.toggle('method-open', state.pdfPanelOpen && !_pdfSplit && _methodExpanded);
   }
+  const sb = document.getElementById('pdf-split');
+  if (sb) sb.classList.toggle('active', _pdfSplit);
   if (!state.pdfPanelOpen && panel.classList.contains('fullscreen')) setPdfFullscreen(false);
   if (state.pdfPanelOpen && !pdf.doc) renderPdfEmptyLibrary();
   updateMethodDock();
 }
+function setPdfSplit(on) {
+  _pdfSplit = !!on;
+  localStorage.setItem('li-pdf-split', _pdfSplit ? '1' : '0');
+  if (_pdfSplit) {
+    _methodExpanded = false;
+    const panel = document.getElementById('pdf-panel');
+    if (panel && panel.classList.contains('fullscreen')) setPdfFullscreen(false);
+  }
+  renderPdfPanel();
+}
+window.setPdfSplit = setPdfSplit;
 function setMethodExpanded(on) {
   _methodExpanded = !!on;
   const layout = document.querySelector('.layout');
@@ -1142,6 +1175,8 @@ function setPdfFullscreen(on) {
 (function wireMethodDock() {
   const dock = document.getElementById('method-dock');
   if (dock) dock.onclick = () => setMethodExpanded(!_methodExpanded);
+  const splitBtn = document.getElementById('pdf-split');
+  if (splitBtn) splitBtn.onclick = () => setPdfSplit(!_pdfSplit);
 })();
 
 // Échap : replie d'abord la méthode, sinon quitte le plein écran PDF

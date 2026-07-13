@@ -68,11 +68,6 @@ async function vaultIsConnected() {
   return false;
 }
 
-async function vaultName() {
-  if (!_vaultHandle) return null;
-  return _vaultHandle.name;
-}
-
 async function vaultConnect() {
   if (!window.showDirectoryPicker) {
     if (window.showToast) window.showToast('Navigateur non compatible (utilise Chrome/Edge)');
@@ -407,20 +402,6 @@ function _hookAutoSave() {
       return id;
     };
     window.notesAdd.__vaultWrapped = true;
-  }
-  // Wrap notesUpdate (re-save quand tags changent)
-  const origUpdate = window.notesUpdate;
-  if (typeof origUpdate === 'function' && !origUpdate.__vaultWrapped) {
-    window.notesUpdate = async function (id, patch) {
-      const updated = await origUpdate(id, patch);
-      try {
-        if (updated && await vaultIsConnected()) {
-          await vaultSaveNote(updated);
-        }
-      } catch (e) { console.warn('vault auto-update', e); }
-      return updated;
-    };
-    window.notesUpdate.__vaultWrapped = true;
   }
 }
 

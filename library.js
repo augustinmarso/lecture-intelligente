@@ -485,7 +485,7 @@ ${chunks.map((_,i)=>`<li><a href="chapter${i+1}.xhtml">Section ${i+1}</a></li>`)
 // =============================================================
 const _libStyle = document.createElement('style');
 _libStyle.textContent = `
-#lib-modal { position: fixed; inset: 0; z-index: 680; display: none; }
+#lib-modal { position: fixed; inset: 0; z-index: 600; display: none; }
 #lib-modal.open { display: block; }
 .lib-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .lib-content { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: 90vw; max-width: 820px; height: 90vh; height: 90dvh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }

@@ -562,7 +562,7 @@ const _aiStyle = document.createElement('style');
 _aiStyle.textContent = `
 .ai-suggest-btn { display: inline-flex; align-items: center; gap: 6px; margin: -0.75rem 0 1.25rem; padding: 5px 12px; border: none; background: transparent; color: var(--accent); border-radius: var(--radius); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); transition: background .1s; }
 .ai-suggest-btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-#ai-popup { position: fixed; inset: 0; z-index: 600; display: none; }
+#ai-popup { position: fixed; inset: 0; z-index: 520; display: none; }
 #ai-popup.open { display: block; }
 .ai-overlay { position: absolute; inset: 0; background: rgba(15,15,15,0.4); backdrop-filter: blur(2px); }
 .ai-panel { position: absolute; top: 8vh; left: 50%; transform: translateX(-50%); width: 92vw; max-width: 560px; max-height: 84vh; background: var(--bg); border-radius: var(--radius-lg); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; }

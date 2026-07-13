@@ -731,7 +731,7 @@ _ankiStyle.textContent = `
 .anki-useai, .anki-auto { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); cursor: pointer; user-select: none; }
 .anki-useai input, .anki-auto input { accent-color: var(--accent); cursor: pointer; }
 .anki-section .gcal-row { align-items: center; }
-.anki-help-modal { position: fixed; inset: 0; z-index: 690; display: none; }
+.anki-help-modal { position: fixed; inset: 0; z-index: 660; display: none; }
 .anki-help-modal.open { display: block; }
 .anki-help-body { font-size: 14px; line-height: 1.6; color: var(--text); }
 .anki-help-body ol { padding-left: 20px; margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }
