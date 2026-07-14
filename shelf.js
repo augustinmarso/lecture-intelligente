@@ -51,9 +51,38 @@ async function _clearShelfHandle() {
 
 async function _shelfPermission(mode = 'read') {
   if (!_shelfHandle) return false;
+  if (_shelfHandle.__desktop) return true; // bibliothèque servie par l'app de bureau
   if ((await _shelfHandle.queryPermission({ mode })) === 'granted') return true;
   if ((await _shelfHandle.requestPermission({ mode })) === 'granted') return true;
   return false;
+}
+
+// --- Bibliothèque auto-connectée de l'app de bureau (ZÉRO clic) ---
+// L'app Electron expose un dossier de livres via son serveur interne
+// (/__library/*). Si c'est dispo, on « connecte » automatiquement ce dossier :
+// chaque entrée reçoit un handle-shim dont getFile() récupère le PDF par le
+// réseau local — ainsi tout le reste du code (ouverture, vignettes) fonctionne
+// sans modification. Sur le web, cet endpoint n'existe pas → on retombe sur le
+// dossier choisi via le sélecteur (persisté), inchangé.
+async function _tryDesktopLibrary() {
+  try {
+    const r = await fetch('/__library/index', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const data = await r.json();
+    if (!data || !data.available || !Array.isArray(data.files)) return false;
+    _shelfHandle = { name: data.name, __desktop: true };
+    _shelfFiles = data.files.map(f => ({
+      name: f.name, dir: f.dir || '', type: 'pdf',
+      handle: {
+        getFile: async () => {
+          const resp = await fetch('/__library/file?p=' + encodeURIComponent(f.path));
+          if (!resp.ok) throw new Error('Fichier introuvable');
+          return new File([await resp.blob()], f.name, { type: 'application/pdf' });
+        }
+      }
+    }));
+    return true;
+  } catch (_) { return false; }
 }
 
 // --- Connexion ---
@@ -116,6 +145,10 @@ async function _scanDir(dirHandle, relPath, out, depth) {
 async function shelfScan(force) {
   if (_shelfFiles && !force) return _shelfFiles;
   if (!_shelfHandle) return [];
+  if (_shelfHandle.__desktop) { // app de bureau : re-demande l'index au serveur
+    if (force) await _tryDesktopLibrary();
+    return _shelfFiles || [];
+  }
   if (!await _shelfPermission('read')) {
     if (window.showToast) window.showToast('Permission refusée pour le dossier');
     return [];
@@ -285,6 +318,13 @@ document.head.appendChild(_shelfStyle);
 window.addEventListener('load', async () => {
   _injectShelfBar();
   try {
+    // App de bureau : bibliothèque auto-connectée en priorité (zéro clic).
+    if (await _tryDesktopLibrary()) {
+      _renderShelfBar();
+      if (window.renderHomeBooks) window.renderHomeBooks();
+      return;
+    }
+    // Web : dossier choisi précédemment (handle persisté), reconnexion auto.
     const h = await _loadShelfHandle();
     if (h) { _shelfHandle = h; _renderShelfBar(); if (window.renderHomeBooks) window.renderHomeBooks(); }
   } catch (e) { console.warn('shelf load', e); }
@@ -299,6 +339,7 @@ window.shelfScan = shelfScan;
 // bibliothèque sans popup) : renvoie null si l'accès n'est pas déjà accordé.
 window.shelfScanIfGranted = async () => {
   if (!_shelfHandle) return null;
+  if (_shelfHandle.__desktop) { try { return await shelfScan(); } catch (_) { return null; } }
   try { if ((await _shelfHandle.queryPermission({ mode: 'read' })) !== 'granted') return null; }
   catch (_) { return null; }
   try { return await shelfScan(); } catch (_) { return null; }

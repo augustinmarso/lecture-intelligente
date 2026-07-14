@@ -40,7 +40,6 @@ window.renderSettingsView = function() {
     <div class="notes-toolbar">${window.liTabs('settings')}</div>
     <div class="li-settings">
       <p class="li-settings-intro">${icon('tune', 14)} Connexions &amp; synchronisation — tout ce qui suit ne s'affiche qu'ici.</p>
-      <div id="li-set-cloud" class="li-set-slot"></div>
       <div id="li-set-anki" class="li-set-slot"></div>
       <div id="li-set-ai" class="li-set-slot"></div>
       <div id="li-set-shelf" class="li-set-slot"></div>
@@ -285,35 +284,8 @@ async function openNoteForBook(title) {
   await renderNotesView();
 }
 
-// =============================================================
-// Hook : ajouter onglet Fiches dans le rendu de la bibliothèque
-// =============================================================
-function _hookLibraryTabs() {
-  // Attache un bouton "📝 Fiches" dans le header du modal
-  const obs = new MutationObserver(() => {
-    const headerActions = document.querySelector('#lib-modal .lib-header-actions');
-    if (headerActions && !headerActions.dataset.notesBtnWired) {
-      headerActions.dataset.notesBtnWired = '1';
-      const btn = document.createElement('button');
-      btn.className = 'lib-import';
-      btn.innerHTML = icon('edit_note');
-      btn.style.background = 'var(--bg2)';
-      btn.style.color = 'var(--text)';
-      btn.title = 'Mes fiches';
-      btn.onclick = openNotes;
-      const closeBtn = headerActions.querySelector('.lib-close');
-      if (closeBtn) headerActions.insertBefore(btn, closeBtn);
-      else headerActions.appendChild(btn);
-    }
-
-    // Onglet de retour vers livres si on est sur la vue Notes
-    const notesList = document.querySelector('.notes-list');
-    if (notesList) {
-      notesList.dataset.tabsWired = '1';
-    }
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
-}
+// (Bouton « Mes fiches » du header de modale supprimé : triple emploi avec
+// l'onglet « Mes fiches » et le lien « Fiches » de la barre du haut.)
 
 // =============================================================
 // Styles
@@ -355,7 +327,6 @@ _notesStyle.textContent = `
   /* Écrase les largeurs fixes des champs (specificité > .classe input#id) */
   .li-settings .ai-bar input#ai-key,
   .li-settings .anki-bar input#anki-deck,
-  .li-settings .cloud-bar input#cloud-code-in,
   .li-settings .vault-actions input,
   .li-settings .vault-actions select { width: 100%; min-width: 0; box-sizing: border-box; }
   .li-set-slot .vault-status { max-width: none; }
@@ -368,7 +339,6 @@ document.head.appendChild(_notesStyle);
 // =============================================================
 function _initNotes() {
   _injectNoteUI();
-  _hookLibraryTabs();
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', _initNotes);

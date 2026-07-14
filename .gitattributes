@@ -1,0 +1,19 @@
+# Binaires : jamais de conversion de fins de ligne (sinon corruption)
+*.onnx binary
+*.wasm binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.mp4 binary
+*.pdf binary
+# Assets minifiés auto-hébergés : garder tels quels (pas de conversion)
+vendor/** -text

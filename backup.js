@@ -81,6 +81,36 @@ async function collectAllData(includeBooks = false) {
   return data;
 }
 
+// Fusion monotone des stats (max/union champ par champ) — reprise de
+// l'ancienne synchro cloud, utilisée par la restauration ci-dessous.
+function _mergeStats(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const out = Object.assign({}, a);
+  out.pagesRead = Object.assign({}, b.pagesRead, a.pagesRead);
+  out.booksOpened = Object.assign({}, b.booksOpened, a.booksOpened);
+  out.readingTimeMs = Math.max(a.readingTimeMs || 0, b.readingTimeMs || 0);
+  out.citations = Math.max(a.citations || 0, b.citations || 0);
+  out.notes = Math.max(a.notes || 0, b.notes || 0);
+  out.xp = Math.max(a.xp || 0, b.xp || 0);
+  out.streakDays = Math.max(a.streakDays || 0, b.streakDays || 0);
+  out.longestStreak = Math.max(a.longestStreak || 0, b.longestStreak || 0);
+  out.lastActiveDay = [a.lastActiveDay, b.lastActiveDay].filter(Boolean).sort().pop() || null;
+  out.badges = Array.from(new Set([...(a.badges || []), ...(b.badges || [])]));
+  out.daily = Object.assign({}, b.daily, a.daily);
+  // Jours présents des deux côtés : max champ par champ
+  for (const day of Object.keys(b.daily || {})) {
+    if (!(a.daily || {})[day]) continue;
+    const da = a.daily[day], db = b.daily[day];
+    out.daily[day] = {
+      minutes: Math.max(da.minutes || 0, db.minutes || 0),
+      pages: Math.max(da.pages || 0, db.pages || 0),
+      citations: Math.max(da.citations || 0, db.citations || 0)
+    };
+  }
+  return out;
+}
+
 // =============================================================
 // Restauration
 // =============================================================
@@ -134,7 +164,7 @@ async function restoreAllData(data, opts = {}) {
       }
     }
   }
-  // Stats : fusion monotone si le helper de cloud.js est là, sinon écrasement
+  // Stats : fusion monotone (max/union), jamais de régression de compteurs
   if (data.stats && Object.keys(data.stats).length) {
     try {
       const cur = _parse(localStorage.getItem('reading-stats-v1'), null);
@@ -309,7 +339,7 @@ function _injectBackupSection() {
     section.className = 'dash-section dash-backup';
     section.innerHTML = `
       <h3>${icon('save',15)} Sauvegarde de mes données</h3>
-      <p class="backup-desc">Toutes tes données (fiches, sujets, mots, stats, session, positions) vivent dans ton navigateur. Connecte un dossier (vault) dans la bibliothèque : l'app y enregistre automatiquement chaque modification — place ce dossier dans Google Drive ou OneDrive et tu as une synchro sans aucun serveur, en alternative à la synchro cloud.</p>
+      <p class="backup-desc">Toutes tes données (fiches, sujets, mots, stats, session, positions) vivent sur ton ordinateur. Connecte un dossier (Second Cerveau) dans les Paramètres : l'app y enregistre automatiquement chaque modification — place ce dossier dans OneDrive ou Google Drive et tu as une synchro sans aucun serveur.</p>
       <div class="backup-actions">
         <button class="backup-btn primary" data-act="export">↓ Télécharger un backup</button>
         <button class="backup-btn" data-act="export-full">↓ Backup complet (avec PDFs)</button>

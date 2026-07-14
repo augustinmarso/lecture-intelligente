@@ -637,27 +637,8 @@ async function ankiSyncAll() {
 }
 window.ankiSyncAll = ankiSyncAll;
 
-// --- Bouton « Mes cartes Anki » dans la barre du haut (accès direct) ---
-function _injectAnkiTopButton() {
-  const _do = () => {
-    document.querySelectorAll('.top-bar').forEach(bar => {
-      if (bar.dataset.ankiBtn) return;
-      bar.dataset.ankiBtn = '1';
-      const btn = document.createElement('button');
-      btn.className = 'btn-pdf-toggle';
-      btn.title = 'Mes cartes Anki';
-      btn.innerHTML = icon('style');
-      btn.onclick = openAnkiCards;
-      const pdfBtn = bar.querySelector('#btn-pdf-toggle');
-      if (pdfBtn) bar.insertBefore(btn, pdfBtn);
-      else bar.appendChild(btn);
-    });
-  };
-  new MutationObserver(_do).observe(document.body, { childList: true, subtree: true });
-  _do();
-}
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _injectAnkiTopButton);
-else _injectAnkiTopButton();
+// (Bouton top-bar « Mes cartes Anki » supprimé : accessible via l'onglet
+// « Cartes Anki » de la bibliothèque — liens texte de la barre du haut.)
 
 // --- Barre Anki dans le modal bibliothèque ---
 function _renderAnkiBar() {
@@ -692,7 +673,6 @@ function _injectAnkiBar() {
       <div class="vault-actions">
         <input id="anki-deck" type="text" title="Nom du deck Anki" value="${_escAnki(s.deck)}"/>
         <label class="anki-useai" title="Générer les questions/réponses avec l'IA (sinon cartes simples)"><input type="checkbox" id="anki-useai" ${s.useAI ? 'checked' : ''}/> Cartes IA</label>
-        <button id="anki-view-cards" class="gd-btn" title="Voir et modifier les cartes déjà créées">${icon('visibility', 15)} Voir les cartes</button>
         <button id="anki-sync-all" class="gd-btn" title="Synchro app ⇄ Anki : envoie tes fiches ET récupère depuis Anki ce qui manque dans l'app">${icon('sync', 15)} Tout synchroniser</button>
         <button id="anki-help-btn" class="gd-btn" title="Aide à la connexion">?</button>
       </div>
@@ -701,7 +681,6 @@ function _injectAnkiBar() {
     document.getElementById('anki-deck').onchange = (e) => { _ankiSave({ deck: e.target.value.trim() || ANKI_DEFAULTS.deck }); };
     document.getElementById('anki-useai').onchange = (e) => _ankiSave({ useAI: e.target.checked });
     document.getElementById('anki-help-btn').onclick = _ankiShowHelp;
-    document.getElementById('anki-view-cards').onclick = openAnkiCards;
     document.getElementById('anki-sync-all').onclick = () => ankiSyncAll();
     _renderAnkiBar();
   };

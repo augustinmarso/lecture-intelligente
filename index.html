@@ -11,8 +11,9 @@
   <link rel="manifest" href="manifest.webmanifest"/>
   <meta name="theme-color" content="#C0603A"/>
   <link rel="apple-touch-icon" href="icon.svg"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- pdf.js + jszip auto-hébergés : l'app fonctionne 100 % hors-ligne, zéro CDN -->
+  <script src="vendor/pdf.min.js"></script>
+  <script src="vendor/jszip.min.js"></script>
   <style>
     :root {
       /* Warm paper palette — d'après le prototype « Lecture Intelligente » */
@@ -37,9 +38,9 @@
       --shadow-sm: rgba(60,45,30,0.10) 0px 0px 0px 1px;
       --shadow: rgba(60,45,30,0.06) 0px 0px 0px 1px, rgba(60,45,30,0.12) 0px 3px 8px, rgba(60,45,30,0.18) 0px 12px 30px;
       --shadow-lg: rgba(60,45,30,0.06) 0px 0px 0px 1px, rgba(60,45,30,0.14) 0px 8px 20px, rgba(60,45,30,0.24) 0px 24px 55px;
-      --radius: 8px;
-      --radius-lg: 12px;
-      --radius-xl: 16px;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -73,7 +74,7 @@
     ::selection { background: var(--highlight); }
     .layout { display: flex; height: 100vh; height: 100dvh; width: 100%; }
     button, .checklist-item, .type-card { touch-action: manipulation; }
-    #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; }
+    #pdf-panel { display: none; flex-direction: column; background: var(--bg2); border-right: 0.5px solid var(--border); min-width: 280px; max-width: 75vw; position: relative; }
     #pdf-panel.active { display: flex; flex: 0 0 50%; }
     /* ------------------------------------------------------------
        Échelle des superpositions (unique pour toute l'app) :
@@ -96,7 +97,11 @@
     .pdf-toolbar button.highlight-btn { background: #F4D272; color: #4A3A15; border-color: #E3BE55; font-weight: 600; }
     .pdf-toolbar button.highlight-btn:hover { background: #EFC85B; opacity: 1; }
     .pdf-toolbar .pdf-info { font-size: 12px; color: var(--text2); margin-left: auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pdf-viewer { flex: 1; overflow: auto; background: var(--bg3); padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; scroll-behavior: smooth; }
+    /* scrollbar-gutter: stable → la barre de défilement est TOUJOURS réservée,
+       donc la largeur du viewer ne saute plus de ~15px quand elle apparaît :
+       sans ça, chaque rendu faisait osciller la largeur → le ResizeObserver
+       rebouclait → le PDF clignotait à l'ouverture. */
+    .pdf-viewer { flex: 1; overflow: auto; scrollbar-gutter: stable; background: var(--bg3); padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; scroll-behavior: smooth; }
     .pdf-page-slot { position: relative; background: #FBF8F2; box-shadow: 0 6px 20px -8px rgba(60,45,30,.4); display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 12px; border-radius: 4px; }
     .pdf-page-slot::before { content: attr(data-page-label); position: absolute; top: -22px; left: 0; font-size: 10px; color: var(--text3); letter-spacing: .05em; text-transform: uppercase; }
     .pdf-canvas-wrap { position: relative; box-shadow: 0 6px 20px -8px rgba(60,45,30,.4); background: #FBF8F2; border-radius: 4px; }
@@ -168,7 +173,11 @@
     .btn-pdf-toggle { padding: 4px 8px; border: none; background: transparent; color: var(--text2); border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background .1s; height: 36px; min-width: 36px; flex-shrink: 0; }
     .btn-pdf-toggle:hover { background: var(--hover); color: var(--text); }
     .btn-pdf-toggle.active { background: var(--hover-strong); color: var(--text); }
-    .app-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 19px; font-weight: 500; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
+    .app-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 19px; font-weight: 500; color: var(--text); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    /* Liens de navigation (refonte Papier) : Bibliothèque · Sujets · Fiches */
+    .top-nav { display: flex; gap: 4px; margin-right: 8px; }
+    .top-nav button { border: none; background: none; font-family: inherit; font-size: 13.5px; color: var(--text2); cursor: pointer; padding: 6px 9px; border-radius: var(--radius); font-weight: 500; transition: color .1s, background .1s; }
+    .top-nav button:hover { color: var(--text); background: var(--hover); }
     .app-logo { color: var(--accent); flex-shrink: 0; }
     .app-title:hover .app-logo { transform-origin: 12px 12px; animation: pulseLogo 1.4s ease-in-out infinite; }
     @keyframes pulseLogo { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .75; } }
@@ -176,12 +185,12 @@
     .phase-tab { padding: 6px 12px; font-size: 14px; font-weight: 500; text-align: center; color: var(--text3); line-height: 1.3; transition: all .1s; cursor: default; position: relative; margin-bottom: -1px; }
     .phase-tab.active { color: var(--text); border-bottom: 2px solid var(--text); }
     .phase-tab.done { color: var(--text2); }
-    .progress-dots { display: flex; gap: 4px; margin-bottom: 2.5rem; flex-wrap: wrap; }
-    .dot { width: 24px; height: 3px; border-radius: 2px; background: var(--bg3); transition: all .2s ease; }
-    .dot.active { background: var(--text); }
-    .dot.done { background: var(--text2); opacity: .5; }
-    .step-number { font-size: 12px; font-weight: 500; color: var(--text2); letter-spacing: 0; text-transform: none; margin-bottom: .5rem; }
-    .step-title { font-family: 'Newsreader', Georgia, serif; font-size: 34px; font-weight: 500; line-height: 1.15; margin-bottom: 1.5rem; letter-spacing: -0.01em; color: var(--text); }
+    .progress-dots { display: flex; gap: 5px; margin-bottom: 2.2rem; flex-wrap: wrap; }
+    .dot { width: 26px; height: 3px; border-radius: 2px; background: var(--bg3); transition: all .2s ease; }
+    .dot.active { background: var(--accent); }
+    .dot.done { background: var(--border3); }
+    .step-number { font-size: 12px; font-weight: 600; color: var(--text3); letter-spacing: 0; text-transform: none; margin-bottom: .5rem; }
+    .step-title { font-family: 'Newsreader', Georgia, serif; font-size: 38px; font-weight: 500; line-height: 1.12; margin-bottom: 1.75rem; letter-spacing: -0.015em; color: var(--text); }
     .step-why { font-size: 14px; color: var(--text2); line-height: 1.6; padding: 12px 16px 12px 18px; background: var(--bg2); border-radius: var(--radius); margin-bottom: 1.5rem; border: none; }
     .example-box { background: var(--bg2); border: none; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 1.5rem; font-size: 14px; color: var(--text); line-height: 1.55; box-shadow: inset 0 0 0 1px var(--border); }
     .example-box strong { color: var(--text2); font-weight: 600; font-size: 12px; display: block; margin-bottom: 6px; letter-spacing: 0; text-transform: none; }
@@ -207,21 +216,33 @@
     .check-tick { display: none; width: 8px; height: 5px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translate(1px,-1px); }
     .check-box.checked .check-tick { display: block; }
     /* Accueil : héros + grille « Reprendre » (même esprit qu'Écoute Intelligente) */
-    .home-hero { text-align: center; padding: 2.2rem 0 1.6rem; }
-    .home-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: clamp(34px, 6vw, 52px); letter-spacing: -0.01em; color: var(--text); }
-    .home-sub { margin-top: 6px; font-size: 15px; color: var(--text2); }
+    .home-hero { text-align: center; padding: 2.4rem 0 1.6rem; }
+    .home-eyebrow { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--text3); font-weight: 600; margin-bottom: 14px; }
+    .home-title { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; font-size: clamp(36px, 6vw, 46px); line-height: 1.05; letter-spacing: -0.015em; color: var(--text); }
+    .home-sub { margin: 12px auto 0; font-size: 15px; color: var(--text2); line-height: 1.6; max-width: 420px; }
     .home-actions { margin-top: 1.4rem; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-    .home-open-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; background: var(--accent); color: #fff; border-radius: var(--radius); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .15s, transform .1s; box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.12)); }
-    .home-open-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .home-open-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; background: var(--accent); color: #fff; border-radius: var(--radius); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .15s, transform .1s; box-shadow: 0 10px 24px -10px rgba(192,96,58,.85); }
+    .home-open-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 14px 30px -10px rgba(192,96,58,.9); }
     .home-open-folder { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--border2); }
     .home-open-folder:hover { background: var(--bg2); }
-    .home-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--text3); margin: 1.6rem 0 .7rem; }
+    .home-download { margin-top: 1rem; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .home-download-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500; color: var(--accent); text-decoration: none; padding: 4px 10px; border-radius: var(--radius); transition: background .1s; }
+    .home-download-link:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .home-download-note { font-size: 11.5px; color: var(--text3); }
+    .home-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; color: var(--text3); margin: 1.8rem 0 .9rem; }
     .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
-    .home-book { display: flex; flex-direction: column; align-items: stretch; text-align: left; padding: 0 0 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); cursor: pointer; overflow: hidden; font-family: inherit; transition: transform .12s, box-shadow .12s, border-color .12s; }
+    .home-book { display: flex; flex-direction: column; align-items: stretch; text-align: left; padding: 0 0 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); cursor: pointer; overflow: hidden; font-family: inherit; box-shadow: 0 10px 24px -16px rgba(60,45,30,.35); transition: transform .12s, box-shadow .12s, border-color .12s; }
     .home-book:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg, 0 6px 18px rgba(0,0,0,.14)); border-color: var(--border2); }
     .home-thumb { display: block; aspect-ratio: 3 / 4; background: var(--bg3); position: relative; }
     .home-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .home-thumb-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text3); }
+    /* Couverture de repli (refonte Papier) : dégradé éditorial + initiale serif */
+    .home-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .home-cover-initial { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 600; font-size: 44px; color: rgba(251,244,232,.9); }
+    .cover-g0 { background: linear-gradient(150deg, #8B3A2E, #521c15); }
+    .cover-g1 { background: linear-gradient(150deg, #4A5240, #2b3025); }
+    .cover-g2 { background: linear-gradient(150deg, #C08A2E, #875616); }
+    .cover-g3 { background: linear-gradient(150deg, #2E5A5A, #163333); }
     .home-book-title { font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.35; padding: 9px 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .home-book-bar { display: block; height: 3px; background: var(--bg3); border-radius: 999px; margin: 8px 10px 0; overflow: hidden; }
     .home-book-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
@@ -247,9 +268,14 @@
     .type-card-sub h4 { font-size: 13px; font-weight: 500; }
     .type-card-sub p { font-size: 12px; }
     .timer-display { text-align: center; padding: 1.5rem 0 1rem; }
-    .timer-circle { width: 140px; height: 140px; border-radius: 50%; border: 2px solid var(--border2); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 1rem; }
-    .timer-time { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-    .timer-label { font-size: 11px; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+    /* Anneau de progression (refonte Papier) : arc corail = temps restant */
+    .timer-circle { position: relative; width: 172px; height: 172px; margin: 0 auto 1.4rem; }
+    .timer-ring { display: block; }
+    .timer-ring .ring-bg { stroke: var(--border); }
+    .timer-ring .ring-arc { stroke: var(--accent); transition: stroke-dashoffset .6s linear; }
+    .timer-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .timer-time { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--text); }
+    .timer-label { font-size: 11px; color: var(--text3); letter-spacing: .14em; text-transform: uppercase; margin-top: 2px; }
     .timer-phase-label { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 1rem; }
     .timer-btns { display: flex; gap: 8px; max-width: 300px; margin: 0 auto; }
     .timer-btns button { flex: 1; padding: 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: transparent; font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 500; color: var(--text); transition: background .15s; }
@@ -259,10 +285,11 @@
     /* Synthèse — textareas plus grands */
     .synthesis-list { list-style: none; padding: 0; }
     .synthesis-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
-    .synthesis-num { min-width: 28px; height: 28px; border: 0.5px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text2); flex-shrink: 0; margin-top: 8px; font-weight: 500; }
+    .synthesis-num { min-width: 30px; height: 30px; border: 1px solid var(--border2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Newsreader', Georgia, serif; font-size: 15px; color: var(--text2); flex-shrink: 0; margin-top: 8px; font-weight: 500; }
     .synthesis-item .input-wrap { flex: 1; }
-    .synthesis-item textarea { width: 100%; padding: 12px 44px 12px 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-family: inherit; font-size: 14px; background: var(--bg); color: var(--text); min-height: 90px; resize: vertical; line-height: 1.55; }
-    .synthesis-item textarea:focus { outline: none; border-color: var(--border3); }
+    .synthesis-item textarea { width: 100%; padding: 12px 44px 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); font-family: inherit; font-size: 14px; background: var(--bg); color: var(--text); min-height: 90px; resize: vertical; line-height: 1.55; transition: border-color .12s, background .12s; }
+    .synthesis-item textarea:placeholder-shown { border-style: dashed; border-color: var(--border2); background: var(--bg2); font-style: italic; }
+    .synthesis-item textarea:focus { outline: none; border-style: solid; border-color: var(--accent); font-style: normal; background: var(--bg); }
     .citations-live { border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 10px; background: var(--bg2); }
     .citations-live-head { margin-bottom: 10px; }
     .citations-live-head h4 { font-size: 14px; font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
@@ -282,17 +309,22 @@
     .gcal-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg2); color: var(--text); border: 0.5px solid var(--border2); border-radius: var(--radius); text-decoration: none; font-size: 13px; font-weight: 500; transition: background .15s; }
     .gcal-btn:hover { background: var(--bg3); }
     .nav-row { display: flex; gap: 8px; margin-top: 2rem; }
-    .btn-back { flex: 0 0 auto; padding: 6px 12px; background: transparent; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text2); transition: background .1s; height: 32px; }
+    .btn-back { flex: 0 0 auto; padding: 10px 16px; background: transparent; border: none; border-radius: var(--radius); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; color: var(--text2); transition: background .1s; height: 44px; }
     .btn-back:hover { background: var(--hover); color: var(--text); }
-    .btn-main { flex: 1; padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .1s; height: 32px; }
+    .btn-main { flex: 1; padding: 10px 16px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .1s, box-shadow .12s; height: 44px; box-shadow: 0 8px 18px -10px rgba(192,96,58,.8); }
     .btn-main:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-main:disabled { background: var(--bg3); color: var(--text3); cursor: not-allowed; }
-    .btn-secondary { padding: 6px 14px; background: transparent; color: var(--text2); border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 1.5rem; transition: background .1s; height: 32px; box-shadow: inset 0 0 0 1px var(--border); }
+    .btn-secondary { padding: 6px 14px; background: transparent; color: var(--text2); border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 1.5rem; transition: background .1s; height: 40px; box-shadow: inset 0 0 0 1px var(--border); }
     .btn-secondary:hover { background: var(--hover); color: var(--text); }
-    .btn-download { padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 1rem; transition: background .1s; display: inline-flex; align-items: center; gap: 6px; height: 32px; }
+    .btn-download { padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 1rem; transition: background .1s; display: inline-flex; align-items: center; gap: 6px; height: 40px; }
     .btn-download:hover { background: var(--accent-hover); }
     .success-screen { text-align: center; padding: 2rem 1rem; }
-    .success-screen h2 { font-family: 'Newsreader', Georgia, serif; font-size: 34px; font-weight: 500; margin-bottom: .75rem; letter-spacing: -0.01em; }
+    .success-badge { width: 52px; height: 52px; border-radius: 50%; background: #5E7B52; color: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+    .success-screen h2 { font-family: 'Newsreader', Georgia, serif; font-size: 30px; font-weight: 500; margin-bottom: .75rem; letter-spacing: -0.01em; }
+    /* Rappel de la question de lecture (écran pomodoro, refonte Papier) */
+    .pomo-question { margin-top: 1.4rem; padding: 13px 16px; background: var(--bg2); border-left: 3px solid var(--accent); border-radius: var(--radius); text-align: left; }
+    .pomo-question-label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; font-weight: 600; }
+    .pomo-question-text { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 15px; line-height: 1.4; color: var(--text); }
     .success-screen p { font-size: 14px; color: var(--text2); line-height: 1.6; max-width: 400px; margin: 0 auto 1.5rem; }
     .recap { background: var(--bg2); border-radius: var(--radius); padding: 1.25rem 1.5rem; text-align: left; font-size: 14px; line-height: 1.6; box-shadow: inset 0 0 0 1px var(--border); }
     .recap strong { font-weight: 500; display: block; margin-bottom: 2px; }
@@ -418,8 +450,10 @@
       .top-bar { overflow-x: auto; scrollbar-width: none; }
       .top-bar::-webkit-scrollbar { display: none; }
       .app-title { font-size: 16px; }
+      .top-nav { gap: 0; margin-right: 4px; }
+      .top-nav button { font-size: 12.5px; padding: 6px 6px; }
       .step-title { font-size: 26px; }
-      .timer-time { font-size: 32px; }
+      .timer-time { font-size: 36px; }
       .phase-tab { padding: 6px 8px; font-size: 13px; }
       .pdf-toolbar button, .pdf-toolbar label.btn { min-height: 36px; }
     }
@@ -429,7 +463,6 @@
 <div class="layout">
   <div id="pdf-panel">
     <div class="pdf-toolbar">
-      <label class="btn">Ouvrir PDF<input id="pdf-file" type="file" accept="application/pdf" style="display:none"/></label>
       <button id="pdf-prev" disabled>‹</button>
       <span id="pdf-pagenum" style="font-size:12px;color:var(--text2)">—</span>
       <button id="pdf-next" disabled>›</button>
@@ -461,7 +494,7 @@
 <div class="toast" id="toast"></div>
 <script>
 if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 }
 
 const STEPS_LIVRE = [
@@ -656,7 +689,10 @@ function wireVoiceOnAll() {
     if (wrap.dataset.micWired) return;
     const target = wrap.querySelector('input, textarea');
     if (!target) return;
-    attachMic(wrap, target);
+    // Dictée locale hors-ligne (voice.js) en priorité ; repli sur l'ancien
+    // moteur Web Speech seulement s'il n'est pas chargé.
+    if (window.liVoice && window.liVoice.supported) window.liVoice.attach(wrap, target);
+    else attachMic(wrap, target);
     wrap.dataset.micWired = '1';
   });
 }
@@ -675,6 +711,11 @@ async function loadPdfFromInput(e) {
 // à un vrai titre/nom.
 function _looksLikeMeta(v) {
   if (!v || v.length < 2 || v.length > 90) return false;
+  // Métadonnées corrompues : caractères de contrôle (C0/C1) ou caractère de
+  // remplacement Unicode (U+FFFD) = mauvais décodage → gibberish dans l'encart.
+  if (/[\u0000-\u001F\u007F-\u009F\uFFFD]/.test(v)) return false;
+  // Doit contenir au moins une lettre (rejette « <8=8AB@0B>@ » et compagnie).
+  if (!/\p{L}/u.test(v)) return false;
   if (/^(untitled|microsoft|word|acrobat|pscript|pdftex|latex|xetex|calibre|writer|ghostscript|quartz|indesign|distiller|powerpoint|libreoffice|openoffice|unknown|admin|user|owner|default|document\d*)\b/i.test(v)) return false;
   if (/\.(pdf|docx?|indd|tex)$/i.test(v)) return false;
   return true;
@@ -754,14 +795,17 @@ async function loadPdfFile(file) {
       metaAuthor = (info.Author || '').trim();
     } catch (_) {}
 
+    const cleanName = file.name
+      .replace(/\.pdf$/i, '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Titre PROPRE À CE FICHIER, toujours calculé : c'est lui que la
+    // bibliothèque utilise pour rattacher le livre (jamais le titre de la
+    // session, qui peut appartenir à un autre livre ouvert avant).
+    pdf.fileTitle = _looksLikeMeta(metaTitle) ? metaTitle : cleanName;
     if (!state.bookTitle) {
-      const cleanName = file.name
-        .replace(/\.pdf$/i, '')
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      // Titre des métadonnées s'il est propre, sinon le nom de fichier
-      state.bookTitle = _looksLikeMeta(metaTitle) ? metaTitle : cleanName;
+      state.bookTitle = pdf.fileTitle;
       showToast('Titre détecté : ' + state.bookTitle);
     }
     // Auteur rempli automatiquement dans l'encart (comme le titre)
@@ -806,13 +850,13 @@ async function _pdfFitScale() {
 }
 
 // Re-ajuste le PDF quand le panneau ou la fenêtre change de largeur.
-let _pdfRO = null, _pdfROTimer = null, _pdfLastW = 0;
+let _pdfRO = null, _pdfROTimer = null, _pdfLastW = 0, _pdfRendering = false;
 function _observePdfResize() {
   const viewer = document.getElementById('pdf-viewer');
   if (!viewer || _pdfRO || !window.ResizeObserver) return;
   _pdfLastW = viewer.clientWidth;
   _pdfRO = new ResizeObserver(() => {
-    if (!pdf.doc || !pdf.fit) return;
+    if (!pdf.doc || !pdf.fit || _pdfRendering) return; // pas pendant notre propre rendu
     const w = viewer.clientWidth;
     if (Math.abs(w - _pdfLastW) < 8) return; // ignore les micro-variations
     _pdfLastW = w;
@@ -828,6 +872,7 @@ function _observePdfResize() {
 
 async function renderAllPages() {
   if (!pdf.doc) return;
+  _pdfRendering = true; // gèle le ResizeObserver pendant qu'on remanie le DOM
   const viewer = document.getElementById('pdf-viewer');
   viewer.innerHTML = '';
   _renderedPages.clear();
@@ -881,6 +926,13 @@ async function renderAllPages() {
   document.getElementById('pdf-zoom-in').disabled = false;
   document.getElementById('pdf-zoom-out').disabled = false;
   document.getElementById('pdf-highlight').disabled = false;
+
+  // Largeur de référence figée sur l'état final (barre de défilement réservée) :
+  // les prochains vrais redimensionnements sont détectés, pas notre propre rendu.
+  _pdfLastW = viewer.clientWidth;
+  // Libère le ResizeObserver au tick suivant (après reflow), pour ne pas
+  // réagir aux mutations qu'on vient de faire.
+  requestAnimationFrame(() => { _pdfRendering = false; });
 }
 
 async function renderPageInSlot(pageNum, slot) {
@@ -1120,8 +1172,6 @@ function renderHighlightsBar() {
 }
 
 function wirePdfControls() {
-  const input = document.getElementById('pdf-file');
-  if (input && !input.dataset.wired) { input.dataset.wired = '1'; input.addEventListener('change', loadPdfFromInput); }
   const bp = document.getElementById('pdf-prev');
   if (bp) bp.onclick = () => { if (pdf.page > 1) scrollToPage(pdf.page - 1); };
   const bn = document.getElementById('pdf-next');
@@ -1427,6 +1477,39 @@ async function saveMarkdownAs() {
 }
 
 // ============= RENDER =============
+// Barre du haut (refonte Papier) : wordmark cliquable + liens Bibliothèque · Sujets · Fiches
+function liTopBar() {
+  return `<div class="top-bar">
+    <div class="app-title" onclick="liGoHome()" title="Retour à l'accueil">
+      <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7"/>
+        <path d="M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7"/>
+        <path d="M12 6.5V19"/>
+      </svg>
+      <span>Lecture Intelligente</span>
+    </div>
+    <nav class="top-nav">
+      <button onclick="if(window.openLibrary)openLibrary()" title="Mes livres, fiches et réglages">Bibliothèque</button>
+      <button onclick="liGoHome('sujets')" title="Mes sujets en cours (accueil)">Sujets</button>
+      <button onclick="if(window.openNotes)openNotes()" title="Mes fiches de lecture">Fiches</button>
+    </nav>
+    <button id="btn-fs" class="btn-pdf-toggle" title="Plein écran (tout le site)"><span class="ms">fullscreen</span></button>
+    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
+  </div>`;
+}
+
+// Retour à l'accueil (la session en cours reste enregistrée dans les champs)
+window.liGoHome = function(anchor) {
+  state.done = false;
+  state.step = 0;
+  render();
+  persistState();
+  if (anchor === 'sujets') setTimeout(() => {
+    const el = document.querySelector('.suj-home');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
+};
+
 function render() {
   const app = document.getElementById('app');
   const STEPS = getSteps();
@@ -1436,18 +1519,7 @@ function render() {
 
   const s = STEPS[state.step];
 
-  const topBar = `<div class="top-bar">
-    <div class="app-title">
-      <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7"/>
-        <path d="M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7"/>
-        <path d="M12 6.5V19"/>
-      </svg>
-      <span>Lecture Intelligente</span>
-    </div>
-    <button id="btn-fs" class="btn-pdf-toggle" title="Plein écran (tout le site)"><span class="ms">fullscreen</span></button>
-    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
-  </div>`;
+  const topBar = liTopBar();
 
   let phases = '<div class="phase-bar">';
   getPhases().forEach((p,i) => {
@@ -1511,12 +1583,17 @@ function renderType() {
   const isSujet = state.noteType === 'sujet';
   return `
   <div class="home-hero">
-    <h1 class="home-title">Lecture Intelligente</h1>
-    <p class="home-sub">Lis mieux, retiens plus — méthode de lecture active.</p>
+    <div class="home-eyebrow">Votre compagnon de lecture</div>
+    <h1 class="home-title">Lire, retenir, agir.</h1>
+    <p class="home-sub">Un parcours guidé en trois phases pour transformer chaque lecture en connaissance durable.</p>
     <div class="home-actions">
-      <label class="home-open-btn"><span class="ms" style="font-size:18px">menu_book</span> Ouvrir un livre (PDF)<input type="file" accept="application/pdf" style="display:none" onchange="state.pdfPanelOpen=true;renderPdfPanel();syncPdfPanel();loadPdfFromInput(event)"/></label>
-      <button class="home-open-btn home-open-folder" onclick="if(window.shelfConnect){window.shelfConnect({browse:false})}else{showToast('Fonction dossier indisponible')}"><span class="ms" style="font-size:18px">folder_open</span> Ouvrir un dossier</button>
+      <label class="home-open-btn"><span class="ms" style="font-size:18px">menu_book</span> Ouvrir un livre<input type="file" accept="application/pdf" style="display:none" onchange="state.pdfPanelOpen=true;renderPdfPanel();syncPdfPanel();loadPdfFromInput(event)"/></label>
+      <button class="home-open-btn home-open-folder" onclick="if(window.shelfConnect){window.shelfConnect({browse:false})}else{showToast('Fonction dossier indisponible')}"><span class="ms" style="font-size:18px">folder_open</span> Importer un dossier</button>
     </div>
+    ${/^(localhost|127\.|\[)/.test(location.hostname) ? '' : `<div class="home-download">
+      <a class="home-download-link" href="https://github.com/augustinmarso/lecture-intelligente/releases/latest/download/Lecture-Intelligente.exe">${icon('download', 16)} Télécharger l'application (Windows)</a>
+      <span class="home-download-note">app de bureau, fonctionne 100 % hors-ligne</span>
+    </div>`}
   </div>
   <div id="home-books"></div>
   <div class="home-label">${icon('add_circle', 14)} NOUVELLE SESSION</div>
@@ -1579,15 +1656,19 @@ async function renderHomeBooks() {
   if (!books.length && !hasFolder) { host.innerHTML = ''; return; }
 
   const localSection = books.length ? `
-    <div class="home-label">${icon('history', 14)} REPRENDRE</div>
-    <div class="home-grid">${books.map(b => {
+    <div class="home-label home-shelf-label">
+      <span>${icon('history', 14)} REPRENDRE</span>
+      <span class="home-shelf-count">${books.length} lecture${books.length > 1 ? 's' : ''} en cours</span>
+    </div>
+    <div class="home-grid">${books.map((b, gi) => {
       const pct = (b.lastPage && b.totalPages) ? Math.min(100, Math.round((b.lastPage / b.totalPages) * 100)) : 0;
       const sub = b.totalPages ? `page ${b.lastPage || 1} / ${b.totalPages}` : (b.lastPage > 1 ? `page ${b.lastPage}` : 'pas encore commencé');
+      const initial = ((b.title || b.name || '?').trim()[0] || '?').toUpperCase();
       return `<button class="home-book" data-book="${b.id}" title="Reprendre « ${escapeAttr(b.title || b.name)} »">
-        <span class="home-thumb" data-thumb="${b.id}">${b.thumb ? `<img src="${b.thumb}" alt=""/>` : `<span class="home-thumb-ph">${icon('auto_stories', 30)}</span>`}</span>
+        <span class="home-thumb" data-thumb="${b.id}">${b.thumb ? `<img src="${b.thumb}" alt=""/>` : `<span class="home-cover cover-g${gi % 4}"><span class="home-cover-initial">${escapeHtml(initial)}</span></span>`}</span>
         <span class="home-book-title">${escapeHtml(b.title || b.name)}</span>
         <span class="home-book-bar"><span style="width:${pct}%"></span></span>
-        <span class="home-book-sub">${sub}${pct ? ` · ${pct}%` : ''}</span>
+        <span class="home-book-sub">${pct ? `${pct} % · ` : ''}${sub}</span>
       </button>`;
     }).join('')}</div>` : '';
 
@@ -1598,7 +1679,7 @@ async function renderHomeBooks() {
     </div>
     ${shelfShown.length ? `<div class="home-grid">${shelfShown.map((f, i) => `
       <button class="home-book home-book-shelf" data-shelf-idx="${i}" title="Ouvrir « ${escapeAttr(f.name)} »">
-        <span class="home-thumb" data-shelf-thumb="${i}"><span class="home-thumb-ph">${icon('picture_as_pdf', 30)}</span></span>
+        <span class="home-thumb" data-shelf-thumb="${i}"><span class="home-cover cover-g${i % 4}"><span class="home-cover-initial">${escapeHtml(((f.name || '?').trim()[0] || '?').toUpperCase())}</span></span></span>
         <span class="home-book-title">${escapeHtml(f.name.replace(/\.pdf$/i, ''))}</span>
         <span class="home-book-sub">${escapeHtml(f.dir || 'dossier racine')}</span>
       </button>`).join('')}${shelfRest > 0 ? `
@@ -1737,17 +1818,26 @@ function renderPomodoro() {
   const mins = Math.floor(t.seconds/60).toString().padStart(2,'0');
   const secs = (t.seconds%60).toString().padStart(2,'0');
   const isWork = t.phase === 'work';
+  // Anneau de progression : arc corail = temps restant (circonférence 2π×78 ≈ 490)
+  const total = isWork ? 25*60 : 5*60;
+  const dash = Math.round(490 * (1 - Math.min(1, t.seconds / total)));
   return `
   <div class="step-why">Ton cerveau se fatigue vite. Des blocs de 20–25 min + pause sont plus productifs qu'une longue session continue.</div>
   <div class="timer-display">
     <div class="timer-phase-label">${isWork ? `Bloc de lecture ${t.blocks+1}` : 'Pause — détends-toi 5 min'}</div>
     <div class="timer-circle">
-      <div class="timer-time" id="timer-time">${mins}:${secs}</div>
-      <div class="timer-label">${isWork?'lecture':'pause'}</div>
+      <svg class="timer-ring" width="172" height="172" viewBox="0 0 172 172" aria-hidden="true">
+        <circle class="ring-bg" cx="86" cy="86" r="78" fill="none" stroke-width="5"/>
+        <circle class="ring-arc" id="timer-arc" cx="86" cy="86" r="78" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="490" stroke-dashoffset="${dash}" transform="rotate(-90 86 86)"/>
+      </svg>
+      <div class="timer-inner">
+        <div class="timer-time" id="timer-time">${mins}:${secs}</div>
+        <div class="timer-label">${isWork?'lecture':'pause'}</div>
+      </div>
     </div>
     <div class="timer-btns">
       <button id="btn-toggle-timer" class="primary">${t.running?'Pause':'Démarrer'}</button>
-      <button id="btn-reset-timer">Reset</button>
+      <button id="btn-reset-timer">Réinitialiser</button>
     </div>
   </div>
   ${t.blocks > 0 ? `<div class="revision-card"><h4>Blocs terminés&nbsp;: ${t.blocks}</h4><p>Avant de reprendre, rappelle-toi en 1 min les idées fortes du bloc précédent.</p></div>` : ''}
@@ -1766,7 +1856,10 @@ function renderPomodoro() {
       `).join('')}
     </div>
   </div>
-  <div class="field"><label>Ta question de lecture (rappel)</label><div style="padding:10px 12px;background:var(--bg2);border-radius:var(--radius);font-size:14px;color:var(--text2)">${escapeHtml(state.lecture.question) || '—'}</div></div>
+  <div class="pomo-question">
+    <div class="pomo-question-label">Ta question de lecture</div>
+    <div class="pomo-question-text">${escapeHtml(state.lecture.question) || '—'}</div>
+  </div>
   <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next">J'ai terminé ma lecture →</button></div>`;
 }
 
@@ -2133,7 +2226,7 @@ function renderDoneSujet(topBar) {
   const su = state.sujet;
   const concepts = su.carto.split('\n').map(x => x.trim()).filter(Boolean);
   return topBar + `<div class="success-screen">
-    <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
+    <div class="success-badge"><span class="ms" style="font-size:28px">check</span></div>
     <h2>Sujet lancé</h2>
     <p>Ton sujet est cadré et le crash-test est en route. Continue à le faire vivre depuis l'accueil — c'est un sport, pas un sprint.</p>
     <div class="recap">
@@ -2143,7 +2236,7 @@ function renderDoneSujet(topBar) {
       <div class="recap-block"><strong>Crash-test</strong><span class="recap-val">${(su.questions || []).length ? sujetAnsweredCount(su) + ' / ' + su.questions.length + ' questions traitées' : '—'}</span></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
-      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
+      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Exporter en Markdown (.md)</button>
       <button class="btn-secondary" id="btn-restart">Recommencer pour une nouvelle session</button>
     </div>
   </div>`;
@@ -2151,21 +2244,10 @@ function renderDoneSujet(topBar) {
 
 function renderDone() {
   const syn = state.synthese.filter(s => s.trim()).map(s => `<li>· ${escapeHtml(s)}</li>`).join('');
-  const topBar = `<div class="top-bar">
-    <div class="app-title">
-      <svg class="app-logo" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 6.5C10.5 5 8 4.5 4 4.8v12.5c4-.3 6.5.2 8 1.7"/>
-        <path d="M12 6.5C13.5 5 16 4.5 20 4.8v12.5c-4-.3-6.5.2-8 1.7"/>
-        <path d="M12 6.5V19"/>
-      </svg>
-      <span>Lecture Intelligente</span>
-    </div>
-    <button id="btn-fs" class="btn-pdf-toggle" title="Plein écran (tout le site)"><span class="ms">fullscreen</span></button>
-    <button id="btn-pdf-toggle" class="btn-pdf-toggle ${state.pdfPanelOpen?'active':''}" title="Afficher/masquer le PDF"><span class="ms">picture_as_pdf</span></button>
-  </div>`;
+  const topBar = liTopBar();
   if (state.noteType === 'sujet') return renderDoneSujet(topBar);
   return topBar + `<div class="success-screen">
-    <div style="margin-bottom:1rem;color:var(--accent)"><span class="ms" style="font-size:46px">check_circle</span></div>
+    <div class="success-badge"><span class="ms" style="font-size:28px">check</span></div>
     <h2>${state.noteType === 'chapitre' ? 'Chapitre terminé' : 'Lecture accomplie'}</h2>
     <p>Tu as suivi toutes les étapes. Voici ce que tu emportes de cette session.</p>
     <div class="recap">
@@ -2178,7 +2260,7 @@ function renderDone() {
       <div class="recap-block"><strong>Action à tester</strong><span class="recap-val">${escapeHtml(state.action.conseil) || '—'} — ${escapeHtml(state.action.quand) || ''} ${state.action.deadline ? `(bilan : ${escapeHtml(state.action.deadline)})` : ''}</span></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:1.5rem">
-      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Enregistrer sous… (.md)</button>
+      <button class="btn-download" id="btn-save-as"><span class="ms" style="font-size:16px">download</span> Exporter en Markdown (.md)</button>
       <button class="btn-secondary" id="btn-restart">Recommencer pour une nouvelle session</button>
     </div>
   </div>`;
@@ -2539,6 +2621,11 @@ function toggleTimer() {
         t.seconds--;
         const el = document.getElementById('timer-time');
         if (el) el.textContent = `${Math.floor(t.seconds/60).toString().padStart(2,'0')}:${(t.seconds%60).toString().padStart(2,'0')}`;
+        const arc = document.getElementById('timer-arc');
+        if (arc) {
+          const total = t.phase === 'work' ? 25*60 : 5*60;
+          arc.setAttribute('stroke-dashoffset', Math.round(490 * (1 - Math.min(1, t.seconds / total))));
+        }
       } else {
         clearInterval(t.interval); t.running = false;
         if (t.phase === 'work') { t.phase = 'pause'; t.seconds = 5*60; t.blocks++; }
@@ -2560,6 +2647,7 @@ window.render = render;
 window.captureHighlight = captureHighlight;
 window.renderHighlightsBar = renderHighlightsBar;
 window.refreshCitationsLive = refreshCitationsLive;
+window.scrollToPage = scrollToPage; // navigation par chapitre (chapter-detect.js)
 
 restoreState(); // reprend la session en cours si l'app a été rechargée
 render();
@@ -2581,7 +2669,7 @@ if ('serviceWorker' in navigator) {
 <script src="ai.js"></script>
 <script src="anki.js"></script>
 <script src="dictionary.js"></script>
-<script src="cloud.js"></script>
+<script src="voice.js"></script>
 <script src="update.js"></script>
 </body>
 </html>

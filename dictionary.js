@@ -648,27 +648,8 @@ function showWordSidePanel(word, def, context) {
 }
 window.showWordSidePanel = showWordSidePanel;
 
-// =============================================================
-// Injection bouton 📖 dans le top-bar
-// =============================================================
-function _injectDictButton() {
-  const _do = () => {
-    document.querySelectorAll('.top-bar').forEach(bar => {
-      if (bar.dataset.dictBtn) return;
-      bar.dataset.dictBtn = '1';
-      const btn = document.createElement('button');
-      btn.className = 'btn-pdf-toggle';
-      btn.title = 'Mes mots';
-      btn.innerHTML = icon('dictionary');
-      btn.onclick = openWords;
-      const pdfBtn = bar.querySelector('#btn-pdf-toggle');
-      if (pdfBtn) bar.insertBefore(btn, pdfBtn);
-      else bar.appendChild(btn);
-    });
-  };
-  new MutationObserver(_do).observe(document.body, { childList: true, subtree: true });
-  _do();
-}
+// (Bouton top-bar « Mes mots » supprimé : accessible via l'onglet « Mes mots »
+// de la bibliothèque — liens texte de la barre du haut.)
 
 // =============================================================
 // Styles — cohérent style Notion
@@ -745,11 +726,3 @@ _dictStyle.textContent = `
 `;
 document.head.appendChild(_dictStyle);
 
-// =============================================================
-// Init
-// =============================================================
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', _injectDictButton);
-} else {
-  _injectDictButton();
-}

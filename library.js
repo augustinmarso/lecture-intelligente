@@ -167,7 +167,10 @@ if (_origLoadPdfFile) {
     try {
       const buf = await file.arrayBuffer();
       const existing = await libGetAll();
-      const titleGuess = (window.state && window.state.bookTitle) || file.name.replace(/\.pdf$/i, '');
+      // Titre du FICHIER (métadonnées PDF ou nom nettoyé), jamais celui de la
+      // session : sinon ouvrir un 2e livre en cours de session le rattache au
+      // 1er et écrit la progression sur le mauvais livre.
+      const titleGuess = (window.pdf && window.pdf.fileTitle) || file.name.replace(/\.pdf$/i, '');
       // Déjà connu si même fichier OU même titre (ex : « livre (1).pdf » retéléchargé)
       const dup = existing.find(b => (b.name === file.name && b.size === file.size)
         || _libNorm(b.title || b.name) === _libNorm(titleGuess));
@@ -176,7 +179,7 @@ if (_origLoadPdfFile) {
         if (window.pdf) window.pdf.bookId = dup.id;
       } else {
         const newId = await libAdd({
-          title: (window.state && window.state.bookTitle) || file.name.replace(/\.pdf$/i,''),
+          title: titleGuess,
           name: file.name,
           size: file.size,
           mime: 'application/pdf',
@@ -222,26 +225,8 @@ function injectLibraryUI() {
     await renderLibrary();
   };
 
-  // Bouton dans le top-bar (réinjecté à chaque rendu)
-  const _injectBtns = () => {
-    document.querySelectorAll('.top-bar').forEach(bar => {
-      if (bar.dataset.libBtn) return;
-      bar.dataset.libBtn = '1';
-      const btn = document.createElement('button');
-      btn.className = 'btn-pdf-toggle';
-      btn.title = 'Bibliothèque';
-      btn.innerHTML = icon('library_books');
-      btn.style.marginRight = '6px';
-      btn.onclick = openLibrary;
-      const pdfBtn = bar.querySelector('#btn-pdf-toggle');
-      if (pdfBtn) bar.insertBefore(btn, pdfBtn);
-      else bar.appendChild(btn);
-    });
-  };
-  const observer = new MutationObserver(_injectBtns);
-  const appEl = document.getElementById('app');
-  if (appEl) observer.observe(appEl, { childList: true, subtree: true });
-  _injectBtns(); // Traiter les top-bars déjà présents
+  // (Bouton top-bar supprimé : la bibliothèque s'ouvre par le lien texte
+  // « Bibliothèque » de la barre du haut.)
 }
 
 async function openLibrary() {
@@ -254,16 +239,19 @@ async function renderLibrary() {
   const body = document.getElementById('lib-body');
   const books = await libGetAll();
   const shelfConnected = window.shelfIsConnected && window.shelfIsConnected();
+  // Barre d'onglets commune : « Mes livres » navigue comme les autres vues
+  const tabsBar = window.liTabs ? `<div class="notes-toolbar">${window.liTabs('books')}</div>` : '';
   if (books.length === 0) {
-    body.innerHTML = shelfConnected
+    body.innerHTML = tabsBar + (shelfConnected
       ? `<div class="lib-empty" style="padding:1rem 0 0">Aucun PDF importé — voici ceux de ton dossier connecté&nbsp;:</div>`
-      : `<div class="lib-empty">Aucun livre.<br><br>Ouvre un PDF, il sera automatiquement sauvegardé ici.<br>Ou clique sur <strong>+ Importer</strong> en haut à droite.</div>`;
+      : `<div class="lib-empty">Aucun livre.<br><br>Ouvre un PDF, il sera automatiquement sauvegardé ici.<br>Ou clique sur <strong>+ Importer</strong> en haut à droite.</div>`);
+    if (window.liWireTabs) window.liWireTabs(body);
     await _appendShelfBooks(body);
     return;
   }
   // Tri : derniers consultés / récents en premier
   books.sort((a, b) => (b.lastViewedAt || b.addedAt) - (a.lastViewedAt || a.addedAt));
-  body.innerHTML = books.map(b => {
+  body.innerHTML = tabsBar + books.map(b => {
     const progress = (b.lastPage && b.totalPages) ? Math.round((b.lastPage / b.totalPages) * 100) : 0;
     const hasProgress = b.lastPage && b.lastPage > 1;
     return `
@@ -315,6 +303,7 @@ async function renderLibrary() {
       }
     });
   });
+  if (window.liWireTabs) window.liWireTabs(body);
   // Ajoute les PDF du dossier connecté (Mon ordinateur) pour que TOUT s'affiche
   await _appendShelfBooks(body);
 }

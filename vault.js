@@ -9,6 +9,70 @@ const VAULT_STORE_HANDLE_KEY = 'vault-handle';
 
 let _vaultHandle = null;
 
+// =============================================================
+// Second Cerveau auto-connecté (app de bureau) : l'app Electron
+// expose le dossier vault via son serveur interne (/__vault/*).
+// On fabrique un handle compatible File System Access (lecture ET
+// écriture) pour que notes, parcours et backup auto fonctionnent
+// sans aucun changement dans le reste du code. Sur le web, ces
+// endpoints n'existent pas → on retombe sur le sélecteur classique.
+// =============================================================
+const VAULT_DESKTOP_OFF = 'li-vault-desktop-off'; // déconnexion volontaire
+let _desktopVaultTried = false;
+
+function _dvFileHandle(fname) {
+  return {
+    kind: 'file',
+    name: fname,
+    getFile: async () => {
+      const r = await fetch('/__vault/file?p=' + encodeURIComponent(fname), { cache: 'no-store' });
+      if (!r.ok) throw new Error('Fichier introuvable : ' + fname);
+      return new File([await r.blob()], fname);
+    },
+    createWritable: async () => {
+      const chunks = [];
+      return {
+        write: async (data) => { chunks.push(data); },
+        close: async () => {
+          const r = await fetch('/__vault/write?p=' + encodeURIComponent(fname), { method: 'POST', body: new Blob(chunks) });
+          if (!r.ok) throw new Error('Écriture refusée dans le vault');
+        },
+        abort: async () => {}
+      };
+    }
+  };
+}
+
+async function _tryDesktopVault() {
+  try {
+    if (localStorage.getItem(VAULT_DESKTOP_OFF) === '1') return false;
+    const r = await fetch('/__vault/index', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const data = await r.json();
+    if (!data || !data.available) return false;
+    _vaultHandle = {
+      name: data.name,
+      __desktop: true,
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+      getFileHandle: async (fname, opts) => {
+        if (!opts || !opts.create) {
+          const head = await fetch('/__vault/file?p=' + encodeURIComponent(fname), { method: 'HEAD', cache: 'no-store' });
+          if (!head.ok) throw new DOMException('Fichier introuvable : ' + fname, 'NotFoundError');
+        }
+        return _dvFileHandle(fname);
+      },
+      entries: async function* () {
+        const idx = await fetch('/__vault/index', { cache: 'no-store' });
+        if (!idx.ok) return;
+        const d = await idx.json();
+        for (const f of ((d && d.files) || [])) yield [f.name, _dvFileHandle(f.name)];
+      }
+    };
+    return true;
+  } catch (_) { return false; }
+}
+
 // --- Persistance du handle (IndexedDB peut stocker les handles) ---
 async function _vaultDb() {
   return new Promise((resolve, reject) => {
@@ -60,6 +124,11 @@ async function _ensurePermission(handle, mode = 'readwrite') {
 // --- API publique ---
 async function vaultIsConnected() {
   if (_vaultHandle) return true;
+  // App de bureau : connexion zéro-clic au dossier « second cerveau »
+  if (!_desktopVaultTried) {
+    _desktopVaultTried = true;
+    if (await _tryDesktopVault()) { _renderVaultBar(); return true; }
+  }
   const h = await _loadVaultHandle();
   if (h) {
     _vaultHandle = h;
@@ -81,6 +150,7 @@ async function vaultConnect() {
     });
     _vaultHandle = handle;
     await _saveVaultHandle(handle);
+    try { localStorage.removeItem(VAULT_DESKTOP_OFF); } catch (_) {}
     if (window.showToast) window.showToast(`✓ Vault connecté : ${handle.name}`);
     _renderVaultBar();
     return true;
@@ -92,6 +162,8 @@ async function vaultConnect() {
 
 async function vaultDisconnect() {
   _vaultHandle = null;
+  _desktopVaultTried = true; // pas de reconnexion auto derrière une déconnexion voulue
+  try { localStorage.setItem(VAULT_DESKTOP_OFF, '1'); } catch (_) {}
   await _clearVaultHandle();
   if (window.showToast) window.showToast('Vault déconnecté');
   _renderVaultBar();
@@ -359,7 +431,7 @@ function _injectVaultBar() {
       <div class="vault-actions">
         <button id="vault-connect" class="gd-btn vault-primary">${icon('folder_open', 15)} Choisir dossier</button>
         <button id="vault-browse" class="gd-btn" disabled title="Voir les notes du dossier">${icon('menu_book', 15)} Parcourir</button>
-        <button id="vault-sync-all" class="gd-btn" disabled title="Exporter toutes mes fiches dans le dossier">↑ Tout sync</button>
+        <button id="vault-sync-all" class="gd-btn" disabled title="Exporter toutes mes fiches en .md dans le dossier">↑ Exporter en .md</button>
         <button id="vault-disconnect" class="gd-btn" disabled title="Déconnexion">✕</button>
       </div>
     `;
@@ -439,13 +511,14 @@ document.head.appendChild(_vaultStyle);
 // --- Init ---
 window.addEventListener('load', async () => {
   _injectVaultBar();
-  // Tente de restaurer le handle sauvegardé
+  // App de bureau d'abord (zéro clic), sinon handle sauvegardé (web)
   try {
-    const h = await _loadVaultHandle();
-    if (h) {
-      _vaultHandle = h;
-      _renderVaultBar();
+    _desktopVaultTried = true;
+    if (!(await _tryDesktopVault())) {
+      const h = await _loadVaultHandle();
+      if (h) _vaultHandle = h;
     }
+    _renderVaultBar();
   } catch (e) { console.warn('vault load', e); }
   // Hook auto-save (différé pour laisser notes.js s'initialiser)
   setTimeout(_hookAutoSave, 500);

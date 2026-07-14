@@ -6,11 +6,12 @@
 // modules, sons, pdf.js du CDN) est mis en cache au passage.
 // =============================================================
 
-const CACHE = 'li-offline-v6';
+const CACHE = 'li-offline-v18';
 const CORE = [
   'index.html', 'library.js', 'notes.js', 'epub-reader.js', 'chapter-detect.js',
   'vault.js', 'ambient.js', 'dashboard.js', 'backup.js', 'dictionary.js',
-  'shelf.js', 'ai.js', 'anki.js', 'cloud.js', 'update.js',
+  'shelf.js', 'ai.js', 'anki.js', 'voice.js', 'update.js',
+  'vendor/pdf.min.js', 'vendor/pdf.worker.min.js', 'vendor/jszip.min.js',
   'manifest.webmanifest', 'icon.svg', 'fonts/fonts.css'
 ];
 
@@ -34,9 +35,9 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // Même origine + CDN pdf.js/jszip (nécessaires au lecteur hors-ligne)
-  if (url.origin !== location.origin && url.origin !== 'https://cdnjs.cloudflare.com') return;
-  // Les APIs externes (Wiktionnaire, Supabase, AnkiConnect…) ne passent pas ici
+  // Même origine uniquement (pdf.js/jszip sont auto-hébergés dans vendor/)
+  if (url.origin !== location.origin) return;
+  // Les APIs externes (Wiktionnaire, AnkiConnect…) ne passent pas ici
 
   // Polices : cache d'abord, et requête GET propre (les requêtes de police
   // portent parfois un en-tête Range que le relais SW fait échouer)
@@ -53,6 +54,28 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  // Navigation : renvoie le document AVEC l'isolation cross-origin
+  // (COOP/COEP credentialless) → active le WASM multi-thread pour la dictée
+  // vocale hors-ligne (voice.js), y compris sur GitHub Pages qui ne pose pas
+  // ces en-têtes. credentialless = ne casse pas pdf.js/jszip du CDN.
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      let resp;
+      try {
+        resp = await fetch(req);
+        if (resp && resp.ok) { const copy = resp.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); }
+      } catch (_) {
+        resp = (await caches.match(req)) || (await caches.match('index.html'));
+      }
+      if (!resp) return new Response('Hors-ligne', { status: 503, statusText: 'Offline' });
+      const h = new Headers(resp.headers);
+      h.set('Cross-Origin-Opener-Policy', 'same-origin');
+      h.set('Cross-Origin-Embedder-Policy', 'credentialless');
+      return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+    })());
+    return;
+  }
+
   e.respondWith(
     fetch(req).then(resp => {
       if (resp && resp.ok) {
@@ -63,11 +86,6 @@ self.addEventListener('fetch', (e) => {
     }).catch(async () => {
       const hit = await caches.match(req);
       if (hit) return hit;
-      // Navigation hors-ligne → coquille de l'app
-      if (req.mode === 'navigate') {
-        const shell = await caches.match('index.html');
-        if (shell) return shell;
-      }
       return new Response('Hors-ligne', { status: 503, statusText: 'Offline' });
     })
   );
