@@ -171,9 +171,12 @@ if (_origLoadPdfFile) {
       // session : sinon ouvrir un 2e livre en cours de session le rattache au
       // 1er et écrit la progression sur le mauvais livre.
       const titleGuess = (window.pdf && window.pdf.fileTitle) || file.name.replace(/\.pdf$/i, '');
-      // Déjà connu si même fichier OU même titre (ex : « livre (1).pdf » retéléchargé)
+      // Déjà connu si même fichier, OU même titre À TAILLE ÉGALE (ex : « livre
+      // (1).pdf » retéléchargé = mêmes octets). Le titre seul ne suffit pas :
+      // deux éditions différentes d'un même ouvrage partageraient leur fiche
+      // (position de lecture, miniature) alors que la pagination diffère.
       const dup = existing.find(b => (b.name === file.name && b.size === file.size)
-        || _libNorm(b.title || b.name) === _libNorm(titleGuess));
+        || (b.size === file.size && _libNorm(b.title || b.name) === _libNorm(titleGuess)));
       if (dup) {
         // Livre déjà connu : enregistrer l'ID pour le tracking de position
         if (window.pdf) window.pdf.bookId = dup.id;

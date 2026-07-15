@@ -106,6 +106,10 @@ async function togglePdfChapters() {
   panel.querySelectorAll('.pcp-item').forEach(el => el.onclick = () => {
     const p = parseInt(el.dataset.page);
     if (p && window.scrollToPage) window.scrollToPage(p);
+    // En « note de chapitre », choisir un chapitre le relie à la note
+    if (window.state && window.state.noteType === 'chapitre' && window.syncChapterFromPdf) {
+      window.syncChapterFromPdf(true);
+    }
     panel.classList.remove('open');
   });
   const act = panel.querySelector('.pcp-item.active');
@@ -127,8 +131,16 @@ document.addEventListener('click', (e) => {
   p.classList.remove('open');
 }, true);
 
-// ----- Pour EPUB : extraire le titre depuis le HTML de la section -----
+// ----- Pour EPUB : le vrai sommaire d'abord, sinon le HTML de la section -----
 function getCurrentChapterFromEpub() {
+  // Le lecteur EPUB expose l'entrée du sommaire (nav.xhtml/toc.ncx) de la
+  // section affichée — bien plus fiable que le premier heading venu.
+  if (window.epubGetCurrentChapter) {
+    try {
+      const t = window.epubGetCurrentChapter();
+      if (t) return t.slice(0, 120);
+    } catch (_) {}
+  }
   const contentEl = document.getElementById('epub-content');
   if (!contentEl) return null;
   const h = contentEl.querySelector('h1, h2, h3');

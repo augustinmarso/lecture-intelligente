@@ -563,6 +563,11 @@ const state = {
   bookTitle: '',
   bookAuthor: '',
   chapterTitle: '',
+  // Ces éléments de début de note suivent le PDF visionné tant que
+  // l'utilisateur ne les a pas saisis à la main (édition = coupe le suivi).
+  _titleAuto: true,
+  _authorAuto: true,
+  _chapterAuto: true,
   ppu: {perso:'',precis:'',utile:''},
   tdm: {chapitres:'',ordre:''},
   env: {'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
@@ -573,7 +578,10 @@ const state = {
   highlights: [],
   sujet: sujetInitial(),
   pdfPanelOpen: false,
-  done: false
+  done: false,
+  // ID de la fiche écrite en IndexedDB à la fin du flux (null tant que
+  // l'écriture n'a pas abouti) — sert de filet anti-perte au rechargement.
+  _savedNoteId: null
 };
 
 const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null, fit: true };
@@ -605,15 +613,20 @@ function restoreState() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (!saved || typeof saved !== 'object') return;
-    // Session terminée : la fiche est déjà enregistrée, on repart de l'accueil
-    // (rejouer l'écran de fin recréerait une fiche en double via l'auto-save)
-    if (saved.done) { localStorage.removeItem(SESSION_KEY); return; }
+    // Session terminée ET fiche bien écrite en base : on repart de l'accueil.
+    // Sans _savedNoteId (crash entre l'écran de fin et l'écriture IndexedDB),
+    // on restaure l'écran de fin : l'auto-save de notes.js rattrapera la fiche.
+    if (saved.done && saved._savedNoteId) { localStorage.removeItem(SESSION_KEY); return; }
     for (const k of Object.keys(state)) {
       if (!(k in saved)) continue;
       if (k === 'timer') Object.assign(state.timer, saved.timer, { interval: null, running: false });
       else if (k === 'sujet') state.sujet = Object.assign(sujetInitial(), saved.sujet);
       else if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], saved[k]);
       else state[k] = saved[k];
+    }
+    // Rassurer : le travail en cours a bien été retrouvé (restauration muette sinon)
+    if (state.step > 0 || state.noteType || state.bookTitle) {
+      setTimeout(() => { try { showToast('Session précédente restaurée ✓'); } catch (_) {} }, 800);
     }
   } catch (_) { try { localStorage.removeItem(SESSION_KEY); } catch (_) {} }
 }
@@ -716,7 +729,7 @@ function _looksLikeMeta(v) {
   if (/[\u0000-\u001F\u007F-\u009F\uFFFD]/.test(v)) return false;
   // Doit contenir au moins une lettre (rejette « <8=8AB@0B>@ » et compagnie).
   if (!/\p{L}/u.test(v)) return false;
-  if (/^(untitled|microsoft|word|acrobat|pscript|pdftex|latex|xetex|calibre|writer|ghostscript|quartz|indesign|distiller|powerpoint|libreoffice|openoffice|unknown|admin|user|owner|default|document\d*)\b/i.test(v)) return false;
+  if (/^(untitled|microsoft|word|acrobat|pscript|pdftex|latex|xetex|calibre|writer|ghostscript|quartz|indesign|distiller|powerpoint|libreoffice|openoffice|unknown|anonymous|anonyme|none|null|n\/?a|admin|user|owner|author|auteur|default|document\d*)\b/i.test(v)) return false;
   if (/\.(pdf|docx?|indd|tex)$/i.test(v)) return false;
   return true;
 }
@@ -765,8 +778,8 @@ async function _detectAuthorAsync(title) {
     let author = await _aiFindAuthor(title, text);
     if (!author) author = _authorFromText(text);
     author = (author || '').trim();
-    // On n'écrase pas une saisie de l'utilisateur et on refuse le bruit
-    if (author && _looksLikeMeta(author) && !/^\d/.test(author) && !state.bookAuthor) {
+    // On n'écrase pas une saisie de l'utilisateur (suivi auto coupé) ni le bruit
+    if (author && _looksLikeMeta(author) && !/^\d/.test(author) && state._authorAuto && !state.bookAuthor) {
       state.bookAuthor = author;
       showToast('Auteur détecté : ' + author);
       if (typeof re === 'function') re();
@@ -776,6 +789,16 @@ async function _detectAuthorAsync(title) {
 
 async function loadPdfFile(file) {
   if (!window.pdfjsLib) { showToast('PDF.js non chargé'); return; }
+  // Nouveau document : libérer l'ancien PDF.js (mémoire/worker) et couper le
+  // rattachement bibliothèque tant qu'il n'est pas recalculé — sinon un scroll
+  // pendant le chargement écrit la position du nouveau livre dans la fiche de
+  // l'ancien (pdf.bookId encore périmé).
+  const oldDoc = pdf.doc;
+  pdf.doc = null;
+  pdf.bookId = null;
+  if (oldDoc) { try { oldDoc.destroy(); } catch (_) {} }
+  // Un lecteur EPUB encore ouvert occupe le même panneau → le fermer proprement
+  if (window.closeEpubReader && document.querySelector('.epub-reader-panel')) window.closeEpubReader();
   const buf = await file.arrayBuffer();
   try {
     pdf.doc = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -804,19 +827,34 @@ async function loadPdfFile(file) {
     // bibliothèque utilise pour rattacher le livre (jamais le titre de la
     // session, qui peut appartenir à un autre livre ouvert avant).
     pdf.fileTitle = _looksLikeMeta(metaTitle) ? metaTitle : cleanName;
-    if (!state.bookTitle) {
+    // Le TITRE suit le PDF visionné tant que l'utilisateur ne l'a pas saisi à la
+    // main (state._titleAuto). Ouvrir un autre PDF met donc à jour le titre.
+    if (state._titleAuto && pdf.fileTitle && pdf.fileTitle !== state.bookTitle) {
       state.bookTitle = pdf.fileTitle;
+      const ti = document.getElementById('book-title');
+      if (ti && document.activeElement !== ti) ti.value = state.bookTitle;
       showToast('Titre détecté : ' + state.bookTitle);
     }
-    // Auteur rempli automatiquement dans l'encart (comme le titre)
-    if (!state.bookAuthor && _looksLikeMeta(metaAuthor)) {
-      state.bookAuthor = metaAuthor;
-      showToast('Auteur détecté : ' + metaAuthor);
-    } else if (!state.bookAuthor) {
-      // Pas d'auteur dans les métadonnées → on le cherche en tâche de fond
-      // (page de titre + IA si dispo), sans bloquer l'affichage du PDF.
-      _detectAuthorAsync(state.bookTitle);
+    // L'AUTEUR suit aussi le PDF visionné : métadonnées de CE fichier, sinon
+    // détection en tâche de fond (page de titre + IA), sans écraser une saisie.
+    if (state._authorAuto) {
+      const ai = document.getElementById('book-author');
+      if (_looksLikeMeta(metaAuthor)) {
+        if (metaAuthor !== state.bookAuthor) {
+          state.bookAuthor = metaAuthor;
+          if (ai && document.activeElement !== ai) ai.value = state.bookAuthor;
+          showToast('Auteur détecté : ' + metaAuthor);
+        }
+      } else {
+        // Nouveau PDF sans auteur en métadonnées → repart de zéro puis détecte
+        state.bookAuthor = '';
+        if (ai && document.activeElement !== ai) ai.value = '';
+        _detectAuthorAsync(pdf.fileTitle);
+      }
     }
+
+    // Note de chapitre : remplit le chapitre depuis le sommaire du PDF
+    syncChapterFromPdf();
 
     renderPdfPanel();
     await renderAllPages();
@@ -911,12 +949,16 @@ async function renderAllPages() {
 
   viewer.querySelectorAll('.pdf-page-slot').forEach(s => _pdfObserver.observe(s));
 
-  // Suivi de la page courante au scroll
-  let scrollTimer = null;
-  viewer.addEventListener('scroll', () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(_updateCurrentPageFromScroll, 80);
-  });
+  // Suivi de la page courante au scroll — posé une seule fois : renderAllPages
+  // est rappelée à chaque zoom/fit/changement de doc et empilait les listeners.
+  if (!viewer.dataset.scrollWired) {
+    viewer.dataset.scrollWired = '1';
+    let scrollTimer = null;
+    viewer.addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(_updateCurrentPageFromScroll, 80);
+    });
+  }
 
   // UI mise à jour
   document.getElementById('pdf-pagenum').textContent = `${pdf.page} / ${pdf.total}`;
@@ -986,6 +1028,8 @@ function _updateCurrentPageFromScroll() {
       window.libSetLastPosition(pdf.bookId, pdf.page, pdf.total);
     }
     if (window.dashboardTrackPage) window.dashboardTrackPage(pdf.bookId, pdf.page);
+    // Note de chapitre : le chapitre suit la page courante (si suivi auto)
+    syncChapterFromPdf();
   }
 }
 
@@ -1000,6 +1044,24 @@ function scrollToPage(pageNum) {
     if (el) el.textContent = `${pdf.page} / ${pdf.total}`;
   }
 }
+
+// Relie le chapitre de la note au chapitre courant du PDF (sommaire/outline).
+// N'agit qu'en mode « note de chapitre » et tant que l'utilisateur n'a pas
+// saisi le chapitre à la main (state._chapterAuto). force=true réactive le suivi.
+async function syncChapterFromPdf(force) {
+  if (!window.pdf || !pdf.doc) return;
+  if (state.noteType !== 'chapitre') return;
+  if (!force && !state._chapterAuto) return;
+  let ch = null;
+  try { if (window.getCurrentChapterFromPdf) ch = await window.getCurrentChapterFromPdf(); } catch (_) {}
+  if (!ch || ch === state.chapterTitle) return;
+  state.chapterTitle = ch;
+  state._chapterAuto = true;
+  const inp = document.getElementById('chapter-title');
+  if (inp && document.activeElement !== inp) inp.value = ch; // ne pas écraser pendant la frappe
+  try { persistState(); } catch (_) {}
+}
+window.syncChapterFromPdf = syncChapterFromPdf;
 
 // Backward compat
 async function renderPage() { return renderAllPages(); }
@@ -1106,7 +1168,9 @@ function captureHighlight() {
   const txt = sel ? sel.toString().trim() : '';
   if (!txt) { showToast('Sélectionne d\'abord du texte dans le PDF'); return; }
   const page = pdf.page;
-  state.highlights.push({ page, text: txt, ts: Date.now() });
+  // src : document d'origine de la citation — si on change de PDF en cours de
+  // session, les citations de l'ancien restent identifiables (liste + export).
+  state.highlights.push({ page, text: txt, ts: Date.now(), src: pdf.fileTitle || state.bookTitle || '' });
   if (sel.removeAllRanges) sel.removeAllRanges();
   showToast('Citation archivée ✓');
   if (window.dashboardTrackCitation) window.dashboardTrackCitation();
@@ -1148,8 +1212,9 @@ function refreshCitationsLive() {
   }
   list.innerHTML = state.highlights.slice().reverse().map((h, i) => {
     const realIdx = state.highlights.length - 1 - i;
+    const fromOther = h.src && h.src !== (pdf.fileTitle || state.bookTitle);
     return `<div class="citation-card">
-      <div class="citation-meta">Page ${h.page} · ${new Date(h.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="citation-meta">Page ${h.page} · ${new Date(h.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}${fromOther ? ` · ${escapeHtml(h.src)}` : ''}</div>
       <blockquote>${escapeHtml(h.text)}</blockquote>
       <button class="citation-del" data-idx="${realIdx}" title="Supprimer cette citation">✕</button>
     </div>`;
@@ -1262,9 +1327,10 @@ function _syncFsIcon() {
 document.addEventListener('fullscreenchange', _syncFsIcon);
 document.addEventListener('webkitfullscreenchange', _syncFsIcon);
 
-// Raccourci Ctrl+H pour surligner
+// Raccourci Ctrl+H pour surligner (pas en lecture EPUB : la page PDF n'aurait aucun sens)
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h' && pdf.doc) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h' && pdf.doc
+      && !document.querySelector('.epub-reader-panel')) {
     e.preventDefault();
     captureHighlight();
   }
@@ -1432,7 +1498,8 @@ function generateMarkdown() {
     md += `## 📜 Citations (${state.highlights.length})\n\n`;
     md += `*Passages surlignés pendant la lecture, archivés automatiquement.*\n\n`;
     state.highlights.forEach((h, i) => {
-      md += `### ${i + 1}. Page ${h.page}\n\n`;
+      const fromOther = h.src && h.src !== state.bookTitle;
+      md += `### ${i + 1}. Page ${h.page}${fromOther ? ` — ${h.src}` : ''}\n\n`;
       md += `> ${h.text.replace(/\n+/g, '\n> ')}\n\n`;
     });
   }
@@ -2284,9 +2351,9 @@ function bindEvents() {
       else if (id==='act-conseil') state.action.conseil = el.value;
       else if (id==='act-quand') state.action.quand = el.value;
       else if (id==='act-deadline') state.action.deadline = el.value;
-      else if (id==='book-title') state.bookTitle = el.value;
-      else if (id==='book-author') state.bookAuthor = el.value;
-      else if (id==='chapter-title') state.chapterTitle = el.value;
+      else if (id==='book-title') { state.bookTitle = el.value; state._titleAuto = false; }
+      else if (id==='book-author') { state.bookAuthor = el.value; state._authorAuto = false; }
+      else if (id==='chapter-title') { state.chapterTitle = el.value; state._chapterAuto = false; }
       else if (id==='suj-sujet') state.sujet.sujet = el.value;
       else if (id==='suj-videos') state.sujet.videos = el.value;
       else if (id==='suj-carto') state.sujet.carto = el.value;
@@ -2545,7 +2612,12 @@ function bindEvents() {
   });
 
   document.querySelectorAll('.type-card').forEach(el => {
-    el.addEventListener('click', () => { state.noteType = el.dataset.type; re(); });
+    el.addEventListener('click', () => {
+      state.noteType = el.dataset.type;
+      // Passage en « note de chapitre » avec un PDF ouvert → remplit le chapitre
+      if (state.noteType === 'chapitre') { state._chapterAuto = true; syncChapterFromPdf(true); }
+      re();
+    });
   });
 
   const btnFs = document.getElementById('btn-fs');
@@ -2572,11 +2644,12 @@ function bindEvents() {
     clearInterval(state.timer.interval);
     Object.assign(state, {
       step:0, noteType:null, bookTitle:'', bookAuthor:'', chapterTitle:'',
+      _titleAuto:true, _authorAuto:true, _chapterAuto:true,
       ppu:{perso:'',precis:'',utile:''}, tdm:{chapitres:'',ordre:''},
       env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
       lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
       synthese:['','','','',''], action:{conseil:'',quand:'',deadline:''},
-      highlights: [], sujet: sujetInitial(), done:false
+      highlights: [], sujet: sujetInitial(), done:false, _savedNoteId:null
     });
     re();
   });

@@ -37,22 +37,150 @@ async function openEpubBlob(fileOrBlob) {
   const chapters = [];
   for (const id of spineIds) {
     const item = manifest[id];
-    if (!item || !item.type || !item.type.includes('html')) continue;
-    const path = opfDir ? opfDir + '/' + item.href : item.href;
-    const file = zip.file(path);
+    if (!item) continue;
+    // Certains OPF omettent le media-type : on accepte aussi par extension
+    const isHtml = (item.type && item.type.includes('html')) || /\.x?html?$/i.test(item.href || '');
+    if (!isHtml) continue;
+    const path = _epubResolvePath(opfDir, item.href);
+    const file = zip.file(path) || zip.file(decodeURIComponent(path));
     if (!file) continue;
     const html = await file.async('text');
     chapters.push({ id, path, html });
   }
 
-  return { title, chapters, zip, opfDir };
+  const toc = await _parseEpubToc(zip, opfDoc, opfDir, manifest, chapters);
+
+  return { title, chapters, toc, zip, opfDir };
+}
+
+// Résout un href relatif (avec ./ et ../) par rapport à un dossier du zip
+function _epubResolvePath(baseDir, href) {
+  const clean = (href || '').split('#')[0].split('?')[0];
+  const parts = (baseDir ? baseDir + '/' + clean : clean).split('/');
+  const out = [];
+  for (const p of parts) {
+    if (!p || p === '.') continue;
+    if (p === '..') out.pop();
+    else out.push(p);
+  }
+  return out.join('/');
+}
+
+// =============================================================
+// Table des matières réelle de l'EPUB : nav.xhtml (EPUB3),
+// sinon toc.ncx (EPUB2), sinon les titres trouvés dans les sections.
+// Renvoie [{label, index, level}] où index pointe dans chapters[].
+// =============================================================
+async function _parseEpubToc(zip, opfDoc, opfDir, manifest, chapters) {
+  const parser = new DOMParser();
+  const idxByPath = {};
+  chapters.forEach((ch, i) => { idxByPath[ch.path] = i; idxByPath[decodeURIComponent(ch.path)] = i; });
+  const resolveIdx = (baseDir, href) => {
+    if (!href) return -1;
+    const p = _epubResolvePath(baseDir, href);
+    if (p in idxByPath) return idxByPath[p];
+    const d = decodeURIComponent(p);
+    return d in idxByPath ? idxByPath[d] : -1;
+  };
+  const entries = [];
+  const push = (label, idx, level) => {
+    label = (label || '').replace(/\s+/g, ' ').trim();
+    if (label && idx >= 0) entries.push({ label, index: idx, level: level || 0 });
+  };
+
+  // --- EPUB3 : document de navigation (manifest item properties~=nav) ---
+  try {
+    let navHref = null;
+    for (const id of Object.keys(manifest)) {
+      const el = opfDoc.querySelector(`manifest > item[id="${CSS.escape ? CSS.escape(id) : id}"]`);
+      const props = el ? (el.getAttribute('properties') || '') : '';
+      if (props.split(/\s+/).includes('nav')) { navHref = manifest[id].href; break; }
+    }
+    if (navHref) {
+      const navPath = _epubResolvePath(opfDir, navHref);
+      const navDir = navPath.lastIndexOf('/') >= 0 ? navPath.substring(0, navPath.lastIndexOf('/')) : '';
+      const navFile = zip.file(navPath);
+      if (navFile) {
+        const doc = parser.parseFromString(await navFile.async('text'), 'text/html');
+        let nav = null;
+        doc.querySelectorAll('nav').forEach(n => {
+          const t = n.getAttribute('epub:type') || n.getAttributeNS('http://www.idpf.org/2007/ops', 'type') || n.getAttribute('role') || '';
+          if (!nav && /toc|doc-toc/.test(t)) nav = n;
+        });
+        if (!nav) nav = doc.querySelector('nav');
+        if (nav) {
+          const walk = (ol, level) => {
+            for (const li of ol.children) {
+              if (li.tagName !== 'LI') continue;
+              const a = li.querySelector(':scope > a[href]');
+              if (a) push(a.textContent, resolveIdx(navDir, a.getAttribute('href')), level);
+              const sub = li.querySelector(':scope > ol');
+              if (sub) walk(sub, level + 1);
+            }
+          };
+          const rootOl = nav.querySelector('ol');
+          if (rootOl) walk(rootOl, 0);
+        }
+      }
+    }
+  } catch (e) { console.warn('EPUB nav.xhtml illisible', e); }
+
+  // --- EPUB2 : toc.ncx (spine@toc ou manifest media-type ncx) ---
+  if (!entries.length) {
+    try {
+      let ncxHref = null;
+      const spineEl = opfDoc.querySelector('spine');
+      const tocId = spineEl ? spineEl.getAttribute('toc') : null;
+      if (tocId && manifest[tocId]) ncxHref = manifest[tocId].href;
+      if (!ncxHref) {
+        for (const id of Object.keys(manifest)) {
+          if ((manifest[id].type || '').includes('dtbncx')) { ncxHref = manifest[id].href; break; }
+        }
+      }
+      if (ncxHref) {
+        const ncxPath = _epubResolvePath(opfDir, ncxHref);
+        const ncxDir = ncxPath.lastIndexOf('/') >= 0 ? ncxPath.substring(0, ncxPath.lastIndexOf('/')) : '';
+        const ncxFile = zip.file(ncxPath);
+        if (ncxFile) {
+          const doc = parser.parseFromString(await ncxFile.async('text'), 'text/xml');
+          const walk = (el, level) => {
+            for (const np of el.children) {
+              if (np.tagName !== 'navPoint') continue;
+              const lbl = np.querySelector(':scope > navLabel > text');
+              const content = np.querySelector(':scope > content');
+              push(lbl ? lbl.textContent : '', resolveIdx(ncxDir, content ? content.getAttribute('src') : ''), level);
+              walk(np, level + 1);
+            }
+          };
+          const navMap = doc.querySelector('navMap');
+          if (navMap) walk(navMap, 0);
+        }
+      }
+    } catch (e) { console.warn('EPUB toc.ncx illisible', e); }
+  }
+
+  // --- Repli : un titre par section (h1-h3, sinon « Section N ») ---
+  if (!entries.length) {
+    chapters.forEach((ch, i) => {
+      const m = (ch.html || '').match(/<(h1|h2|h3)[^>]*>([\s\S]*?)<\/\1>/i);
+      const label = m ? m[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() : '';
+      entries.push({ label: label || `Section ${i + 1}`, index: i, level: 0 });
+    });
+  }
+
+  // Dédoublonner les entrées consécutives pointant sur la même section avec le même libellé
+  return entries.filter((e, i) => !i || e.index !== entries[i - 1].index || e.label !== entries[i - 1].label);
 }
 
 let _epubKeyHandler = null;
 let _epubPanelMode = null; // 'pdf-panel' | 'lib-modal'
+let _epubBlobUrls = [];    // URLs blob créées pour les images (révoquées à la fermeture)
 
 function _closeEpubPanel() {
   if (_epubKeyHandler) { document.removeEventListener('keydown', _epubKeyHandler); _epubKeyHandler = null; }
+  _epubBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
+  _epubBlobUrls = [];
+  window.epubGetCurrentChapter = null;
   // Restaurer la toolbar PDF si on l'a cachée
   document.querySelectorAll('#pdf-panel .pdf-toolbar, #pdf-panel .highlights-bar').forEach(el => el.style.display = '');
   // Vider le viewer (l'utilisateur peut recharger un PDF s'il le souhaite)
@@ -79,6 +207,16 @@ async function showEpubReader(fileOrBlob, displayTitle) {
   const libModal = document.getElementById('lib-modal');
   if (libModal) libModal.classList.remove('open');
 
+  // Le lecteur EPUB remplace le PDF dans le même panneau : on libère le
+  // document PDF.js (mémoire) et on coupe son rattachement bibliothèque,
+  // sinon Ctrl+H et le suivi de position continuent sur l'ancien PDF.
+  if (window.pdf && window.pdf.doc) {
+    try { window.pdf.doc.destroy(); } catch (_) {}
+    window.pdf.doc = null;
+    window.pdf.bookId = null;
+    window.pdf.total = 0;
+  }
+
   // Ouvrir le panneau PDF (à gauche, là où on lit normalement)
   if (window.state) window.state.pdfPanelOpen = true;
   const panel = document.getElementById('pdf-panel');
@@ -94,11 +232,15 @@ async function showEpubReader(fileOrBlob, displayTitle) {
   _epubPanelMode = 'pdf-panel';
 
   const title = displayTitle || epub.title;
-  // 📍 Restaurer la position de lecture si on a déjà lu cet EPUB
-  const posKey = 'epub-pos-' + (title || 'unknown').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  // 📍 Restaurer la position de lecture si on a déjà lu cet EPUB.
+  // La clé inclut le nombre de sections : deux livres homonymes (ou une
+  // conversion PDF→EPUB vs un vrai EPUB) ne partagent plus leur position.
+  const slug = (title || 'unknown').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const posKey = `epub-pos2-${slug}-${epub.chapters.length}`;
+  const legacyPosKey = 'epub-pos-' + slug;
   let current = 0;
   try {
-    const saved = parseInt(localStorage.getItem(posKey) || '0');
+    const saved = parseInt(localStorage.getItem(posKey) || localStorage.getItem(legacyPosKey) || '0');
     if (saved > 0 && saved < epub.chapters.length) {
       current = saved;
       if (window.showToast) window.showToast(`Reprise section ${current + 1}/${epub.chapters.length}`);
@@ -111,12 +253,54 @@ async function showEpubReader(fileOrBlob, displayTitle) {
     return doc.body ? doc.body.innerHTML : html;
   }
 
+  // Réécrit les <img>/<image> de la section vers des URLs blob tirées du zip
+  // (les chemins internes de l'EPUB ne sont pas résolubles par le navigateur).
+  const _epubMime = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp', svg:'image/svg+xml', bmp:'image/bmp', avif:'image/avif' };
+  async function resolveImages(contentEl, ch) {
+    const baseDir = ch.path.lastIndexOf('/') >= 0 ? ch.path.substring(0, ch.path.lastIndexOf('/')) : '';
+    const nodes = contentEl.querySelectorAll('img[src], image');
+    for (const node of nodes) {
+      const isSvgImage = node.tagName.toLowerCase() === 'image';
+      const src = isSvgImage
+        ? (node.getAttribute('href') || node.getAttribute('xlink:href'))
+        : node.getAttribute('src');
+      if (!src || /^(https?:|data:|blob:)/i.test(src)) continue;
+      const path = _epubResolvePath(baseDir, src);
+      const f = epub.zip.file(path) || epub.zip.file(decodeURIComponent(path));
+      if (!f) continue;
+      try {
+        const ext = (path.split('.').pop() || '').toLowerCase();
+        const blob = new Blob([await f.async('arraybuffer')], { type: _epubMime[ext] || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        _epubBlobUrls.push(url);
+        if (isSvgImage) { node.setAttribute('href', url); node.setAttribute('xlink:href', url); }
+        else node.setAttribute('src', url);
+      } catch (_) {}
+    }
+  }
+
+  // Entrée du sommaire correspondant à la section affichée (la plus proche ≤ current)
+  function tocEntryForCurrent() {
+    let best = null;
+    for (const t of (epub.toc || [])) {
+      // > strict : à section égale, on garde la première entrée (le chapitre
+      // parent, pas ses sous-ancres)
+      if (t.index <= current && (!best || t.index > best.index)) best = t;
+    }
+    return best;
+  }
+  window.epubGetCurrentChapter = () => {
+    const t = tocEntryForCurrent();
+    return t ? t.label : null;
+  };
+
   function renderCh() {
     const ch = epub.chapters[current];
     const contentEl = document.getElementById('epub-content');
     if (ch && contentEl) {
       contentEl.innerHTML = extractBody(ch.html);
       contentEl.scrollTop = 0;
+      resolveImages(contentEl, ch);
     }
     const prog = document.getElementById('epub-progress');
     if (prog) prog.textContent = `${current+1} / ${epub.chapters.length}`;
@@ -126,6 +310,43 @@ async function showEpubReader(fileOrBlob, displayTitle) {
     if (next) next.disabled = current >= epub.chapters.length - 1;
     // 💾 Sauvegarder la position de lecture
     try { localStorage.setItem(posKey, String(current)); } catch (_) {}
+  }
+
+  // Panneau « Chapitres » : sommaire cliquable (équivalent EPUB de togglePdfChapters)
+  function toggleEpubToc() {
+    const host = document.querySelector('.epub-reader-panel');
+    if (!host) return;
+    let tocPanel = host.querySelector('.epub-toc-panel');
+    if (tocPanel) { tocPanel.remove(); return; }
+    const toc = epub.toc || [];
+    if (!toc.length) {
+      if (window.showToast) window.showToast('Cet EPUB n\'a pas de sommaire');
+      return;
+    }
+    const active = tocEntryForCurrent();
+    tocPanel = document.createElement('div');
+    tocPanel.className = 'epub-toc-panel';
+    tocPanel.innerHTML = `
+      <div class="pcp-head">
+        <strong>${icon('toc', 16)} Chapitres <span class="pcp-count">${toc.length}</span></strong>
+        <button class="pcp-close" title="Fermer">${icon('close', 16)}</button>
+      </div>
+      <div class="pcp-list">
+        ${toc.map((t, i) => `
+          <button class="pcp-item${active === t ? ' active' : ''}" data-toc="${i}" style="padding-left:${12 + t.level * 15}px" title="${(t.label||'').replace(/"/g,'&quot;')}">
+            <span class="pcp-title">${(t.label||'').replace(/</g,'&lt;')}</span>
+            <span class="pcp-page">${t.index + 1}</span>
+          </button>`).join('')}
+      </div>`;
+    host.appendChild(tocPanel);
+    tocPanel.querySelector('.pcp-close').onclick = () => tocPanel.remove();
+    tocPanel.querySelectorAll('.pcp-item').forEach(el => el.onclick = () => {
+      const t = toc[parseInt(el.dataset.toc)];
+      if (t) { current = t.index; renderCh(); }
+      tocPanel.remove();
+    });
+    const act = tocPanel.querySelector('.pcp-item.active');
+    if (act) act.scrollIntoView({ block: 'center' });
   }
 
   // Charger préférences
@@ -138,6 +359,7 @@ async function showEpubReader(fileOrBlob, displayTitle) {
         <button id="epub-back" class="lib-action" title="Fermer le lecteur EPUB (Esc)">✕</button>
         <strong title="${(title||'').replace(/"/g,'&quot;')}">${(title||'').replace(/</g,'&lt;')}</strong>
         <div class="epub-toolbar-actions">
+          <button id="epub-toc" class="lib-action" title="Chapitres (sommaire)">${icon('toc', 15)}</button>
           <button id="epub-settings-toggle" class="lib-action" title="Réglages d'affichage">${icon('tune', 15)}</button>
           <div class="epub-nav">
             <button id="epub-prev" class="lib-action" title="Précédent (←)">‹</button>
@@ -197,16 +419,24 @@ async function showEpubReader(fileOrBlob, displayTitle) {
   _wireEpubSettings();
 
   document.getElementById('epub-back').onclick = _closeEpubPanel;
+  document.getElementById('epub-toc').onclick = toggleEpubToc;
   document.getElementById('epub-prev').onclick = () => { if (current > 0) { current--; renderCh(); } };
   document.getElementById('epub-next').onclick = () => { if (current < epub.chapters.length-1) { current++; renderCh(); } };
 
   if (_epubKeyHandler) document.removeEventListener('keydown', _epubKeyHandler);
   _epubKeyHandler = (e) => {
-    if (!document.getElementById('epub-content')) return;
+    const contentEl = document.getElementById('epub-content');
+    // offsetParent nul = lecteur présent mais panneau masqué (toggle) → ignorer
+    if (!contentEl || !contentEl.offsetParent) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); document.getElementById('epub-prev').click(); }
     if (e.key === 'ArrowRight') { e.preventDefault(); document.getElementById('epub-next').click(); }
-    if (e.key === 'Escape') { e.preventDefault(); _closeEpubPanel(); }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const tocPanel = document.querySelector('.epub-toc-panel');
+      if (tocPanel) tocPanel.remove();
+      else _closeEpubPanel();
+    }
   };
   document.addEventListener('keydown', _epubKeyHandler);
 
@@ -214,6 +444,7 @@ async function showEpubReader(fileOrBlob, displayTitle) {
 }
 
 window.showEpubReader = showEpubReader;
+window.closeEpubReader = _closeEpubPanel;
 
 // =============================================================
 // Préférences EPUB (taille, thème, largeur) — persistées localStorage
@@ -356,11 +587,20 @@ async function readPdfAsEpubWeb(id) {
     if (window.showToast) window.showToast('Module non prêt');
     return;
   }
-  const book = await libGet(id);
-  if (window.showToast) window.showToast('Conversion PDF → EPUB…');
-  const pages = await extractPdfText(book.data);
-  const blob = await _buildEpubBlobInline(book.title, pages);
-  await showEpubReader(blob, book.title);
+  try {
+    const book = await libGet(id);
+    if (!book || !book.data) {
+      if (window.showToast) window.showToast('Livre introuvable dans la bibliothèque');
+      return;
+    }
+    if (window.showToast) window.showToast('Conversion PDF → EPUB…');
+    const pages = await extractPdfText(book.data);
+    const blob = await _buildEpubBlobInline(book.title, pages);
+    await showEpubReader(blob, book.title);
+  } catch (e) {
+    console.error('readPdfAsEpubWeb', e);
+    if (window.showToast) window.showToast('Échec de la conversion PDF → EPUB');
+  }
 }
 
 // Reconstruit un EPUB blob (logique dupliquée légère pour rester autonome)
@@ -431,6 +671,7 @@ _epubStyle.textContent = `
 /* ======= LECTEUR EPUB — Layout ======= */
 #pdf-viewer:has(.epub-reader-panel) { padding: 0; align-items: stretch; justify-content: stretch; background: var(--bg); }
 .epub-reader-panel {
+  position: relative; /* ancre le panneau « Chapitres » */
   --epub-fs: 18px;
   --epub-lh: 1.7;
   --epub-bg: var(--bg);
@@ -537,6 +778,20 @@ _epubStyle.textContent = `
   --epub-border: rgba(232,228,216,0.12);
   --epub-accent: #f97316;
 }
+
+/* Panneau « Chapitres » (réutilise les classes pcp-* de chapter-detect.js) */
+.epub-toc-panel {
+  position: absolute; top: 48px; left: 10px; z-index: 60;
+  width: min(340px, calc(100% - 20px)); max-height: calc(100% - 68px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--epub-bg); border: 1px solid var(--epub-border); border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,.22));
+  color: var(--epub-text);
+}
+.epub-toc-panel .pcp-head { background: color-mix(in srgb, var(--epub-bg) 92%, var(--epub-text) 8%); border-color: var(--epub-border); }
+.epub-toc-panel .pcp-item { color: var(--epub-text); }
+.epub-toc-panel .pcp-item.active { background: color-mix(in srgb, var(--epub-accent) 14%, transparent); }
+.epub-toc-panel .pcp-page { color: var(--epub-text-muted); }
 
 /* Scrollbar discrète */
 .epub-content::-webkit-scrollbar { width: 8px; }

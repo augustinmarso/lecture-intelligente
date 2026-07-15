@@ -90,6 +90,14 @@ async function autoSaveCurrentNote() {
   if (_currentNoteId) return _currentNoteId;
   const s = window.state;
   if (!s) return null;
+  // Session restaurée après l'écran de fin : la fiche est peut-être déjà en
+  // base (state._savedNoteId) — ne pas la dupliquer.
+  if (s._savedNoteId) {
+    try {
+      const existing = await notesGet(s._savedNoteId);
+      if (existing) { _currentNoteId = s._savedNoteId; return _currentNoteId; }
+    } catch (_) {}
+  }
   const md = window.generateMarkdown ? window.generateMarkdown() : '';
   const note = {
     title: s.bookTitle || s.chapterTitle || (s.sujet && s.sujet.sujet) || 'Fiche sans titre',
@@ -106,6 +114,10 @@ async function autoSaveCurrentNote() {
     createdAt: Date.now()
   };
   _currentNoteId = await notesAdd(note);
+  // Marquer la fiche comme écrite : restoreState peut alors purger la session
+  // en toute sécurité (et un rechargement ne recréera pas de doublon).
+  s._savedNoteId = _currentNoteId;
+  if (window.persistState) window.persistState();
   if (window.showToast) window.showToast('Fiche enregistrée ✓');
   return _currentNoteId;
 }
