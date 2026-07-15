@@ -353,32 +353,48 @@ async function _runAiSuggest(screenKey, extra) {
 }
 
 // --- Génération de cartes Anki (utilisée par anki.js) ---
+// UNE idée = UNE carte, ni plus ni moins : le 1:1 est garanti par le code
+// (un appel IA par idée), plus par le prompt — une requête globale laissait
+// les modèles fusionner des idées ou inventer des cartes en plus. L'IA
+// n'écrit que la question du recto ; le verso reste les mots du lecteur,
+// orthographe/grammaire corrigées uniquement, avec retour au texte original
+// si la réponse s'en éloigne trop.
 async function aiGenerateCards(note) {
-  const parts = [];
-  if (note.bookTitle) parts.push('Livre : ' + note.bookTitle + (note.bookAuthor ? ' — ' + note.bookAuthor : ''));
-  if (note.chapterTitle) parts.push('Chapitre : ' + note.chapterTitle);
-  if (note.objectif) parts.push('Objectif de lecture : ' + note.objectif);
-  if (note.synthese && note.synthese.length) parts.push('Synthèse du lecteur :\n' + note.synthese.map((x, i) => `${i + 1}. ${x}`).join('\n'));
-  if (note.action && note.action.conseil) parts.push('Action décidée : ' + note.action.conseil + (note.action.quand ? ' (' + note.action.quand + ')' : ''));
-  const cites = (note.highlights || []).slice(0, 10).map(h => `- (p.${h.page}) « ${h.text.slice(0, 300)} »`);
-  if (cites.length) parts.push('Citations surlignées :\n' + cites.join('\n'));
+  const ideas = (note.synthese || []).map(x => (x || '').trim()).filter(Boolean);
+  if (!ideas.length) return [];
+  const book = note.bookTitle || note.title || 'ce livre';
+  const auteur = note.bookAuthor || `l'auteur de « ${book} »`;
+  const ctx = [];
+  if (note.bookTitle) ctx.push('Livre : ' + note.bookTitle + (note.bookAuthor ? ' — ' + note.bookAuthor : ''));
+  if (note.chapterTitle) ctx.push('Chapitre : ' + note.chapterTitle);
+  if (note.objectif) ctx.push('Objectif de lecture : ' + note.objectif);
 
-  const auteur = note.bookAuthor || `l'auteur de « ${note.bookTitle || note.title || 'ce livre'} »`;
-  const result = await aiCall({
-    system: `Tu crées des flashcards Anki en français pour la répétition espacée, sur le principe de la devinette : le recto pose une question qui présente l'idée ou la citation SANS la dévoiler, et le lecteur doit retrouver la réponse de mémoire. Format du recto : par défaut « Que pense ${auteur} de [sujet précis] ? », ou une autre question courte qui amène l'idée sans la révéler (« Que dit ${auteur} à propos de [sujet] ? », « Quelle image utilise ${auteur} pour parler de [sujet] ? », « Comment ${auteur} justifie-t-il [sujet] ? »…). Une seule idée ou citation par carte. Verso d'une IDÉE : la position de l'auteur en 1 à 3 phrases, à partir des mots du lecteur. Verso d'une CITATION : la citation EXACTE, mot pour mot entre guillemets, avec sa page — c'est elle que le lecteur doit deviner.`,
-    user: parts.join('\n\n') + '\n\nCrée exactement UNE carte par idée de la synthèse (dans le même ordre) et UNE carte par citation surlignée — ne fusionne jamais deux idées ou deux citations dans la même carte. Recto = question devinette qui ne révèle pas la réponse, et SPÉCIFIQUE au contenu de sa carte : elle nomme le sujet exact de l\'idée ou de la citation (jamais une question générique) — en lisant le recto seul, on doit savoir de quelle idée précise il s\'agit. Verso = l\'idée reformulée, ou la citation exacte à deviner.',
-    schema: {
-      type: 'object',
-      properties: { cards: { type: 'array', items: {
-        type: 'object',
-        properties: { recto: { type: 'string' }, verso: { type: 'string' } },
-        required: ['recto', 'verso'], additionalProperties: false
-      } } },
-      required: ['cards'], additionalProperties: false
-    },
-    maxTokens: 4000
-  });
-  return result.cards || [];
+  const cards = [];
+  for (let i = 0; i < ideas.length; i++) {
+    const idee = ideas[i];
+    const rectoModele = `Que pense ${auteur}${note.objectif ? ' sur ' + note.objectif : ''} ? — idée n°${i + 1} de ma synthèse`;
+    let recto = '', verso = '';
+    try {
+      const r = await aiCall({
+        system: `Tu fabriques UNE flashcard Anki en français à partir d'UNE idée notée par un lecteur.
+- recto : une question devinette courte et SPÉCIFIQUE (« Que pense ${auteur} de [sujet précis] ? », « Comment ${auteur} justifie-t-il [sujet] ? », « Que dit ${auteur} à propos de [sujet] ? »…) qui nomme le sujet exact de l'idée sans révéler la réponse.
+- verso : l'idée du lecteur reprise MOT POUR MOT, en corrigeant uniquement l'orthographe, la grammaire et la ponctuation. Ne reformule pas, ne résume pas, n'ajoute rien, ne développe pas.`,
+        user: (ctx.length ? ctx.join('\n') + '\n\n' : '') + `Idée du lecteur : « ${idee} »`,
+        schema: {
+          type: 'object',
+          properties: { recto: { type: 'string' }, verso: { type: 'string' } },
+          required: ['recto', 'verso'], additionalProperties: false
+        },
+        maxTokens: 400
+      });
+      recto = (r && r.recto || '').trim();
+      verso = (r && r.verso || '').trim();
+    } catch (e) { console.warn('aiGenerateCards idée ' + (i + 1), e); }
+    // Garde-fou : verso absent ou trop éloigné des mots du lecteur → texte original
+    if (!verso || verso.length < idee.length * 0.5 || verso.length > idee.length * 1.6) verso = idee;
+    cards.push({ recto: recto || rectoModele, verso });
+  }
+  return cards;
 }
 window.aiGenerateCards = aiGenerateCards;
 
