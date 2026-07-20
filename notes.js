@@ -85,8 +85,20 @@ async function notesDelete(id) {
 // Auto-save : observe l'apparition de .success-screen (écran done)
 // =============================================================
 let _currentNoteId = null;
+// Verrou : un seul notesAdd en vol. Deux rendus rapprochés de l'écran de fin
+// (double-clic sur « Terminer », tap fantôme mobile) partagent la même
+// promesse au lieu de créer deux fiches — l'écriture IndexedDB est asynchrone
+// et _currentNoteId n'est posé qu'à sa résolution.
+let _savePromise = null;
 
-async function autoSaveCurrentNote() {
+function autoSaveCurrentNote() {
+  if (!_savePromise) {
+    _savePromise = _doAutoSaveNote().catch(e => { _savePromise = null; throw e; });
+  }
+  return _savePromise;
+}
+
+async function _doAutoSaveNote() {
   if (_currentNoteId) return _currentNoteId;
   const s = window.state;
   if (!s) return null;
@@ -153,9 +165,10 @@ function _injectNoteUI() {
       document.getElementById('open-notes').onclick = openNotes;
     }
 
-    // Reset _currentNoteId quand on quitte l'écran done
+    // Reset quand on quitte l'écran done (prochaine fiche = nouvel add)
     if (!success && _currentNoteId) {
       _currentNoteId = null;
+      _savePromise = null;
     }
   });
   obs.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });

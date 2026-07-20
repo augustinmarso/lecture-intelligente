@@ -185,7 +185,11 @@ async function restoreAllData(data, opts = {}) {
       if (n.createdAt && existingCreated.has(n.createdAt)) continue;
       const clean = { ...n };
       delete clean.id;
-      try { await notesAdd(clean); restored.notes++; } catch (_) {}
+      try {
+        await notesAdd(clean); restored.notes++;
+        // Deux entrées au même createdAt dans le MÊME fichier → une seule insérée
+        if (n.createdAt) existingCreated.add(n.createdAt);
+      } catch (_) {}
     }
   }
 

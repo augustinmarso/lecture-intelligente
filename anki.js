@@ -347,6 +347,9 @@ function _ankiShowHelp() {
 }
 
 // --- Section Anki sur l'écran de fin de session ---
+// Dernière fiche envoyée vers Anki depuis l'écran de fin (anti-double envoi)
+let _ankiSentFor = null;
+
 function _injectDoneUI() {
   // Boutons Anki sur les fiches (elles vivent dans #lib-modal, hors de #app)
   new MutationObserver(_wireNoteCardButtons).observe(document.body, { childList: true, subtree: true });
@@ -381,13 +384,25 @@ function _injectDoneUI() {
         action: st.action || {}, highlights: st.highlights || []
       };
     };
-    document.getElementById('anki-send').onclick = () => ankiExportNote(currentNote());
+    // Une fiche ne part qu'une fois vers Anki (envoi auto OU manuel) : les
+    // cartes IA étant reformulées à chaque appel, un renvoi échapperait à la
+    // déduplication d'AnkiConnect et créerait des cartes redondantes.
+    const sendOnce = async (fromAuto) => {
+      const key = (window.state && (window.state._savedNoteId || window.state.bookTitle)) || 'fiche';
+      if (_ankiSentFor === key) {
+        if (fromAuto) return;
+        if (!confirm('Cette fiche a déjà été envoyée vers Anki. La renvoyer ? (risque de cartes en double)')) return;
+      }
+      const r = await ankiExportNote(currentNote());
+      if (r && !r.skipped) _ankiSentFor = key;
+    };
+    document.getElementById('anki-send').onclick = () => sendOnce(false);
     document.getElementById('anki-txt').onclick = () => ankiDownloadTxt(currentNote());
     document.getElementById('anki-auto').onchange = (e) => _ankiSave({ auto: e.target.checked });
 
     // Envoi automatique si activé et Anki joignable
     if (s.auto && await ankiIsAvailable()) {
-      ankiExportNote(currentNote(), { silent: false });
+      sendOnce(true);
     }
   });
   obs.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
@@ -554,7 +569,17 @@ function _ficheMarkdownFromAnki(book, data) {
   return md;
 }
 
+// Mutex : un double-clic sur « Synchroniser » pendant qu'une synchro est en
+// cours lancerait deux reconstructions concurrentes → fiches fromAnki en
+// double (le dédoublonnage par titre lit la base avant l'insertion de l'autre).
+let _ankiSyncingAll = false;
 async function ankiSyncAll() {
+  if (_ankiSyncingAll) { if (window.showToast) window.showToast('Synchronisation déjà en cours…'); return; }
+  _ankiSyncingAll = true;
+  try { return await _ankiSyncAllInner(); }
+  finally { _ankiSyncingAll = false; }
+}
+async function _ankiSyncAllInner() {
   if (!await ankiIsAvailable()) { _ankiShowHelp(); return; }
   const s = _ankiSettings();
   if (window.showToast) window.showToast('Synchronisation avec Anki…');
