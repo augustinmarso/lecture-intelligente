@@ -117,6 +117,8 @@ async function autoSaveCurrentNote() {
   // Marquer la fiche comme écrite : restoreState peut alors purger la session
   // en toute sécurité (et un rechargement ne recréera pas de doublon).
   s._savedNoteId = _currentNoteId;
+  // La note terminée sort des brouillons « Notes en cours »
+  if (s._draftId && window.liDeleteDraft) { window.liDeleteDraft(s._draftId, { silent: true }); s._draftId = null; }
   if (window.persistState) window.persistState();
   if (window.showToast) window.showToast('Fiche enregistrée ✓');
   return _currentNoteId;

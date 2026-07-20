@@ -283,6 +283,15 @@
     .timer-btns button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
     .timer-btns button.primary:hover { opacity: .85; }
     /* Synthèse — textareas plus grands */
+    /* Notes en cours (brouillons) sur l'accueil */
+    .drafts-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.6rem; }
+    .draft-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg2); }
+    .draft-info { min-width: 0; }
+    .draft-title { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .draft-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .draft-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .draft-del { padding: 6px 8px; }
+
     .synthesis-list { list-style: none; padding: 0; }
     .synthesis-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
     .synthesis-num { min-width: 30px; height: 30px; border: 1px solid var(--border2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Newsreader', Georgia, serif; font-size: 15px; color: var(--text2); flex-shrink: 0; margin-top: 8px; font-weight: 500; }
@@ -581,7 +590,9 @@ const state = {
   done: false,
   // ID de la fiche écrite en IndexedDB à la fin du flux (null tant que
   // l'écriture n'a pas abouti) — sert de filet anti-perte au rechargement.
-  _savedNoteId: null
+  _savedNoteId: null,
+  // ID du brouillon (« Notes en cours » de l'accueil) si la note a été quittée
+  _draftId: null
 };
 
 const pdf = { doc: null, page: 1, total: 0, scale: 1.2, name: '', textLayerDiv: null, fit: true };
@@ -617,13 +628,7 @@ function restoreState() {
     // Sans _savedNoteId (crash entre l'écran de fin et l'écriture IndexedDB),
     // on restaure l'écran de fin : l'auto-save de notes.js rattrapera la fiche.
     if (saved.done && saved._savedNoteId) { localStorage.removeItem(SESSION_KEY); return; }
-    for (const k of Object.keys(state)) {
-      if (!(k in saved)) continue;
-      if (k === 'timer') Object.assign(state.timer, saved.timer, { interval: null, running: false });
-      else if (k === 'sujet') state.sujet = Object.assign(sujetInitial(), saved.sujet);
-      else if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], saved[k]);
-      else state[k] = saved[k];
-    }
+    _applySnapshot(saved);
     // Rassurer : le travail en cours a bien été retrouvé (restauration muette sinon)
     if (state.step > 0 || state.noteType || state.bookTitle) {
       setTimeout(() => { try { showToast('Session précédente restaurée ✓'); } catch (_) {} }, 800);
@@ -638,6 +643,127 @@ window.addEventListener('beforeunload', () => {
   clearTimeout(_persistTimer);
   try { localStorage.setItem(SESSION_KEY, _sessionSnapshot()); } catch (_) {}
 });
+
+// Réhydrate `state` depuis un instantané (session ou brouillon)
+function _applySnapshot(saved) {
+  for (const k of Object.keys(state)) {
+    if (!(k in saved)) continue;
+    if (k === 'timer') Object.assign(state.timer, saved.timer, { interval: null, running: false });
+    else if (k === 'sujet') state.sujet = Object.assign(sujetInitial(), saved.sujet);
+    else if (state[k] && typeof state[k] === 'object' && !Array.isArray(state[k])) Object.assign(state[k], saved[k]);
+    else state[k] = saved[k];
+  }
+}
+
+// Remet la session à zéro (nouvelle note) — utilisé par « Recommencer »,
+// la reprise d'un brouillon et le démarrage d'une note pendant qu'une autre
+// est en brouillon.
+function resetSessionState() {
+  clearInterval(state.timer.interval);
+  Object.assign(state, {
+    step:0, noteType:null, bookTitle:'', bookAuthor:'', chapterTitle:'',
+    _titleAuto:true, _authorAuto:true, _chapterAuto:true,
+    ppu:{perso:'',precis:'',utile:''}, tdm:{chapitres:'',ordre:''},
+    env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
+    lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
+    synthese:['','','','',''], action:{conseil:'',quand:'',deadline:''},
+    highlights: [], sujet: sujetInitial(), done:false, _savedNoteId:null, _draftId:null
+  });
+}
+
+// =============================================================
+// Brouillons (« Notes en cours ») : quitter une note l'enregistre
+// automatiquement ; l'accueil propose de la reprendre. Les sujets sont
+// exclus (ils ont déjà leur suivi « Mes sujets » sur l'accueil).
+// =============================================================
+const DRAFTS_KEY = 'li-drafts-v1';
+function _draftsAll() {
+  try { const a = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch (_) { return []; }
+}
+function _draftsWrite(list) { try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(list.slice(0, 12))); } catch (_) {} }
+
+// La note en cours mérite-t-elle un brouillon ? (du contenu, pas terminée)
+function _draftWorthy() {
+  if (state.done || !state.noteType || state.noteType === 'sujet') return false;
+  return !!((state.bookTitle || '').trim() || (state.chapterTitle || '').trim()
+    || state.ppu.perso || state.ppu.precis || state.ppu.utile
+    || state.lecture.question || state.tdm.chapitres
+    || state.synthese.some(x => x && x.trim())
+    || state.action.conseil || state.highlights.length);
+}
+
+function saveDraftIfAny() {
+  if (!_draftWorthy()) return false;
+  if (!state._draftId) state._draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const snap = JSON.parse(_sessionSnapshot());
+  const prev = _draftsAll().find(d => d.id === state._draftId);
+  // Mise à jour depuis l'accueil (step 0) : on garde l'étape où la note avait
+  // été laissée, pour la reprendre au bon endroit du flux.
+  if (snap.step === 0 && prev && prev.snap && prev.snap.step > 0) snap.step = prev.snap.step;
+  const list = _draftsAll().filter(d => d.id !== state._draftId);
+  list.unshift({ id: state._draftId, savedAt: Date.now(), snap });
+  _draftsWrite(list);
+  return true;
+}
+
+window.liDeleteDraft = function(id, opts) {
+  opts = opts || {};
+  if (!opts.silent && !confirm('Supprimer cette note en cours ? Son contenu sera perdu.')) return;
+  _draftsWrite(_draftsAll().filter(d => d.id !== id));
+  if (state._draftId === id) state._draftId = null;
+  if (!opts.silent) re();
+};
+
+window.liResumeDraft = function(id) {
+  const d = _draftsAll().find(x => x.id === id);
+  if (!d || !d.snap) { showToast('Brouillon introuvable'); return; }
+  resetSessionState();
+  _applySnapshot(d.snap);
+  state._draftId = d.id;
+  state.done = false;
+  render();
+  persistState();
+  showToast('Note reprise — continue où tu t\'étais arrêté');
+  // Rouvrir le livre de la note depuis la bibliothèque (à la dernière page lue)
+  const title = (state.bookTitle || '').trim();
+  if (title && typeof libGetAll === 'function' && typeof _libNorm === 'function') {
+    libGetAll().then(books => {
+      const b = books.find(x => _libNorm(x.title || x.name) === _libNorm(title));
+      if (b && b.data) {
+        pdf.startPage = b.lastPage || 1;
+        return loadPdfFile(new File([b.data], b.name || 'livre.pdf', { type: 'application/pdf' }))
+          .then(() => { pdf.bookId = b.id; });
+      }
+    }).catch(() => {});
+  }
+};
+
+// Cartes « Notes en cours » de l'accueil
+function draftsHomeHtml() {
+  const drafts = _draftsAll().filter(d => d.snap && d.snap.noteType && d.snap.noteType !== 'sujet');
+  if (!drafts.length) return '';
+  const typeLabel = { livre: 'Note de livre', chapitre: 'Note de chapitre' };
+  return `<div class="home-label">${icon('history_edu', 14)} NOTES EN COURS</div>
+  <div class="drafts-list">` + drafts.map(d => {
+    const s = d.snap;
+    const steps = s.noteType === 'chapitre' ? STEPS_CHAPITRE : STEPS_LIVRE;
+    const stepTitle = (steps[Math.min(s.step || 0, steps.length - 1)] || {}).title || '';
+    const title = (s.noteType === 'chapitre' ? (s.chapterTitle || s.bookTitle) : s.bookTitle) || 'Note sans titre';
+    const dt = new Date(d.savedAt);
+    const when = dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="draft-card">
+      <div class="draft-info">
+        <div class="draft-title">${escapeHtml(title)}</div>
+        <div class="draft-meta">${typeLabel[s.noteType] || 'Note'} · ${escapeHtml(stepTitle)} · ${when}</div>
+      </div>
+      <div class="draft-actions">
+        <button class="lib-action" onclick="liResumeDraft('${d.id}')">${icon('play_arrow', 15)} Reprendre</button>
+        <button class="lib-action draft-del" title="Supprimer ce brouillon" onclick="liDeleteDraft('${d.id}')">${icon('close', 15)}</button>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
 
 function getSteps() {
   if (state.noteType === 'chapitre') return STEPS_CHAPITRE;
@@ -1565,12 +1691,15 @@ function liTopBar() {
   </div>`;
 }
 
-// Retour à l'accueil (la session en cours reste enregistrée dans les champs)
+// Retour à l'accueil — la note en cours est enregistrée en brouillon
+// (« Notes en cours ») pour pouvoir être reprise plus tard.
 window.liGoHome = function(anchor) {
+  const saved = saveDraftIfAny();
   state.done = false;
   state.step = 0;
   render();
   persistState();
+  if (saved) showToast('Note en cours enregistrée ✓ — « Reprendre » ci-dessous');
   if (anchor === 'sujets') setTimeout(() => {
     const el = document.querySelector('.suj-home');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1663,6 +1792,7 @@ function renderType() {
     </div>`}
   </div>
   <div id="home-books"></div>
+  ${draftsHomeHtml()}
   <div class="home-label">${icon('add_circle', 14)} NOUVELLE SESSION</div>
   <div class="step-why">Choisis le format adapté à ta session. Une <em>note de livre</em> couvre l'ouvrage entier avec sélection de chapitres&nbsp;; une <em>note de chapitre</em> se concentre sur une seule section&nbsp;; <em>maîtriser un sujet</em> est une méthode d'apprentissage en deux phases&nbsp;: cadrage puis profondeur.</div>
   <div class="type-card ${isLivre?'selected':''}" data-type="livre">
@@ -1940,8 +2070,8 @@ function renderSynthese() {
   <div class="step-why">Ferme le livre. Un résumé dans tes propres mots fixe les idées en mémoire. Ne recopie pas l'auteur — reformule.</div>
   ${state.highlights.length > 0 ? `<div style="font-size:12px;color:var(--text2);background:var(--bg2);padding:10px 12px;border-radius:var(--radius);margin-bottom:1rem;line-height:1.5"><span class="ms" style="font-size:14px">lightbulb</span> Tu as ${state.highlights.length} passage${state.highlights.length>1?'s':''} surligné${state.highlights.length>1?'s':''} dans le PDF — utilise-les comme matière première pour reformuler.</div>` : ''}
   <ul class="synthesis-list">${items}</ul>
-  <div style="font-size:12px;color:var(--text2);margin:8px 0 1.2rem;line-height:1.5">Remplis-en au moins 3 pour continuer. Astuce&nbsp;: utilise <span class="ms" style="font-size:15px">mic</span> pour dicter chaque idée.</div>
-  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${filled<3?'disabled':''}>Ma synthèse est prête →</button></div>`;
+  <div style="font-size:12px;color:var(--text2);margin:8px 0 1.2rem;line-height:1.5">Une seule idée suffit pour continuer — vise 3 à 5 si tu peux. Astuce&nbsp;: utilise <span class="ms" style="font-size:15px">mic</span> pour dicter chaque idée.</div>
+  <div class="nav-row"><button class="btn-back" id="btn-back">←</button><button class="btn-main" id="btn-next" ${filled<1?'disabled':''}>Ma synthèse est prête →</button></div>`;
 }
 
 function renderAction() {
@@ -2369,7 +2499,7 @@ function bindEvents() {
     el.addEventListener('input', () => {
       state.synthese[parseInt(el.dataset.i)] = el.value;
       const btn = document.getElementById('btn-next');
-      if (btn) btn.disabled = state.synthese.filter(x => x.trim()).length < 3;
+      if (btn) btn.disabled = state.synthese.filter(x => x.trim()).length < 1;
     });
   });
 
@@ -2613,6 +2743,15 @@ function bindEvents() {
 
   document.querySelectorAll('.type-card').forEach(el => {
     el.addEventListener('click', () => {
+      // Une note laissée de côté (brouillon existant) ne doit pas fuiter dans
+      // la nouvelle : on met le brouillon à jour puis on repart de zéro — il
+      // reste récupérable via « Notes en cours ».
+      if (state._draftId && _draftWorthy()) {
+        saveDraftIfAny();
+        resetSessionState();
+        // Le PDF encore ouvert re-remplit le titre de la nouvelle note
+        if (window.pdf && pdf.fileTitle) state.bookTitle = pdf.fileTitle;
+      }
       state.noteType = el.dataset.type;
       // Passage en « note de chapitre » avec un PDF ouvert → remplit le chapitre
       if (state.noteType === 'chapitre') { state._chapterAuto = true; syncChapterFromPdf(true); }
@@ -2641,17 +2780,11 @@ function bindEvents() {
 
   const btnRestart = document.getElementById('btn-restart');
   if (btnRestart) btnRestart.addEventListener('click', () => {
-    clearInterval(state.timer.interval);
-    Object.assign(state, {
-      step:0, noteType:null, bookTitle:'', bookAuthor:'', chapterTitle:'',
-      _titleAuto:true, _authorAuto:true, _chapterAuto:true,
-      ppu:{perso:'',precis:'',utile:''}, tdm:{chapitres:'',ordre:''},
-      env:{'Créneau calme bloqué':false,'Notifications coupées (mode avion)':false,'Eau à portée':false,'Lumière et position confortables':false},
-      lecture:{question:''}, timer:{seconds:25*60,running:false,interval:null,phase:'work',blocks:0},
-      synthese:['','','','',''], action:{conseil:'',quand:'',deadline:''},
-      highlights: [], sujet: sujetInitial(), done:false, _savedNoteId:null
-    });
+    // Le travail en cours part en brouillon plutôt qu'à la poubelle
+    const saved = saveDraftIfAny();
+    resetSessionState();
     re();
+    if (saved) showToast('Note enregistrée dans « Notes en cours » ✓');
   });
 
   const btnSaveAs = document.getElementById('btn-save-as');

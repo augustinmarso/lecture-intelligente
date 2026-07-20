@@ -158,9 +158,10 @@ async function ankiPullWords() {
 }
 window.ankiPullWords = ankiPullWords;
 
-// Carte pour une citation surlignée. Recto : question devinette générée par
-// l'IA (modèle éco) SPÉCIFIQUE au contenu de la citation ; repli sur
-// « Que dit [source] sur [sujet] ? » sans IA. Verso = citation exacte (+ page).
+// Carte pour une citation surlignée. Recto : template fixe
+// « Que pense [auteur] de [thème] ? » — l'IA (modèle éco) ne devine QUE le
+// thème à partir de la citation ; repli sur « Que dit [source] sur [sujet] ? »
+// sans IA. Verso = citation exacte (+ page).
 // Source auto : « Livre — Auteur · Chapitre · p.N ». Silencieux si Anki fermé.
 // allowDuplicate: true car chaque passage surligné est une carte à part entière.
 async function ankiAddCitation({ text, page, source, subject, deck, book, author, chapter }) {
@@ -168,17 +169,19 @@ async function ankiAddCitation({ text, page, source, subject, deck, book, author
   try {
     if (!await ankiIsAvailable()) return false;
     const src = (source || 'ce texte').trim();
+    const auteur = (author || '').trim() || src;
     let recto = subject && subject.trim() ? `Que dit ${src} sur ${subject.trim()} ?` : `Que dit ${src} ?`;
     if (window.aiIsConfigured && window.aiIsConfigured() && window.aiCall) {
       try {
         const r = await window.aiCall({
           model: window.aiCheapestModel ? window.aiCheapestModel() : undefined,
-          system: 'Tu écris le recto d\'une flashcard Anki en français, sur le principe de la devinette : UNE question courte et précise qui désigne le contenu exact de la citation sans en révéler la réponse. Mentionne l\'auteur (ou la source) dans la question.',
-          user: `Source : ${src}${book ? `\nLivre : ${book}` : ''}${chapter ? `\nChapitre : ${chapter}` : ''}\nCitation à deviner (le verso de la carte) : « ${text.slice(0, 500)} »\n\nÉcris la question du recto, spécifique à cette citation.`,
-          schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'], additionalProperties: false },
-          maxTokens: 150
+          system: 'Tu identifies le THÈME d\'une citation pour compléter le recto d\'une flashcard : « Que pense [auteur] de [thème] ? ». Réponds uniquement le thème : un groupe nominal court (2 à 6 mots) avec son article (« la procrastination », « l\'apprentissage espacé », « le rôle du sommeil »…), précis et propre à CETTE citation, sans en révéler le contenu ni la conclusion.',
+          user: `${book ? `Livre : ${book}\n` : ''}${chapter ? `Chapitre : ${chapter}\n` : ''}Citation : « ${text.slice(0, 500)} »\n\nDonne le thème.`,
+          schema: { type: 'object', properties: { theme: { type: 'string' } }, required: ['theme'], additionalProperties: false },
+          maxTokens: 60
         });
-        if (r && r.question && r.question.trim()) recto = r.question.trim();
+        const theme = r && r.theme ? r.theme.trim().replace(/^["«\s]+|[»".\s]+$/g, '') : '';
+        if (theme) recto = `Que pense ${auteur} de ${theme} ?`;
       } catch (_) { /* repli sur la question générique */ }
     }
     const verso = text.trim() + (page ? `\n\n(p. ${page})` : '');
